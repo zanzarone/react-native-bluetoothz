@@ -1,3 +1,5 @@
+package-lock.json
+*.tgz
 # OSX
 #
 .DS_Store

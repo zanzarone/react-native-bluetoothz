@@ -71,7 +71,7 @@ dependencies {
 if (isNewArchitectureEnabled()) {
   react {
     jsRootDir = file("../src/")
-    libraryName = "Bluetoothz"
+    libraryName = "BluetoothZ"
     codegenJavaPackageName = "com.bluetoothz"
   }
 }
