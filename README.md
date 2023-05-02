@@ -1,4 +1,14 @@
-# react-native-bluetoothz
+<!-- ![repository logo](/assets/images/logo.png) -->
+<p align="center">
+  <img
+    alt="react-native-bluetoothz library logo"
+    src="assets/images/logo.png"
+    height="130"
+    style="margin-top: 20px; margin-bottom: 20px;"
+  />
+</p>
+
+# BluetoothZ
 
 native module for access bluetooth functionalities on both Android and iOS
 
