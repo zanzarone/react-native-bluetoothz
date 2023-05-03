@@ -1,17 +1,9 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-// import type {PropsWithChildren} from 'react';
-// import {adapterStatus, startScan} from 'react-native-bluetoothz';
+import React, {useEffect, useState} from 'react';
 import {
   Button,
+  FlatList,
   SafeAreaView,
-  ScrollView,
+  // ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -20,93 +12,11 @@ import {
 } from 'react-native';
 
 import {
-  Colors,
-  // DebugInstructions,
-  Header,
-  // LearnMoreLinks,
-  // ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
-
-// type SectionProps = PropsWithChildren<{
-//   title: string;
-// }>;
-
-// function Section({children, title}: SectionProps): JSX.Element {
-//   const isDarkMode = useColorScheme() === 'dark';
-//   return (
-//     <View style={styles.sectionContainer}>
-//       <Text
-//         style={[
-//           styles.sectionTitle,
-//           {
-//             color: isDarkMode ? Colors.white : Colors.black,
-//           },
-//         ]}>
-//         {title}
-//       </Text>
-//       <Text
-//         style={[
-//           styles.sectionDescription,
-//           {
-//             color: isDarkMode ? Colors.light : Colors.dark,
-//           },
-//         ]}>
-//         {children}
-//       </Text>
-//     </View>
-//   );
-// }
-
-function App(): JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  // async function soca() {
-  //   // const value = await adapterStatus();
-  //   // console.log('ooooooo', value);
-  // }
-
-  // soca();
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
-
-  return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={[backgroundStyle]}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-            flex: 1,
-          }}>
-          <View style={[styles.sectionContainer, {gap: 10, flex: 1}]}>
-            <Text
-              style={[
-                styles.sectionTitle,
-                {
-                  color: isDarkMode ? Colors.white : Colors.black,
-                },
-              ]}>
-              Scan for devices
-            </Text>
-            <Button
-              title="SCAN"
-              onPress={() => {
-                // startScan({});
-              }}></Button>
-          </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
+  // adapterStatus,
+  startScan,
+  Defines,
+  emitter,
+} from 'react-native-bluetoothz';
 
 const styles = StyleSheet.create({
   sectionContainer: {
@@ -126,5 +36,75 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+
+// console.log(adapterStatus());
+interface Device {
+  uuid: string;
+  name: string;
+}
+
+function App(): JSX.Element {
+  const isDarkMode = useColorScheme() === 'dark';
+
+  const backgroundStyle = {
+    backgroundColor: isDarkMode ? '#222' : '#fefefe',
+    flex: 1,
+  };
+
+  const [devices, updateDevices] = useState<Array<Device>>([]);
+
+  const newDeviceFound = (device: Device) => {
+    updateDevices((d: Array<Device>) => [
+      ...d,
+      {uuid: device.uuid, name: device.name},
+    ]);
+  };
+
+  useEffect(() => {
+    // event.on(Defines.BLE_PERIPHERAL_FOUND, newDeviceFound);
+    console.log('AAAAAAAAAAAA', Defines.BLE_PERIPHERAL_FOUND);
+    const sub = emitter.addListener(
+      Defines.BLE_PERIPHERAL_FOUND,
+      newDeviceFound,
+    );
+    // // console.log(DEFINES);
+    return function cleanup() {
+      emitter.removeSubscription(sub);
+    };
+  }, []);
+
+  type ItemProps = {name: string};
+
+  const Item = ({name}: ItemProps) => (
+    <View style={{}}>
+      <Text style={{}}>{name}</Text>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={backgroundStyle}>
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={backgroundStyle.backgroundColor}
+      />
+      <View style={{}}>
+        <Text style={styles.sectionTitle}>Adapter Status</Text>
+      </View>
+      <View style={{minHeight: 200}}>
+        <Text style={styles.sectionTitle}>Scan</Text>
+        <Button
+          title="SCAN"
+          onPress={() => {
+            startScan({});
+          }}></Button>
+        <FlatList
+          data={devices}
+          renderItem={({item}) => <Item name={item.name} />}
+          keyExtractor={item => item.uuid}
+        />
+      </View>
+    </SafeAreaView>
+  );
+}
 
 export default App;

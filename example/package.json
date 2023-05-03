@@ -10,8 +10,10 @@
     "test": "jest"
   },
   "dependencies": {
+    "eventemitter3": "^5.0.1",
     "react": "18.2.0",
-    "react-native": "0.71.7"
+    "react-native": "0.71.7",
+    "react-native-bluetoothz": "^0.1.7"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
