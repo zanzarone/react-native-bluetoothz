@@ -36,21 +36,48 @@ To install the package, simply:
 npm install react-native-bluetoothz
 ```
 
+<div>
+  <img style="vertical-align:middle" src="assets/images/icons8-apple-logo-20.png">
+  <span style="">iOS</span>
+</div>
+
+For the iOS platform, the following steps are required:
+
+- Update pods
+  ```sh
+  cd ios && pod install
+  ```
+- Add [_NSBluetoothAlwaysUsageDescription_](https://developer.apple.com/documentation/bundleresources/information_property_list/nsbluetoothalwaysusagedescription)(mandatory since iOS 13) key in **Info.plist** file.
+
+<div>
+  <img style="vertical-align:middle" src="assets/images/icons8-android-os-20.png">
+  <span style=""> Android</span>
+</div>
+
+For Android platform, the following steps are required:
+
+- _Minimum SDK version_, in top level **build.gradle**, needs to be at least **21**.
+  ```sh
+  ...
+  buildscript {
+   ext {
+       ...
+       minSdkVersion = 21
+   }
+   ...
+  ```
+
 ---
 
-## Usage
+## API
 
-```js
-import { multiply } from 'react-native-bluetoothz';
-
-// ...
-
-const result = await multiply(3, 7);
-```
+---
 
 ## Contributing
 
 See the [contributing guide](CONTRIBUTING.md) to learn how to contribute to the repository and the development workflow.
+
+---
 
 ## License
 
@@ -58,4 +85,8 @@ MIT
 
 ---
 
-Made with [create-react-native-library](https://github.com/callstack/react-native-builder-bob)
+## Attribution
+
+All icons used on this page are provided by [_Icon8_](https://icons8.com/).
+
+---
