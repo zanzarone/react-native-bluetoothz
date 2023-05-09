@@ -1,7 +1,7 @@
 //
 //  BluetoothZ.swift
 //
-//  Created by Zanzarone on 30/03/23.
+//  Created by Zanzarone on 30/03/23. 
 //
 
 import Foundation
@@ -13,6 +13,8 @@ let BLE_ADAPTER_STATUS_INVALID                  : String  = "BLE_ADAPTER_STATUS_
 let BLE_ADAPTER_STATUS_POWERED_ON               : String  = "BLE_ADAPTER_STATUS_POWERED_ON"
 let BLE_ADAPTER_STATUS_POWERED_OFF              : String  = "BLE_ADAPTER_STATUS_POWERED_OFF"
 let BLE_ADAPTER_STATUS_UNKNOW                   : String  = "BLE_ADAPTER_STATUS_UNKNOW"
+let BLE_ADAPTER_SCAN_START                      : String  = "BLE_ADAPTER_SCAN_START"
+let BLE_ADAPTER_SCAN_END                        : String  = "BLE_ADAPTER_SCAN_END"
 let BLE_PERIPHERAL_FOUND                        : String  = "BLE_PERIPHERAL_FOUND"
 let BLE_PERIPHERAL_READY                        : String  = "BLE_PERIPHERAL_READY"
 let BLE_PERIPHERAL_READ_RSSI                    : String  = "BLE_PERIPHERAL_READ_RSSI"
@@ -136,21 +138,13 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
   /// PROPS
   var centralManager        : CBCentralManager? = nil
   var peripherals           : [String:Peripheral] = [:]
-  var scanFilter            : String? = nil
+  var scanFilter            : NSRegularExpression? = nil
+  var allowDuplicates       : Bool?
   
   private func isConnected(uuidString:String) -> Bool {
     return self.peripherals.contains(where: { (key: String, value: Peripheral) -> Bool in
       return key.compare(uuidString) == .orderedSame && value.isConnected()
     })
-  }
-
-  @objc
-  func setup()
-  {
-    /// ("========================>>>> setup")
-    if(centralManager == nil) {
-      self.centralManager =  CBCentralManager(delegate: self, queue: nil)
-    }
   }
   
   @objc
@@ -168,6 +162,8 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
       BLE_ADAPTER_STATUS_POWERED_ON,
       BLE_ADAPTER_STATUS_POWERED_OFF,
       BLE_ADAPTER_STATUS_UNKNOW,
+      BLE_ADAPTER_SCAN_START,
+      BLE_ADAPTER_SCAN_END,
       BLE_PERIPHERAL_FOUND,
       BLE_PERIPHERAL_READY,
       BLE_PERIPHERAL_READ_RSSI,
@@ -198,6 +194,8 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
       BLE_ADAPTER_STATUS_POWERED_ON:BLE_ADAPTER_STATUS_POWERED_ON,
       BLE_ADAPTER_STATUS_POWERED_OFF:BLE_ADAPTER_STATUS_POWERED_OFF,
       BLE_ADAPTER_STATUS_UNKNOW:BLE_ADAPTER_STATUS_UNKNOW,
+      BLE_ADAPTER_SCAN_START:BLE_ADAPTER_SCAN_START,
+      BLE_ADAPTER_SCAN_END:BLE_ADAPTER_SCAN_END,
       BLE_PERIPHERAL_FOUND:BLE_PERIPHERAL_FOUND,
       BLE_PERIPHERAL_READY:BLE_PERIPHERAL_READY,
       BLE_PERIPHERAL_READ_RSSI:BLE_PERIPHERAL_READ_RSSI,
@@ -216,9 +214,18 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
       BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED:BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED
     ]
   }
+
+  @objc
+  func setup()
+  {
+    /// ("========================>>>> setup")
+    if(centralManager == nil) {
+      self.centralManager =  CBCentralManager(delegate: self, queue: nil)
+    }
+  }
   
-  @objc(status:reject:)
-  func status(_ resolve: RCTPromiseResolveBlock, reject:RCTPromiseRejectBlock) -> Void {
+  @objc(statusSync:reject:)
+  func statusSync(_ resolve: RCTPromiseResolveBlock, reject:RCTPromiseRejectBlock) -> Void {
     if let manager = self.centralManager {
 //      resolve(NSNumber(value:manager.state.rawValue))
       switch manager.state {
@@ -234,9 +241,28 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
       reject("status", "could not retrieve status", nil)
     }
   }
+
+  @objc
+  func status() {
+    if let manager = self.centralManager {
+      switch manager.state {
+        case .poweredOff: 
+          self.sendEvent(withName: BLE_ADAPTER_STATUS_DID_UPDATE, body: [ "status": BLE_ADAPTER_STATUS_POWERED_OFF])
+          break
+        case .poweredOn: 
+          self.sendEvent(withName: BLE_ADAPTER_STATUS_DID_UPDATE, body: [ "status": BLE_ADAPTER_STATUS_POWERED_ON])
+          break
+        default:
+          self.sendEvent(withName: BLE_ADAPTER_STATUS_DID_UPDATE, body: [ "status": BLE_ADAPTER_STATUS_UNKNOW])
+          break
+      }
+    }else{
+      self.sendEvent(withName: BLE_ADAPTER_STATUS_DID_UPDATE, body: [ "status": BLE_ADAPTER_STATUS_UNKNOW])
+    }
+  }
   
-  @objc(startScan:filter:)
-  func startScan(_ serviceUUIDs: [String]? = nil, filter:String? = nil)
+  @objc(startScan:filter:options:)
+  func startScan(_ serviceUUIDs: [String]? = nil, filter:String? = nil, options:NSDictionary)
   {
     /// ("========================>>>> startScan")
     var services : [CBUUID] = []
@@ -245,8 +271,17 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
         services.append(CBUUID(string: uuid))
       }
     }
-    self.scanFilter = filter
+    if let pattern = filter
+    {
+      self.scanFilter = try? NSRegularExpression(pattern: pattern)
+    }    
+    if let opt = options as? [String: Any]{
+      if let duplicates = opt["allowDuplicates"] as? Bool {
+        self.allowDuplicates = duplicates
+      }
+    }
     self.centralManager?.scanForPeripherals(withServices: services, options: nil)
+    self.sendEvent(withName: BLE_ADAPTER_SCAN_START, body: nil)
   }
   
   @objc
@@ -254,6 +289,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
   {
     /// ("========================>>>> stopScan")
     self.centralManager?.stopScan()
+    self.sendEvent(withName: BLE_ADAPTER_SCAN_END, body: nil)
   }
     
   @objc(connect:)
@@ -305,6 +341,19 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     let p : Peripheral = self.peripherals[uuid]!
     p.readCharacteristic(charUUID)
   }
+
+  @objc(writeCharacteristicValue:charUUID:value:)
+  func writeCharacteristicValue(_ uuid:String, charUUID:String, value:String)
+  {
+    /// ("========================>>>> readCharacteristicValue")
+    if !self.isConnected(uuidString: uuid) {
+      /// i need to disconnect the current device before attempting a new connection
+      self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
+      return
+    }
+    let p : Peripheral = self.peripherals[uuid]!
+    p.readCharacteristic(charUUID)
+  }
   
   @objc(changeCharacteristicNotification:charUUID:enable:)
   func changeCharacteristicNotification(_ uuid:String, charUUID:String, enable:Bool)
@@ -345,11 +394,13 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     if(peripheral.name != nil)
     {
       var niceFind = true
-      if let pattern = self.scanFilter
+      if let regex = self.scanFilter
       {
         let range = NSRange(location: 0, length: peripheral.identifier.uuidString.count)
-        let regex = try! NSRegularExpression(pattern: pattern)
         niceFind = regex.firstMatch(in: peripheral.identifier.uuidString, options: [], range: range) != nil
+      }
+      if niceFind, let allow = self.allowDuplicates, allow == false  {
+        niceFind = !self.peripherals.keys.contains(peripheral.identifier.uuidString)
       }
       if niceFind {
         let p : Peripheral = Peripheral(peripheral, delegate:self)

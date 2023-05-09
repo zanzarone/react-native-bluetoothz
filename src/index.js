@@ -20,6 +20,7 @@ const BLE = NativeModules.BluetoothZ
 const Defines = {
   CONNECTION_TIMEOUT_MSEC: 10000,
   SCAN_TIMEOUT_MSEC: 8000,
+  DEFAULT_MAX_RETRY_COUNT: 5,
   ...BLE.getConstants(),
 };
 
@@ -29,6 +30,10 @@ module.exports.Defines = Defines;
 let reconnectCount = null;
 let scanWatchDog = null;
 let connectionWatchDog = null;
+let isScanning = false;
+const scanOptions = { allowDuplicates: false };
+
+module.exports.scanOptions = () => Object.freeze(scanOptions);
 
 /// Emettitore degli eventi nativi
 const bleEmitter = new NativeEventEmitter(BLE);
@@ -98,47 +103,48 @@ bleEmitter.addListener(
 /// Inizializzo il modulo nativo
 BLE.setup();
 
+const stopScan = () => {
+  console.log('====> STOP SCAN');
+  BLE.stopScan();
+  clearTimeout(scanWatchDog);
+  scanWatchDog = null;
+  isScanning = false;
+};
+
 /// funzione per ricavare lo stato dell'adattatore
-module.exports.adapterStatus = async () => {
+module.exports.adapterStatusSync = async () => {
   try {
-    return await BLE.status();
+    return await BLE.statusSync();
   } catch (error) {
     return Defines.BLE_ADAPTER_STATUS_UNKNOW;
   }
 };
 
-const stop = ({ onEnd = undefined }) => {
-  console.log('====> STOP SCAN');
-  clearTimeout(scanWatchDog);
-  scanWatchDog = null;
-  BLE.stopScan();
-  if (onEnd) {
-    onEnd();
-  }
-};
+/// funzione per ricavare lo stato dell'adattatore
+module.exports.adapterStatus = () => BLE.status();
 
 /// funzione per iniziare la scansione bluetooth
 module.exports.startScan = ({
   services,
   filter,
+  options,
   timeout = Defines.SCAN_TIMEOUT_MSEC,
-  onEnd = undefined,
 }) => {
-  if (scanWatchDog) {
-    console.log('====> SCAN ALREADY ACTIVE ');
-    return;
+  if (isScanning) {
+    stopScan();
   }
-  BLE.startScan(services, filter);
-  scanWatchDog = setTimeout(() => stop({ onEnd }), timeout);
+  console.log('====> SCAN START');
+  filter = filter ? filter : null;
+  BLE.startScan(services, filter, options ? options : scanOptions);
+  isScanning = true;
+  if (timeout > 0) scanWatchDog = setTimeout(() => stopScan(), timeout);
 };
 
 /// funzione per interrompere la scansione bluetooth
-module.exports.stopScan = ({ onEnd = undefined }) => {
-  stop({ onEnd });
-};
+module.exports.stopScan = () => stopScan();
 
 /// funzione per interrompere la scansione bluetooth
-module.exports.connect = ({ uuid, keepConnection }) => {
+module.exports.connect = ({ uuid, maxRetryCount }) => {
   console.log('====> CONNECT', uuid);
   BLE.connect(uuid);
   clearTimeout(this.connectionTimer);
@@ -147,8 +153,8 @@ module.exports.connect = ({ uuid, keepConnection }) => {
     reconnectCount = null;
     BLE.cancel(uuid);
   }, Defines.CONNECTION_TIMEOUT_MSEC);
-  if (keepConnection && this.autoReconnect === null) {
-    reconnectCount = 5;
+  if (maxRetryCount > 0 && this.autoReconnect === null) {
+    reconnectCount = maxRetryCount;
   }
 };
 

@@ -61,6 +61,8 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
     public static final String BLE_ADAPTER_STATUS_POWERED_ON = "BLE_ADAPTER_STATUS_POWERED_ON";
     public static final String BLE_ADAPTER_STATUS_POWERED_OFF = "BLE_ADAPTER_STATUS_POWERED_OFF";
     public static final String BLE_ADAPTER_STATUS_UNKNOW = "BLE_ADAPTER_STATUS_UNKNOW";
+    public static final String BLE_ADAPTER_SCAN_START = "BLE_ADAPTER_SCAN_START";
+    public static final String BLE_ADAPTER_SCAN_END = "BLE_ADAPTER_SCAN_END";
     public static final String BLE_PERIPHERAL_FOUND = "BLE_PERIPHERAL_FOUND";
     public static final String BLE_PERIPHERAL_READY = "BLE_PERIPHERAL_READY";
     public static final String BLE_PERIPHERAL_CONNECTED = "BLE_PERIPHERAL_CONNECTED";
@@ -317,6 +319,8 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
         constants.put(BLE_ADAPTER_STATUS_POWERED_ON, BLE_ADAPTER_STATUS_POWERED_ON);
         constants.put(BLE_ADAPTER_STATUS_POWERED_OFF, BLE_ADAPTER_STATUS_POWERED_OFF);
         constants.put(BLE_ADAPTER_STATUS_UNKNOW, BLE_ADAPTER_STATUS_UNKNOW);
+        constants.put(BLE_ADAPTER_SCAN_START, BLE_ADAPTER_SCAN_START);
+        constants.put(BLE_ADAPTER_SCAN_END, BLE_ADAPTER_SCAN_END);
         constants.put(BLE_PERIPHERAL_FOUND, BLE_PERIPHERAL_FOUND);
         constants.put(BLE_PERIPHERAL_READY, BLE_PERIPHERAL_READY);
         constants.put(BLE_PERIPHERAL_CONNECTED, BLE_PERIPHERAL_CONNECTED);
@@ -362,11 +366,25 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
                 params.putString("status", BLE_ADAPTER_STATUS_POWERED_OFF);
                 BluetoothzModule.sendEvent(reactContext,BLE_ADAPTER_STATUS_DID_UPDATE, params);
                 break;
+            default:
+                params.putString("status", BLE_ADAPTER_STATUS_UNKNOW);
+                BluetoothzModule.sendEvent(reactContext,BLE_ADAPTER_STATUS_UNKNOW, params);
+                break;
         }
     }
 
     @ReactMethod
-    public void status(Promise promise) {
+    public void status() {
+        WritableMap params = Arguments.createMap();
+        if (this.bluetoothAdapter == null) {
+            sendBleStatus(-1, reactContext);
+            return;
+        }
+        sendBleStatus(bluetoothAdapter.getState(), reactContext);
+    }
+
+    @ReactMethod
+    public void statusSync(Promise promise) {
         if (bluetoothAdapter == null) {
             promise.reject("status", "could not retrieve status");
             return;
@@ -406,6 +424,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
                 }
             }
             this.bluetoothLeScanner.startScan(servicesFilter, settings, mScanCallback);
+            sendEvent(reactContext, BLE_ADAPTER_SCAN_START, null);
         }
     }
 
@@ -413,7 +432,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void stopScan() {
         this.bluetoothLeScanner.stopScan(mScanCallback);
-//        Log.d("SAMUELE","=====> STOP SCAN");
+        sendEvent(reactContext, BLE_ADAPTER_SCAN_END, null);
     }
 
     @SuppressLint("MissingPermission")

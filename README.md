@@ -26,7 +26,6 @@ With this library, you can perform the following operations:
 - Read and write Bluetooth LE characteristics
 - Observe the values of characteristics that support notification/indication mode
 
-
 <hr style='background-color:#00C674'/>
 
 ## Installation
@@ -57,7 +56,7 @@ For the iOS platform, the following steps are required:
 
 For Android platform, the following steps are required:
 
-- _Minimum SDK version_, in top level **build.gradle**, needs to be at least **21**.
+- _Minimum SDK version_, in top level **build.gradle** file, needs to be at least **21**.
   ```sh
   ...
   buildscript {
@@ -68,7 +67,6 @@ For Android platform, the following steps are required:
    ...
   ```
 
-
 <hr style='background-color:#00C674'/>
 
 ## Import
@@ -76,7 +74,7 @@ For Android platform, the following steps are required:
 Import all the library
 
 ```js
-import { * as bleLibrary } from 'react-native-bluetoothz';
+import * as bleLibrary from 'react-native-bluetoothz';
 ```
 
 Import single funcionality
@@ -89,7 +87,6 @@ import { adapterStatus } from 'react-native-bluetoothz';
 
 ## API
 
-
 ### **Get adapter status**
 
 Returns the current state of the Bluetooth adapter.
@@ -97,7 +94,9 @@ Returns the current state of the Bluetooth adapter.
 ```ts
 async function adapterStatus();
 ```
+
 Returned value can be one of the following defines:
+
 - `BLE_ADAPTER_STATUS_POWERED_ON`
 - `BLE_ADAPTER_STATUS_POWERED_OFF`
 - `BLE_ADAPTER_STATUS_INVALID`
@@ -107,18 +106,17 @@ Returned value can be one of the following defines:
 
 Start the scan procedure for discover nearby Bluetooth LE devices
 
-```js
+```ts
 /**
 * @param services - Array of strings. Represents the UUIDs of the services you want to discover.
 * @param filter   - String. The parameter is used to filter devices by name using regular expression passed.
-* @param timeout  - Number. It represents the number of seconds after which the scan is stopped. Passing a negative number means the scan will never stops. Default value is Defines.SCAN_TIMEOUT_MSEC = 10s
+* @param timeout  - Number. It represents the number of seconds after which the scan is stopped. Passing 0(or a negative number) means the scan will never stops. Default value is Defines.SCAN_TIMEOUT_MSEC = 10s
 */
 
-function startScan({ services, filter, timeout = Defines.SCAN_TIMEOUT_MSEC })
+function startScan({ services : Array<string>, filter : string, timeout : number = Defines.SCAN_TIMEOUT_MSEC })
 ```
 
-discovered devices can be observed with [BLE_PERIPHERAL_FOUND](#BLE_PERIPHERAL_FOUND) event.
-
+discovered devices can be observed with [_BLE_PERIPHERAL_FOUND_](#BLE_PERIPHERAL_FOUND) event.
 
 ### **Manually stop scan**
 
@@ -135,15 +133,17 @@ Initiate the connection with the device
 ```js
 /**
 * @param uuid             - String. Represents the UUIDs of the device.
-* @param maxRetryCount    - Number. Represents the maximum number of attempts to establish a connection
+* @param maxRetryCount    - Number. Represents the maximum number of attempts to establish a connection. Default value is Defines.DEFAULT_MAX_RETRY_COUNT = 5
 */
 
-function connect({ uuid, maxRetryCount = 5 })
+function connect({ uuid, maxRetryCount = Defines.DEFAULT_MAX_RETRY_COUNT })
 ```
+
 This events can be observed:
-* [BLE_PERIPHERAL_CONNECTED](#BLE_PERIPHERAL_CONNECTED) if the connection succedeed.
-* [BLE_PERIPHERAL_DISCONNECTED](#BLE_PERIPHERAL_DISCONNECTED) if device disconnect right after connection.
-* [BLE_PERIPHERAL_CONNECT_FAILED](#BLE_PERIPHERAL_CONNECT_FAILED) if the connection fails.
+
+- [BLE_PERIPHERAL_CONNECTED](#BLE_PERIPHERAL_CONNECTED) if the connection succedeed.
+- [BLE_PERIPHERAL_DISCONNECTED](#BLE_PERIPHERAL_DISCONNECTED) if device disconnect right after connection.
+- [BLE_PERIPHERAL_CONNECT_FAILED](#BLE_PERIPHERAL_CONNECT_FAILED) if the connection fails.
 
 ### **Disconnect to device**
 
@@ -156,8 +156,10 @@ Disconnect from a connected device
 
 function disconnect({ uuid })
 ```
+
 This events can be observed:
-* [BLE_PERIPHERAL_DISCONNECTED](#BLE_PERIPHERAL_DISCONNECTED) when device is disconnected.
+
+- [BLE_PERIPHERAL_DISCONNECTED](#BLE_PERIPHERAL_DISCONNECTED) when device is disconnected.
 
 ### **Cancel a pending connection**
 
@@ -170,8 +172,10 @@ Cancel the connection previously started to a device
 
 function cancel({ uuid })
 ```
+
 This events can be observed:
-* [BLE_PERIPHERAL_DISCONNECTED](#BLE_PERIPHERAL_DISCONNECTED) when device is disconnected.
+
+- [BLE_PERIPHERAL_DISCONNECTED](#BLE_PERIPHERAL_DISCONNECTED) when device is disconnected.
 
 ### **Reading characteristic's value**
 
@@ -185,9 +189,11 @@ Cancel the connection previously started to a device
 
 function readCharacteristic({ uuid, charUUID })
 ```
+
 This events can be observed:
-* [BLE_PERIPHERAL_CHARACTERISTIC_READ_OK](#BLE_PERIPHERAL_CHARACTERISTIC_READ_OK) if the read from characteristic was successfull.
-* [BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED](#BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED) if the read from characteristic failed.
+
+- [BLE_PERIPHERAL_CHARACTERISTIC_READ_OK](#BLE_PERIPHERAL_CHARACTERISTIC_READ_OK) if the read from characteristic was successfull.
+- [BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED](#BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED) if the read from characteristic failed.
 
 ### **Change characteristc's notification/indication mode**
 
@@ -202,9 +208,11 @@ Cancel the connection previously started to a device
 
 function changeCharacteristicNotification = ({ uuid, charUUID, enable })
 ```
+
 This events can be observed:
-* [BLE_PERIPHERAL_NOTIFICATION_CHANGED](#BLE_PERIPHERAL_NOTIFICATION_CHANGED) if notification have been enabled or disabled.
-* [BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED](#BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED) if enabling/disabling notification failed.
+
+- [BLE_PERIPHERAL_NOTIFICATION_CHANGED](#BLE_PERIPHERAL_NOTIFICATION_CHANGED) if notification have been enabled or disabled.
+- [BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED](#BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED) if enabling/disabling notification failed.
 
 <hr style='background-color:#00C674'/>
 
@@ -212,263 +220,273 @@ This events can be observed:
 
 The library exposes the following signals that can be observed via an EventListener.
 
-### **BLE_ADAPTER_STATUS_DID_UPDATE** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
+### <a id="BLE_ADAPTER_STATUS_DID_UPDATE"></a> **BLE_ADAPTER_STATUS_DID_UPDATE** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
 
-  This event notifies the change in state of the Bluetooth adapter
+This event notifies the change in state of the Bluetooth adapter
 
-  ```js
-  ...addListener(BLE_ADAPTER_STATUS_DID_UPDATE, status => ...
-  ```
+```ts
+addListener(BLE_ADAPTER_STATUS_DID_UPDATE, (status : string) => {}
+```
 
-  where **status** is one of the following:
+where **status** is one of the following:
 
-  - `BLE_ADAPTER_STATUS_POWERED_ON`
-  - `BLE_ADAPTER_STATUS_POWERED_OFF`
-  - `BLE_ADAPTER_STATUS_INVALID`
-  - `BLE_ADAPTER_STATUS_UNKNOW`
+```js
+BLE_ADAPTER_STATUS_POWERED_ON;
+BLE_ADAPTER_STATUS_POWERED_OFF;
+BLE_ADAPTER_STATUS_INVALID;
+BLE_ADAPTER_STATUS_UNKNOW;
+```
 
+### <a id="BLE_PERIPHERAL_FOUND"></a> **BLE_PERIPHERAL_FOUND** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
 
-### **BLE_PERIPHERAL_FOUND** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
+This event notifies the discovery of a new device
 
-  This event notifies the discovery of a new device
+```js
+...addListener(BLE_PERIPHERAL_FOUND, device => ...
+```
 
-  ```js
-  ...addListener(BLE_PERIPHERAL_FOUND, device => ...
-  ```
+where **device** is composed like:
 
-  where **device** is composed like:
+```ts
+/**
+ * @param uuid - String. Identifier of the device
+ * @param name - String. Local name of the device
+ * @param rssi - Number. Received signal strength of the device
+ */
+const { uuid: string, name: string, rssi: number } = device;
+```
 
-  ```ts
-  /**
-   * @param uuid - String. Identifier of the device
-   * @param name - String. Local name of the device
-   * @param rssi - Number. Received signal strength of the device
-   */
-  const { uuid: string, name: string, rssi: number } = device;
-  ```
+### <a id="BLE_PERIPHERAL_READY"></a> **BLE_PERIPHERAL_READY** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
 
-### **BLE_PERIPHERAL_READY** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
+This event notifies that services and characteristics have been discovered for a certain device
 
-  This event notifies that services and characteristics have been discovered for a certain device
+```js
+...addListener(BLE_PERIPHERAL_READY, device => ...
+```
 
-  ```js
-  ...addListener(BLE_PERIPHERAL_READY, device => ...
-  ```
+where **device** is composed like:
 
-  where **device** is composed like:
+```ts
+/**
+ * @param uuid - String. Identifier of the device
+ */
+const { uuid: string } = device;
+```
 
-  ```ts
-  /**
-   * @param uuid - String. Identifier of the device
-   */
-  const { uuid: string } = device;
-  ```
+### <a id="BLE_PERIPHERAL_CONNECTED"></a> **BLE_PERIPHERAL_CONNECTED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
 
-### **BLE_PERIPHERAL_CONNECTED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
+This event notifies that the device is connected
 
-  This event notifies that the device is connected
+```js
+...addListener(BLE_PERIPHERAL_CONNECTED, device => ...
+```
 
-  ```js
-  ...addListener(BLE_PERIPHERAL_CONNECTED, device => ...
-  ```
+where **device** is composed like:
 
-  where **device** is composed like:
+```ts
+/**
+ * @param uuid - String. Identifier of the device
+ */
+const { uuid: string } = device;
+```
 
-  ```ts
-  /**
-   * @param uuid - String. Identifier of the device
-   */
-  const { uuid: string } = device;
-  ```
+### <a id="BLE_PERIPHERAL_DISCONNECTED"></a> **BLE_PERIPHERAL_DISCONNECTED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
 
-### **BLE_PERIPHERAL_DISCONNECTED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
+This event notifies that the device is disconnected
 
-  This event notifies that the device is disconnected
+```js
+...addListener(BLE_PERIPHERAL_DISCONNECTED, device => ...
+```
 
-  ```js
-  ...addListener(BLE_PERIPHERAL_DISCONNECTED, device => ...
-  ```
+where **device** is composed like:
 
-  where **device** is composed like:
+```ts
+/**
+ * @param uuid - String. Identifier of the device
+ */
+const { uuid: string } = device;
+```
 
-  ```ts
-  /**
-   * @param uuid - String. Identifier of the device
-   */
-  const { uuid: string } = device;
-  ```
+### <a id="BLE_PERIPHERAL_CONNECT_FAILED"></a> **BLE_PERIPHERAL_CONNECT_FAILED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
 
-### **BLE_PERIPHERAL_CONNECT_FAILED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
+This event notifies that the connection failed
 
-  This event notifies that the connection failed
+```js
+...addListener(BLE_PERIPHERAL_CONNECT_FAILED,  => info ...
+```
 
-  ```js
-  ...addListener(BLE_PERIPHERAL_CONNECT_FAILED,  => info ...
-  ```
+where **info** is composed like:
 
-  where **info** is composed like:
+```ts
+/**
+ * @param uuid  - String. Identifier of the device
+ * @param error - String. Reason of the failure.
+ */
+const { uuid: string, error: string } = info;
+```
 
-  ```ts
-  /**
-   * @param uuid  - String. Identifier of the device
-   * @param error - String. Reason of the failure.
-   */
-  const { uuid: string, error: string } = info;
-  ```
-### **BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED** ![ios-logo](/assets/images/icons8-apple-logo-20.png)
-
-  This event notifies that the service's discovering failed
-
-  ```js
-  ...addListener(BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED,  => info ...
-  ```
-
-  where **info** is composed like:
-
-  ```ts
-  /**
-   * @param uuid  - String. Identifier of the device
-   * @param error - String. Reason of the failure.
-   */
-  const { uuid: string, error: string } = info;
-  ```
-### **BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
-
-  This event notifies that a new characteristic have been found.
-
-  ```js
-  ...addListener(BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED,  => data ...
-  ```
-
-  where **data** is composed like:
-
-  ```ts
-  /**
-   * @param uuid      - String. Identifier of the device
-   * @param charUUID  - String. Identifier of the characteristic.
-   */
-  const { uuid: string, charUUID: string } = data;
-  ```
-### **BLE_PERIPHERAL_CHARACTERISTIC_READ_OK** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
-
-  This event notifies that the characteristic's value has been read.
-
-  ```js
-  ...addListener(BLE_PERIPHERAL_CHARACTERISTIC_READ_OK,  => info ...
-  ```
-
-  where **info** is composed like:
-
-  ```ts
-  /**
-   * @param uuid      - String. Identifier of the device
-   * @param charUUID  - String. Identifier of the characteristic.
-   * @param value     - Hex string. An hex string represent the characteristic's value.
-   */
-  const { uuid: string, error: string } = device;
-  ```
-### **BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
-
-  This event notifies that the connection failed
-
-  ```js
-  ...addListener(BLE_PERIPHERAL_CONNECT_FAILED,  => info ...
-  ```
-
-  where **info** is composed like:
-
-  ```ts
-  /**
-   * @param uuid  - String. Identifier of the device
-   * @param error - String. Reason of the failure.
-   */
-  const { uuid: string, error: string } = device;
-  ```
-### **BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
-
-  This event notifies that the connection failed
-
-  ```js
-  ...addListener(BLE_PERIPHERAL_CONNECT_FAILED,  => info ...
-  ```
-
-  where **info** is composed like:
-
-  ```ts
-  /**
-   * @param uuid  - String. Identifier of the device
-   * @param error - String. Reason of the failure.
-   */
-  const { uuid: string, error: string } = device;
-  ```
-### **BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
-
-  This event notifies that the connection failed
-
-  ```js
-  ...addListener(BLE_PERIPHERAL_CONNECT_FAILED,  => info ...
-  ```
-
-  where **info** is composed like:
-
-  ```ts
-  /**
-   * @param uuid  - String. Identifier of the device
-   * @param error - String. Reason of the failure.
-   */
-  const { uuid: string, error: string } = device;
-  ```
-### **BLE_PERIPHERAL_NOTIFICATION_UPDATES** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
-
-  This event notifies that the connection failed
-
-  ```js
-  ...addListener(BLE_PERIPHERAL_CONNECT_FAILED,  => info ...
-  ```
-
-  where **info** is composed like:
-
-  ```ts
-  /**
-   * @param uuid  - String. Identifier of the device
-   * @param error - String. Reason of the failure.
-   */
-  const { uuid: string, error: string } = device;
-  ```
-### **BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
-
-  This event notifies that the connection failed
-
-  ```js
-  ...addListener(BLE_PERIPHERAL_CONNECT_FAILED,  => info ...
-  ```
-
-  where **info** is composed like:
-
-  ```ts
-  /**
-   * @param uuid  - String. Identifier of the device
-   * @param error - String. Reason of the failure.
-   */
-  const { uuid: string, error: string } = device;
-  ```
-### **BLE_PERIPHERAL_NOTIFICATION_CHANGED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
-
-  This event notifies that the connection failed
-
-  ```js
-  ...addListener(BLE_PERIPHERAL_CONNECT_FAILED,  => info ...
-  ```
-
-  where **info** is composed like:
-
-  ```ts
-  /**
-   * @param uuid  - String. Identifier of the device
-   * @param error - String. Reason of the failure.
-   */
-  const { uuid: string, error: string } = device;
-  ```
+### <a id="BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED"></a> **BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED** ![ios-logo](/assets/images/icons8-apple-logo-20.png)
+
+This event notifies that the service's discovering failed
+
+```js
+...addListener(BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED,  => info ...
+```
+
+where **info** is composed like:
+
+```ts
+/**
+ * @param uuid  - String. Identifier of the device
+ * @param error - String. Reason of the failure.
+ */
+const { uuid: string, error: string } = info;
+```
+
+### <a id="BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED"></a> **BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
+
+This event notifies that a new characteristic have been found.
+
+```js
+...addListener(BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED,  => data ...
+```
+
+where **data** is composed like:
+
+```ts
+/**
+ * @param uuid      - String. Identifier of the device
+ * @param charUUID  - String. Identifier of the characteristic.
+ */
+const { uuid: string, charUUID: string } = data;
+```
+
+### <a id="BLE_PERIPHERAL_CHARACTERISTIC_READ_OK"></a> **BLE_PERIPHERAL_CHARACTERISTIC_READ_OK** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
+
+This event notifies that the characteristic's value has been read.
+
+```js
+...addListener(BLE_PERIPHERAL_CHARACTERISTIC_READ_OK,  => info ...
+```
+
+where **info** is composed like:
+
+```ts
+/**
+ * @param uuid      - String. Identifier of the device
+ * @param charUUID  - String. Identifier of the characteristic.
+ * @param value     - Hex string. An hex string represent the characteristic's value.
+ */
+const { uuid: string, error: string } = device;
+```
+
+### <a id="BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED"></a> **BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
+
+This event notifies that the connection failed
+
+```js
+...addListener(BLE_PERIPHERAL_CONNECT_FAILED,  => info ...
+```
+
+where **info** is composed like:
+
+```ts
+/**
+ * @param uuid  - String. Identifier of the device
+ * @param error - String. Reason of the failure.
+ */
+const { uuid: string, error: string } = device;
+```
+
+### <a id="BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK"></a> **BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
+
+This event notifies that the connection failed
+
+```js
+...addListener(BLE_PERIPHERAL_CONNECT_FAILED,  => info ...
+```
+
+where **info** is composed like:
+
+```ts
+/**
+ * @param uuid  - String. Identifier of the device
+ * @param error - String. Reason of the failure.
+ */
+const { uuid: string, error: string } = device;
+```
+
+### <a id="BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED"></a> **BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
+
+This event notifies that the connection failed
+
+```js
+...addListener(BLE_PERIPHERAL_CONNECT_FAILED,  => info ...
+```
+
+where **info** is composed like:
+
+```ts
+/**
+ * @param uuid  - String. Identifier of the device
+ * @param error - String. Reason of the failure.
+ */
+const { uuid: string, error: string } = device;
+```
+
+### <a id="BLE_PERIPHERAL_NOTIFICATION_UPDATES"></a> **BLE_PERIPHERAL_NOTIFICATION_UPDATES** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
+
+This event notifies that the connection failed
+
+```js
+...addListener(BLE_PERIPHERAL_CONNECT_FAILED,  => info ...
+```
+
+where **info** is composed like:
+
+```ts
+/**
+ * @param uuid  - String. Identifier of the device
+ * @param error - String. Reason of the failure.
+ */
+const { uuid: string, error: string } = device;
+```
+
+### <a id="BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED"></a> **BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
+
+This event notifies that the connection failed
+
+```js
+...addListener(BLE_PERIPHERAL_CONNECT_FAILED,  => info ...
+```
+
+where **info** is composed like:
+
+```ts
+/**
+ * @param uuid  - String. Identifier of the device
+ * @param error - String. Reason of the failure.
+ */
+const { uuid: string, error: string } = device;
+```
+
+### <a id="BLE_PERIPHERAL_NOTIFICATION_CHANGED"></a> **BLE_PERIPHERAL_NOTIFICATION_CHANGED** ![ios-logo](/assets/images/icons8-apple-logo-20.png) ![ios-logo](/assets/images/icons8-android-os-20.png)
+
+This event notifies that the connection failed
+
+```js
+...addListener(BLE_PERIPHERAL_CONNECT_FAILED,  => info ...
+```
+
+where **info** is composed like:
+
+```ts
+/**
+ * @param uuid  - String. Identifier of the device
+ * @param error - String. Reason of the failure.
+ */
+const { uuid: string, error: string } = device;
+```
 
 ---
 
