@@ -133,7 +133,7 @@ module.exports.startScan = ({
   if (isScanning) {
     stopScan();
   }
-  console.log('====> SCAN START');
+  console.log('====> SCAN START', scanOptions);
   filter = filter ? filter : null;
   BLE.startScan(services, filter, options ? options : scanOptions);
   isScanning = true;
