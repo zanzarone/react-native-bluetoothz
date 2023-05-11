@@ -33,7 +33,7 @@ let connectionWatchDog = null;
 let isScanning = false;
 const scanOptions = { allowDuplicates: false };
 
-module.exports.scanOptions = () => Object.freeze(scanOptions);
+module.exports.scanOptions = Object.freeze(scanOptions);
 
 /// Emettitore degli eventi nativi
 const bleEmitter = new NativeEventEmitter(BLE);
@@ -133,9 +133,11 @@ module.exports.startScan = ({
   if (isScanning) {
     stopScan();
   }
-  console.log('====> SCAN START', scanOptions);
-  filter = filter ? filter : null;
-  BLE.startScan(services, filter, options ? options : scanOptions);
+  filter = filter ? filter : undefined;
+  services = services ? services : undefined;
+  options = options ? options : scanOptions;
+  console.log('====> SCAN START', options);
+  BLE.startScan(services, filter, options);
   isScanning = true;
   if (timeout > 0) scanWatchDog = setTimeout(() => stopScan(), timeout);
 };
@@ -144,7 +146,10 @@ module.exports.startScan = ({
 module.exports.stopScan = () => stopScan();
 
 /// funzione per interrompere la scansione bluetooth
-module.exports.connect = ({ uuid, maxRetryCount }) => {
+module.exports.connect = ({
+  uuid,
+  maxRetryCount = Defines.DEFAULT_MAX_RETRY_COUNT,
+}) => {
   console.log('====> CONNECT', uuid);
   BLE.connect(uuid);
   clearTimeout(this.connectionTimer);

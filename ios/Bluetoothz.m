@@ -12,13 +12,21 @@
 RCT_EXTERN_METHOD(setup)
 RCT_EXTERN_METHOD(status)
 RCT_EXTERN_METHOD(statusSync:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)rejecter)
-RCT_EXTERN_METHOD(startScan:(NSArray*)serviceUUIDs filter:(NSString*)filter option:(NSDictionary*)option)
+RCT_EXTERN_METHOD(startScan:(NSArray*)serviceUUIDs deviceNameFilter:(NSString*)deviceNameFilter options:(NSDictionary*)options)
 RCT_EXTERN_METHOD(stopScan)
 RCT_EXTERN_METHOD(connect:(NSString*)uuidString)
 RCT_EXTERN_METHOD(cancel:(NSString*)uuidString)
 RCT_EXTERN_METHOD(disconnect:(NSString*)uuidString)
+RCT_EXTERN_METHOD(getAllCharacteristicSync:(NSString*)uuid resolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(readCharacteristicValue:(NSString*)uuid charUUID:(NSString*)charUUID)
 RCT_EXTERN_METHOD(writeCharacteristicValue:(NSString*)uuid charUUID:(NSString*)charUUID value:(NSString*)value)
 RCT_EXTERN_METHOD(changeCharacteristicNotification:(NSString*)uuid charUUID:(NSString*)charUUID enable:(BOOL)enable)
+
+//RCT_EXTERN_METHOD(
+//                  login: (NSString *)email
+//                  password:(NSString *)password
+//                  resolve: (RCTPromiseResolveBlock)resolve
+//                  rejecter:(RCTPromiseRejectBlock)reject
+//                  )
 
 @end

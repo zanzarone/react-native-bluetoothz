@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {
   Button,
-  FlatList,
+  Modal,
   SafeAreaView,
   Image,
   StatusBar,
@@ -42,8 +42,16 @@ function BleBulb({status, requestAdapterStatus}) {
               alignItems: 'center',
               justifyContent: 'center',
               marginHorizontal: 16,
+              flexDirection: 'row',
+              gap: 5,
             }}>
-            <Text style={{color: 'green', fontWeight: 'bold', fontSize: 20}}>
+            <Text style={{color: 'green', fontSize: 20}}>Bluetooth is</Text>
+            <Text
+              style={{
+                color: 'green',
+                fontWeight: 'bold',
+                fontSize: 20,
+              }}>
               On
             </Text>
           </TouchableOpacity>
@@ -52,15 +60,24 @@ function BleBulb({status, requestAdapterStatus}) {
           <TouchableOpacity
             onPress={() => requestAdapterStatus()}
             style={{
-              // height: 40,
-              // width: 40,
-              borderRadius: 5,
+              borderRadius: 20,
               padding: 10,
-              backgroundColor: 'red',
+              backgroundColor: 'coral',
               alignItems: 'center',
               justifyContent: 'center',
+              marginHorizontal: 16,
+              flexDirection: 'row',
+              gap: 5,
             }}>
-            <Text style={{color: 'white', fontWeight: 'bold', fontSize: 20}}>
+            <Text style={{color: 'darkslategray', fontSize: 20}}>
+              Bluetooth is
+            </Text>
+            <Text
+              style={{
+                color: 'darkslategray',
+                fontWeight: 'bold',
+                fontSize: 20,
+              }}>
               Off
             </Text>
           </TouchableOpacity>
@@ -69,15 +86,24 @@ function BleBulb({status, requestAdapterStatus}) {
           <TouchableOpacity
             onPress={() => requestAdapterStatus()}
             style={{
-              // height: 40,
-              // width: 40,
-              borderRadius: 5,
+              borderRadius: 20,
               padding: 10,
-              backgroundColor: 'black',
+              backgroundColor: 'slategray',
               alignItems: 'center',
               justifyContent: 'center',
+              marginHorizontal: 16,
+              flexDirection: 'row',
+              gap: 5,
             }}>
-            <Text style={{color: 'silver', fontWeight: 'bold', fontSize: 20}}>
+            <Text style={{color: 'darkslategray', fontSize: 20}}>
+              Bluetooth is
+            </Text>
+            <Text
+              style={{
+                color: 'darkslategray',
+                fontWeight: 'bold',
+                fontSize: 20,
+              }}>
               Unavailable
             </Text>
           </TouchableOpacity>
@@ -133,19 +159,118 @@ function Section({title, subtitle, children}) {
   );
 }
 
-const Device = ({title, selected, pressed}) => (
-  <TouchableOpacity
-    onPress={() => pressed()}
+const Device = ({
+  disabled,
+  name,
+  uuid,
+  onPress,
+  connected,
+  ready,
+  notifying,
+  onMore,
+}) => (
+  <View
     style={{
-      backgroundColor: selected ? 'skyblue' : 'transparent',
-      padding: 5,
+      minHeight: 70,
+      borderBottomColor: 'gray',
+      borderBottomWidth: 1,
+      alignItems: 'center',
+      gap: 5,
       marginVertical: 1,
       flexDirection: 'row',
       width: '100%',
     }}>
-    <Text style={{}}>{selected ? 'v' : 'x'}</Text>
-    <Text style={{paddingHorizontal: 16}}>{title}</Text>
-  </TouchableOpacity>
+    {!connected && (
+      <View
+        style={{
+          backgroundColor: 'slategray',
+          height: 24,
+          width: 24,
+          borderRadius: 12,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <Text style={{fontSize: 10}}>❔</Text>
+      </View>
+    )}
+    {connected && !ready && (
+      <View
+        style={{
+          backgroundColor: 'lightskyblue',
+          height: 24,
+          width: 24,
+          borderRadius: 12,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <Text style={{fontSize: 10}}>◦</Text>
+      </View>
+    )}
+    {connected && ready && (
+      <View
+        style={{
+          backgroundColor: 'lightgreen',
+          height: 24,
+          width: 24,
+          borderRadius: 12,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <Text style={{fontSize: 10}}>✔️</Text>
+      </View>
+    )}
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        // backgroundColor: 'blue',
+        flex: 1,
+      }}>
+      <TouchableOpacity
+        disabled={disabled}
+        onPress={() => {
+          onPress();
+        }}>
+        <Text style={{fontWeight: 'bold', color: disabled ? 'gray' : 'snow'}}>
+          {name}
+        </Text>
+        <Text
+          style={{
+            fontSize: 9,
+            fontStyle: 'italic',
+            color: disabled ? 'gray' : 'snow',
+          }}>
+          {uuid}
+        </Text>
+      </TouchableOpacity>
+      <View
+        style={{
+          flex: 1,
+          gap: 10,
+          flexDirection: 'row',
+          justifyContent: 'flex-end',
+        }}>
+        {connected && ready && (
+          <TouchableOpacity
+            disabled={disabled}
+            onPress={() => {
+              onMore(uuid);
+            }}
+            style={{
+              // backgroundColor: 'lightgreen',
+              height: 26,
+              width: 26,
+              borderRadius: 10,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            <Text style={{color: 'white', fontSize: 13}}>▶︎</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  </View>
 );
 
 function Header() {
@@ -177,7 +302,7 @@ function Switch({on = false, showStatus = true, onPress}) {
         width: 50,
         height: 30,
         backgroundColor: 'transparent',
-        borderColor: on ? 'lightgreen' : 'tomato',
+        borderColor: on ? 'lightgreen' : 'silver',
         borderWidth: 1,
         borderRadius: 20,
         alignItems: on ? 'flex-end' : 'flex-start',
@@ -187,7 +312,7 @@ function Switch({on = false, showStatus = true, onPress}) {
         style={{
           width: 24,
           height: 24,
-          backgroundColor: on ? 'lightgreen' : 'tomato',
+          backgroundColor: on ? 'lightgreen' : 'silver',
           borderRadius: 12,
           marginEnd: on ? 2 : 0,
           marginStart: on ? 0 : 2,
@@ -195,7 +320,8 @@ function Switch({on = false, showStatus = true, onPress}) {
           alignItems: 'center',
         }}>
         {showStatus && (
-          <Text style={{fontSize: 9, fontWeight: 'bold', color: 'royalblue'}}>
+          <Text
+            style={{fontSize: 9, fontWeight: 'bold', color: 'darkslategray'}}>
             {on ? 'ON' : 'OFF'}
           </Text>
         )}
@@ -204,7 +330,8 @@ function Switch({on = false, showStatus = true, onPress}) {
   );
 }
 
-export default function Home() {
+export default function Home({route, navigation}) {
+  const [isScanning, scan] = useState(false);
   const [bleStatus, setBLEStatus] = useState(
     BluetoothZ.Defines.BLE_ADAPTER_STATUS_UNKNOW,
   );
@@ -212,8 +339,8 @@ export default function Home() {
   const [allowDuplicates, setAllowDup] = useState(
     BluetoothZ.scanOptions.allowDuplicates,
   );
-  const [isScanning, scan] = useState(false);
-  const [filter, setFilter] = useState('');
+  const [filter, setFilter] = useState('PC8');
+  const [modal, setModal] = useState(undefined);
 
   useEffect(() => {
     console.log('=================>>>>>>>>>>>> ON');
@@ -226,7 +353,58 @@ export default function Home() {
     const deviceFoundListener = BluetoothZ.emitter.addListener(
       BluetoothZ.Defines.BLE_PERIPHERAL_FOUND,
       ({uuid, name, rssi}) => {
-        setDevices(old => [...old, {uuid, name, rssi, selected: false}]);
+        setDevices(old => [
+          ...old,
+          {uuid, name, rssi, connected: false, ready: false},
+        ]);
+      },
+    );
+    const scanEndListener = BluetoothZ.emitter.addListener(
+      BluetoothZ.Defines.BLE_ADAPTER_SCAN_END,
+      () => {
+        scan(false);
+      },
+    );
+    const deviceConnectedListener = BluetoothZ.emitter.addListener(
+      BluetoothZ.Defines.BLE_PERIPHERAL_CONNECTED,
+      ({uuid}) => {
+        console.log('QUIIIIIII');
+        setDevices(old => {
+          return old.map(d => {
+            console.log('QUIIIIIII 2');
+            if (d.uuid === uuid) {
+              console.log('QUIIIIIII 3');
+              return {...d, connected: true};
+            }
+            return d;
+          });
+        });
+      },
+    );
+    const deviceDisconnectedListener = BluetoothZ.emitter.addListener(
+      BluetoothZ.Defines.BLE_PERIPHERAL_DISCONNECTED,
+      ({uuid}) => {
+        setDevices(old => {
+          return old.map(d => {
+            if (d.uuid === uuid) {
+              return {...d, connected: false, ready: false};
+            }
+            return d;
+          });
+        });
+      },
+    );
+    const deviceReadyListener = BluetoothZ.emitter.addListener(
+      BluetoothZ.Defines.BLE_PERIPHERAL_READY,
+      ({uuid}) => {
+        setDevices(old => {
+          return old.map(d => {
+            if (d.uuid === uuid) {
+              return {...d, ready: true};
+            }
+            return d;
+          });
+        });
       },
     );
     BluetoothZ.adapterStatus();
@@ -234,137 +412,203 @@ export default function Home() {
       console.log('=================>>>>>>>>>>>> OFF');
       statusListener?.remove();
       deviceFoundListener?.remove();
+      deviceConnectedListener?.remove();
+      deviceDisconnectedListener?.remove();
+      deviceReadyListener?.remove();
+      scanEndListener?.remove();
     };
   }, []);
 
   return (
-    <SafeAreaView style={{backgroundColor: 'royalblue', flex: 1}}>
-      <Header />
-      <ScrollView>
-        <Section
-          title={'Adapter status'}
-          subtitle={'You can press the button to retrieve the status'}>
-          <BleBulb
-            status={bleStatus}
-            requestAdapterStatus={async () => {
-              const {status} = await BluetoothZ.adapterStatusSync();
-              setBLEStatus(status);
+    <View style={{backgroundColor: 'darkslategray', flex: 1}}>
+      <SafeAreaView>
+        <Header />
+      </SafeAreaView>
+      <Section
+        title={'Adapter status'}
+        subtitle={'You can press the button to retrieve the status'}>
+        <BleBulb
+          status={bleStatus}
+          requestAdapterStatus={async () => {
+            const {status} = await BluetoothZ.adapterStatusSync();
+            setBLEStatus(status);
+          }}
+        />
+      </Section>
+      {/* <ScrollView> */}
+      <Section
+        title={'Scan devices'}
+        subtitle={'You can press the button to retrieve the status'}>
+        <View
+          style={{
+            flexDirection: 'row',
+            width: '100%',
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 16,
+            gap: 10,
+          }}>
+          <Text style={{color: 'snow'}}>Filter:</Text>
+          <TextInput
+            value={filter}
+            onChangeText={setFilter}
+            placeholder="empty"
+            placeholderTextColor="dimgray"
+            style={{
+              padding: 8,
+              flex: 1,
+              color: 'white',
+              color: 'darkslategray',
+              backgroundColor: 'gainsboro',
+              borderRadius: 10,
+              minHeight: 40,
             }}
           />
-        </Section>
-        <Section
-          title={'Scan devices'}
-          subtitle={'You can press the button to retrieve the status'}>
-          <View
-            style={{
-              flexDirection: 'row',
-              width: '100%',
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingHorizontal: 16,
-              gap: 10,
-            }}>
-            <Text style={{color: 'snow'}}>Allow duplicates:</Text>
-            <Switch
-              on={allowDuplicates}
-              onPress={() => {
-                setAllowDup(old => !old);
-              }}
-            />
-            <TouchableOpacity
-              onPress={() => {
+        </View>
+        <View
+          style={{
+            flexDirection: 'row',
+            width: '100%',
+            // alignItems: 'center',
+            // justifyContent: 'center',
+            paddingHorizontal: 10,
+            gap: 10,
+          }}>
+          {/* <Text style={{color: 'snow'}}>Allow duplicates:</Text>
+          <Switch
+            on={allowDuplicates}
+            onPress={() => {
+              setAllowDup(old => !old);
+            }}
+          /> */}
+          <TouchableOpacity
+            onPress={() => {
+              if (!isScanning) {
                 setDevices([]);
-                console.log('mandoooo', filter);
-                BluetoothZ.startScan({allowDuplicates, filter});
-              }}
-              style={{
-                backgroundColor: 'navy',
-                padding: 10,
-                borderRadius: 20,
-                flex: 1,
-                alignItems: 'center',
-              }}>
-              <Text style={{color: 'white', fontSize: 16, fontWeight: 'bold'}}>
-                Start scan
-              </Text>
-            </TouchableOpacity>
-          </View>
-          <View
+                BluetoothZ.startScan({options: {allowDuplicates}, filter});
+              } else {
+                BluetoothZ.stopScan();
+              }
+              scan(old => !old);
+            }}
             style={{
-              flexDirection: 'row',
-              width: '100%',
+              borderRadius: 20,
+              padding: 10,
+              backgroundColor: !isScanning ? 'palegreen' : 'crimson',
               alignItems: 'center',
               justifyContent: 'center',
-              paddingHorizontal: 16,
-              gap: 10,
+              flex: 1,
+              // marginHorizontal: 16,
+              flexDirection: 'row',
+              gap: 5,
             }}>
-            <Text style={{color: 'snow'}}>Filter:</Text>
-            <TextInput
-              value={filter}
-              onChangeText={setFilter}
-              placeholder="empty"
-              placeholderTextColor="dimgray"
+            <Text style={{color: isScanning ? 'snow' : 'green', fontSize: 18}}>
+              {isScanning ? 'Stop' : 'Start'}
+            </Text>
+            <Text
               style={{
-                padding: 8,
-                flex: 1,
-                backgroundColor: 'snow',
-                color: 'white',
-                borderRadius: 5,
-                color: 'navy',
-              }}
-            />
-          </View>
-          <ScrollView style={{height: 150, width: '100%'}}>
+                color: isScanning ? 'snow' : 'green',
+                fontWeight: 'bold',
+                fontSize: 18,
+              }}>
+              Scan
+            </Text>
+          </TouchableOpacity>
+          {/* <TouchableOpacity
+            onPress={() => requestAdapterStatus()}
+            style={{
+              borderRadius: 18,
+              padding: 10,
+              backgroundColor: 'lightblue',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 1,
+              // marginHorizontal: 16,
+              flexDirection: 'row',
+              gap: 5,
+            }}>
+            <Text style={{color: 'darkslategray', fontSize: 18}}>Scan</Text>
+            <Text
+              style={{
+                color: 'darkslategray',
+                fontWeight: 'bold',
+                fontSize: 18,
+              }}>
+              Settings
+            </Text>
+          </TouchableOpacity> */}
+          {/* <TouchableOpacity
+            onPress={() => {
+              if (!isScanning) {
+                setDevices([]);
+                BluetoothZ.startScan({options: {allowDuplicates}, filter});
+              } else {
+                BluetoothZ.stopScan();
+              }
+              scan(old => !old);
+            }}
+            style={{
+              backgroundColor: !isScanning ? 'palegreen' : 'crimson',
+              padding: 10,
+              borderRadius: 20,
+              flex: 1,
+              alignItems: 'center',
+            }}>
+            <Text
+              style={{
+                color: isScanning ? 'snow' : 'green',
+                fontSize: 16,
+              }}>
+              {isScanning ? 'Stop scan' : 'Start scan'}
+            </Text>
+          </TouchableOpacity> */}
+        </View>
+        <View
+          style={{
+            width: '100%',
+            paddingHorizontal: 16,
+          }}>
+          <ScrollView
+            style={{
+              width: '100%',
+              // backgroundColor: 'red',
+            }}>
             {devices.map((d, index) => {
               return (
                 <Device
-                  title={d.name}
-                  selected={d.selected}
+                  disabled={isScanning}
+                  name={d.name}
+                  uuid={d.uuid}
+                  connected={d.connected}
+                  ready={d.ready}
                   key={`${d.uuid}${index}`}
-                  pressed={() =>
-                    setDevices(old => {
-                      return old.map(dev => {
-                        if (dev.uuid === d.uuid)
-                          return {...dev, selected: !dev.selected};
-                        return dev;
-                      });
-                    })
-                  }
+                  onMore={async uuid => {
+                    const res = await BluetoothZ.getAllCharacteristic({
+                      uuid: d.uuid,
+                    });
+                    navigation.push('Characteristics', {
+                      data: {
+                        characteristics: res.characteristics,
+                        name: d.name,
+                        uuid: d.uuid,
+                      },
+                    });
+                  }}
+                  onPress={() => {
+                    if (!d.connected) {
+                      BluetoothZ.connect({uuid: d.uuid});
+                    } else {
+                      BluetoothZ.disconnect({uuid: d.uuid});
+                    }
+                  }}
                 />
               );
             })}
+            <View style={{minHeight: 600}} />
           </ScrollView>
-          {/* <FlatList
-            data={devices}
-            style={{
-              width: '100%',
-            }}
-            renderItem={({item}) => <Device title={item.name} />}
-            keyExtractor={item => item.id}
-          /> */}
-        </Section>
-        {devices.some(d => d.selected) && (
-          <Section title={'Connect to device'} subtitle={'Connect devices'}>
-            <TouchableOpacity
-              onPress={() => {
-                setDevices([]);
-                console.log('mandoooo', filter);
-                BluetoothZ.startScan({allowDuplicates, filter});
-              }}
-              style={{
-                backgroundColor: 'navy',
-                padding: 10,
-                borderRadius: 20,
-                flex: 1,
-                alignItems: 'center',
-              }}>
-              <Text style={{color: 'white', fontSize: 16, fontWeight: 'bold'}}>
-                Connect
-              </Text>
-            </TouchableOpacity>
-          </Section>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+        </View>
+        {/* </ScrollView> */}
+      </Section>
+    </View>
   );
 }

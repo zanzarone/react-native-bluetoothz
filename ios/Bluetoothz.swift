@@ -40,6 +40,13 @@ public extension Data {
             result.append(Self.hexAlphabet[Int(value % 0x10)])
         })
     }
+    
+    var bytes: [UInt8] {
+        var byteArray = [UInt8](repeating: 0, count: self.count)
+        self.copyBytes(to: &byteArray, count: self.count)
+        return byteArray
+    }
+
 }
 
 class Peripheral {
@@ -61,7 +68,7 @@ class Peripheral {
     return connected
   }
   
-  func updateStatus(_ connected:Bool) {
+  func setConnected(_ connected:Bool) {
     self.connected = connected
   }
   
@@ -72,6 +79,10 @@ class Peripheral {
   func servicesDiscovered() -> Int {
     return services.count
   }
+    
+    func allCharacteristics() -> [String] {
+        return self.characteristics.keys.reversed()
+    }
   
   func setServicesAndDiscoverCharacteristics(_ s:[CBService]){
     for i in 0..<s.count {
@@ -138,7 +149,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
   /// PROPS
   var centralManager        : CBCentralManager? = nil
   var peripherals           : [String:Peripheral] = [:]
-  var scanFilter            : NSRegularExpression? = nil
+  var scanFilter            : String? = nil
   var allowDuplicates       : Bool?
   
   private func isConnected(uuidString:String) -> Bool {
@@ -151,7 +162,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
   override static func requiresMainQueueSetup() -> Bool
   {
     /// ("========================>>>> requiresMainQueueSetup")
-    return false;
+    return true;
   }
   
   override func supportedEvents() -> [String]!
@@ -224,7 +235,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     }
   }
   
-  @objc(statusSync:reject:)
+    @objc
   func statusSync(_ resolve: RCTPromiseResolveBlock, reject:RCTPromiseRejectBlock) -> Void {
     if let manager = self.centralManager {
 //      resolve(NSNumber(value:manager.state.rawValue))
@@ -261,8 +272,8 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     }
   }
   
-  @objc(startScan:filter:options:)
-  func startScan(_ serviceUUIDs: [String]? = nil, filter:String? = nil, options:NSDictionary)
+    @objc
+  func startScan(_ serviceUUIDs: [String]? = nil, deviceNameFilter:String? = nil, options:NSDictionary)
   {
     /// ("========================>>>> startScan")
     var services : [CBUUID] = []
@@ -271,20 +282,24 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
         services.append(CBUUID(string: uuid))
       }
     }
-    if let pattern = filter
-    {
-      self.scanFilter = try? NSRegularExpression(pattern: pattern)
-    }    
+    self.scanFilter = nil
+    if let pattern = deviceNameFilter {
+      self.scanFilter = pattern
+    }
+    self.allowDuplicates = false
     if let opt = options as? [String: Any]{
+      print("SOOOOOOOKA - options 1 - ", opt)
       if let duplicates = opt["allowDuplicates"] as? Bool {
+      print("SOOOOOOOKA - options 2 - ", duplicates)
         self.allowDuplicates = duplicates
       }
     }
+    self.peripherals.removeAll()
     self.centralManager?.scanForPeripherals(withServices: services, options: nil)
     self.sendEvent(withName: BLE_ADAPTER_SCAN_START, body: nil)
   }
   
-  @objc
+    @objc
   func stopScan()
   {
     /// ("========================>>>> stopScan")
@@ -292,7 +307,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     self.sendEvent(withName: BLE_ADAPTER_SCAN_END, body: nil)
   }
     
-  @objc(connect:)
+    @objc
   func connect(_ uuidString: String)
   {
     print ("SAMU - ========================>>>> connect")
@@ -305,7 +320,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     self.centralManager?.connect(p, options: nil)
   }
   
-  @objc(cancel:)
+    @objc
   func cancel(_ uuidString: String)
   {
     print("SAMU - 1")
@@ -317,7 +332,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     self.centralManager?.cancelPeripheralConnection(p)
   }
   
-  @objc(disconnect:)
+    @objc
   func disconnect(_ uuidString: String)
   {
     print("SAMU 14 ========================>>>> disconnect")
@@ -328,8 +343,20 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     let p : Peripheral = self.peripherals[uuidString]!
     self.centralManager?.cancelPeripheralConnection(p.getGATTServer())
   }
+    
+    
+    @objc
+    func getAllCharacteristicSync(_ uuid:String, resolve: RCTPromiseResolveBlock, rejecter:RCTPromiseRejectBlock) -> Void {
+        if !self.isConnected(uuidString: uuid) {
+          /// i need to disconnect the current device before attempting a new connection
+            rejecter("status", "peripheral not found with uuid:\(uuid)", nil)
+            return
+        }
+        let p : Peripheral = self.peripherals[uuid]!
+        resolve( ["characteristics":  p.allCharacteristics()] )
+    }
   
-  @objc(readCharacteristicValue:charUUID:)
+    @objc
   func readCharacteristicValue(_ uuid:String, charUUID:String)
   {
     /// ("========================>>>> readCharacteristicValue")
@@ -342,7 +369,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     p.readCharacteristic(charUUID)
   }
 
-  @objc(writeCharacteristicValue:charUUID:value:)
+    @objc
   func writeCharacteristicValue(_ uuid:String, charUUID:String, value:String)
   {
     /// ("========================>>>> readCharacteristicValue")
@@ -355,7 +382,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     p.readCharacteristic(charUUID)
   }
   
-  @objc(changeCharacteristicNotification:charUUID:enable:)
+    @objc
   func changeCharacteristicNotification(_ uuid:String, charUUID:String, enable:Bool)
   {
     if !self.isConnected(uuidString: uuid) {
@@ -391,22 +418,24 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
   
   func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber)
   {
-    if(peripheral.name != nil)
+    guard let name = peripheral.name else { 
+      return
+    }
+    var niceFind = true
+    if let pattern = self.scanFilter
     {
-      var niceFind = true
-      if let regex = self.scanFilter
-      {
-        let range = NSRange(location: 0, length: peripheral.identifier.uuidString.count)
-        niceFind = regex.firstMatch(in: peripheral.identifier.uuidString, options: [], range: range) != nil
-      }
-      if niceFind, let allow = self.allowDuplicates, allow == false  {
-        niceFind = !self.peripherals.keys.contains(peripheral.identifier.uuidString)
-      }
-      if niceFind {
-        let p : Peripheral = Peripheral(peripheral, delegate:self)
-        self.peripherals[peripheral.identifier.uuidString] = p
-        self.sendEvent(withName: BLE_PERIPHERAL_FOUND, body: ["uuid":  peripheral.identifier.uuidString , "name":  peripheral.name!, "rssi": RSSI])
-      }
+//        print("SOOOOOOOKA - niceFind 0 - ",peripheral.identifier.uuidString , pattern, peripheral.identifier.uuidString.range(of: pattern, options: .caseInsensitive))
+      niceFind = name.range(of: pattern, options: .caseInsensitive) != nil
+    }
+    print("SOOOOOOOKA - niceFind 1 - ", niceFind)
+    if niceFind, let allow = self.allowDuplicates, allow == false  {
+      niceFind = !self.peripherals.keys.contains(peripheral.identifier.uuidString)
+    }
+    print("SOOOOOOOKA - niceFind 2 - ", niceFind)
+    if niceFind {
+      let p : Peripheral = Peripheral(peripheral, delegate:self)
+      self.peripherals[peripheral.identifier.uuidString] = p
+      self.sendEvent(withName: BLE_PERIPHERAL_FOUND, body: ["uuid":  peripheral.identifier.uuidString , "name":  peripheral.name!, "rssi": RSSI])
     }
   }
   
@@ -415,7 +444,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     print("SAMU ----- didConnect \(peripheral.identifier.uuidString)")
     self.sendEvent(withName: BLE_PERIPHERAL_CONNECTED, body: ["uuid": peripheral.identifier.uuidString])
     if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
-      p.updateStatus(true)
+      p.setConnected(true)
       p.discoverServices([])
     }
   }
@@ -487,7 +516,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
         return
       }
       if let data = characteristic.value{
-        self.sendEvent(withName: p.isNotifying(charUUID) ? BLE_PERIPHERAL_NOTIFICATION_UPDATES : BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, body: ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": data.hexStringEncoded()])
+        self.sendEvent(withName: p.isNotifying(charUUID) ? BLE_PERIPHERAL_NOTIFICATION_UPDATES : BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, body: ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": data.bytes])
       }else{
         self.sendEvent(withName: p.isNotifying(charUUID) ? BLE_PERIPHERAL_NOTIFICATION_UPDATES : BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, body: ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": nil])
       }
