@@ -313,7 +313,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     print ("SAMU - ========================>>>> connect")
     /// i'm already connected to a device
     if self.isConnected(uuidString: uuidString) {
-      print ("SAMU - ========================>>>> connect - isConnected")
+      self.sendEvent(withName: BLE_PERIPHERAL_CONNECT_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
       return
     }
     let p = self.peripherals[uuidString]!.getGATTServer()
@@ -325,7 +325,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
   {
     print("SAMU - 1")
     if !self.isConnected(uuidString: uuidString) {
-      print ("SAMU - ========================>>>> connect - !isConnected")
+      self.sendEvent(withName: BLE_PERIPHERAL_DISCONNECT_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
       return
     }
     let p = self.peripherals[uuidString]!.getGATTServer()
@@ -337,7 +337,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
   {
     print("SAMU 14 ========================>>>> disconnect")
     if !self.isConnected(uuidString: uuidString) {
-      /// i need to disconnect the current device before attempting a new connection
+      self.sendEvent(withName: BLE_PERIPHERAL_DISCONNECT_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
       return
     }
     let p : Peripheral = self.peripherals[uuidString]!
@@ -349,7 +349,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     func getAllCharacteristicSync(_ uuid:String, resolve: RCTPromiseResolveBlock, rejecter:RCTPromiseRejectBlock) -> Void {
         if !self.isConnected(uuidString: uuid) {
           /// i need to disconnect the current device before attempting a new connection
-            rejecter("status", "peripheral not found with uuid:\(uuid)", nil)
+            rejecter("error", "peripheral not found with uuid:\(uuid)", nil)
             return
         }
         let p : Peripheral = self.peripherals[uuid]!
@@ -362,7 +362,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     /// ("========================>>>> readCharacteristicValue")
     if !self.isConnected(uuidString: uuid) {
       /// i need to disconnect the current device before attempting a new connection
-      self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
+      self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "peripheral not found with uuid:\(uuid)"])
       return
     }
     let p : Peripheral = self.peripherals[uuid]!
@@ -370,16 +370,16 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
   }
 
     @objc
-  func writeCharacteristicValue(_ uuid:String, charUUID:String, value:String)
+  func writeCharacteristicValue(_ uuid:String, charUUID:String, value:NSArray)
   {
     /// ("========================>>>> readCharacteristicValue")
     if !self.isConnected(uuidString: uuid) {
       /// i need to disconnect the current device before attempting a new connection
-      self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
+      self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": uuid, "charUUID": charUUID,  "error": "peripheral not found with uuid:\(uuid)"])
       return
     }
     let p : Peripheral = self.peripherals[uuid]!
-    p.readCharacteristic(charUUID)
+    p.writeCharacteristic(charUUID, value: value)
   }
   
     @objc
@@ -387,7 +387,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
   {
     if !self.isConnected(uuidString: uuid) {
       /// i need to disconnect the current device before attempting a new connection
-      self.sendEvent(withName: BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
+      self.sendEvent(withName: BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "peripheral not found with uuid:\(uuid)"])
       return
     }
     let p : Peripheral = self.peripherals[uuid]!
@@ -422,9 +422,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
       return
     }
     var niceFind = true
-    if let pattern = self.scanFilter
-    {
-//        print("SOOOOOOOKA - niceFind 0 - ",peripheral.identifier.uuidString , pattern, peripheral.identifier.uuidString.range(of: pattern, options: .caseInsensitive))
+    if let pattern = self.scanFilter {
       niceFind = name.range(of: pattern, options: .caseInsensitive) != nil
     }
     print("SOOOOOOOKA - niceFind 1 - ", niceFind)
@@ -522,6 +520,22 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
       }
     }
   }
+    
+//    func peripheral:(CBPeripheral *)peripheral didWriteValueForCharacteristic:(CBCharacteristic *)characteristic error:(nullable NSError *)error
+    func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
+          let charUUID = characteristic.uuid.uuidString
+          if let err = error {
+              self.sendEvent(withName:  BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": peripheral.identifier.uuidString, "charUUID":charUUID, "error": err.localizedDescription])
+            return
+          }
+          if let data = characteristic.value{
+            self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, body: ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": data.bytes])
+          }else{
+            self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, body: ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": nil])
+          }
+        }
+    }
   
   func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?){
     self.sendEvent(withName:  BLE_PERIPHERAL_READ_RSSI, body: ["uuid": peripheral.identifier.uuidString, "rssi": RSSI])

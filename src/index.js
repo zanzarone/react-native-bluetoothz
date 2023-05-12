@@ -176,9 +176,24 @@ module.exports.disconnect = ({ uuid }) => {
 };
 
 /// funzione per interrompere la scansione bluetooth
+module.exports.getAllCharacteristic = async ({ uuid }) => {
+  try {
+    console.log('aaaaaaaa', uuid);
+    return await BLE.getAllCharacteristicSync(uuid);
+  } catch (error) {
+    return [];
+  }
+};
+
+/// funzione per interrompere la scansione bluetooth
 module.exports.readCharacteristic = ({ uuid, charUUID }) => {
   console.log('====> READ', charUUID);
   BLE.readCharacteristicValue(uuid, charUUID);
+};
+/// funzione per interrompere la scansione bluetooth
+module.exports.writeCharacteristic = ({ uuid, charUUID, value }) => {
+  console.log('====> WRITE', charUUID);
+  BLE.writeCharacteristicValue(uuid, charUUID, value);
 };
 
 /// funzione per interrompere la scansione bluetooth

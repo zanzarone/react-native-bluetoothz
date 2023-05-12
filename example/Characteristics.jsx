@@ -39,7 +39,7 @@ function Operation({details, onDismiss, onRead, onWrite, onIndicationUpdates}) {
     const charReadListener = emitter.addListener(
       Defines.BLE_PERIPHERAL_CHARACTERISTIC_READ_OK,
       ({uuid, charUUID, value}) => {
-        console.log('================================ aaaa+++++++++++', value);
+        console.log('================================ READ +++++++++++', value);
         setReadValue({raw: value, string: String.fromCharCode(...value)});
       },
     );
@@ -53,10 +53,33 @@ function Operation({details, onDismiss, onRead, onWrite, onIndicationUpdates}) {
         }, 3000);
       },
     );
+    const charWriteListener = emitter.addListener(
+      Defines.BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK,
+      ({uuid, charUUID}) => {
+        console.log(
+          '================================ WRITE +++++++++++',
+          uuid,
+          charUUID,
+        );
+        // setReadValue({raw: value, string: String.fromCharCode(...value)});
+      },
+    );
+
+    const charWriteFailedListener = emitter.addListener(
+      Defines.BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED,
+      ({uuid, charUUID, error}) => {
+        setError(error);
+        setTimeout(() => {
+          setError(undefined);
+        }, 3000);
+      },
+    );
     return function cleanUp() {
       console.log('=================>>>>>>>>>>>> OFF');
       charReadListener?.remove();
       charReadFailedListener?.remove();
+      charWriteListener?.remove();
+      charWriteFailedListener?.remove();
     };
   }, []);
 

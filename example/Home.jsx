@@ -12,9 +12,12 @@ import {
   View,
   TextInput,
   ScrollView,
+  Platform,
+  Linking,
 } from 'react-native';
 
 import * as BluetoothZ from 'react-native-bluetoothz';
+import {requestPermissions, Permission} from './utils/androidPermissions';
 
 function BleBulb({status, requestAdapterStatus}) {
   // console.log(status);
@@ -174,60 +177,63 @@ const Device = ({
       minHeight: 70,
       borderBottomColor: 'gray',
       borderBottomWidth: 1,
-      alignItems: 'center',
+      // alignItems: 'center',
       gap: 5,
       marginVertical: 1,
       flexDirection: 'row',
       width: '100%',
     }}>
-    {!connected && (
-      <View
-        style={{
-          backgroundColor: 'slategray',
-          height: 24,
-          width: 24,
-          borderRadius: 12,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-        <Text style={{fontSize: 10}}>❔</Text>
-      </View>
-    )}
-    {connected && !ready && (
-      <View
-        style={{
-          backgroundColor: 'lightskyblue',
-          height: 24,
-          width: 24,
-          borderRadius: 12,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-        <Text style={{fontSize: 10}}>◦</Text>
-      </View>
-    )}
-    {connected && ready && (
-      <View
-        style={{
-          backgroundColor: 'lightgreen',
-          height: 24,
-          width: 24,
-          borderRadius: 12,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-        <Text style={{fontSize: 10}}>✔️</Text>
-      </View>
-    )}
+    <View style={{justifyContent: 'center'}}>
+      {!connected && (
+        <View
+          style={{
+            backgroundColor: 'slategray',
+            height: 24,
+            width: 24,
+            borderRadius: 12,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+          <Text style={{fontSize: 10}}>❔</Text>
+        </View>
+      )}
+      {connected && !ready && (
+        <View
+          style={{
+            backgroundColor: 'lightskyblue',
+            height: 24,
+            width: 24,
+            borderRadius: 12,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+          <Text style={{fontSize: 10}}>◦</Text>
+        </View>
+      )}
+      {connected && ready && (
+        <View
+          style={{
+            backgroundColor: 'lightgreen',
+            height: 24,
+            width: 24,
+            borderRadius: 12,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+          <Text style={{fontSize: 10}}>✔️</Text>
+        </View>
+      )}
+    </View>
     <View
       style={{
         flexDirection: 'row',
-        alignItems: 'center',
+        // alignItems: 'center',
         justifyContent: 'space-between',
-        // backgroundColor: 'blue',
+        // height: '100%',
         flex: 1,
       }}>
       <TouchableOpacity
+        style={{flex: 2, justifyContent: 'center'}}
         disabled={disabled}
         onPress={() => {
           onPress();
@@ -249,9 +255,10 @@ const Device = ({
           flex: 1,
           gap: 10,
           flexDirection: 'row',
+          alignItems: 'center',
           justifyContent: 'flex-end',
         }}>
-        {connected && ready && (
+        {true && (
           <TouchableOpacity
             disabled={disabled}
             onPress={() => {
@@ -277,6 +284,7 @@ function Header() {
   return (
     <View
       style={{
+        marginTop: Platform.OS === 'android' ? 10 : 0,
         alignItems: 'center',
         gap: 5,
       }}>
@@ -327,6 +335,31 @@ function Switch({on = false, showStatus = true, onPress}) {
         )}
       </View>
     </TouchableOpacity>
+  );
+}
+
+function AndroidPerms() {
+  const [permissionGranted, setPermissionGranted] = useState(null);
+
+  useEffect(() => {
+    check = async () => {
+      let allGranted = await requestPermissions();
+      console.log(allGranted?.length > 0 ? '2 OK ' : '2 NOOO ', allGranted);
+      setPermissionGranted(allGranted);
+    };
+    check();
+  }, [setPermissionGranted]);
+
+  const handleOpenSettings = () => {
+    Linking.openSettings();
+  };
+  return (
+    <Permission
+      show={permissionGranted?.length > 0}
+      title="Android permission required"
+      message="You have to give some permission to the app in order for it to work correctly."
+      onButtonPress={() => handleOpenSettings()}
+    />
   );
 }
 
@@ -423,6 +456,7 @@ export default function Home({route, navigation}) {
     <View style={{backgroundColor: 'darkslategray', flex: 1}}>
       <SafeAreaView>
         <Header />
+        {Platform.OS === 'android' && <AndroidPerms />}
       </SafeAreaView>
       <Section
         title={'Adapter status'}
