@@ -3,7 +3,7 @@ import {
   Button,
   Modal,
   SafeAreaView,
-  Image,
+  Platform,
   StatusBar,
   StyleSheet,
   Text,
@@ -39,7 +39,7 @@ function Operation({details, onDismiss, onRead, onWrite, onIndicationUpdates}) {
     const charReadListener = emitter.addListener(
       Defines.BLE_PERIPHERAL_CHARACTERISTIC_READ_OK,
       ({uuid, charUUID, value}) => {
-        console.log('================================ READ +++++++++++', value);
+        console.log('+ RD + DISPO:', uuid, 'CHAR:', charUUID, 'VALUE:', value);
         setReadValue({raw: value, string: String.fromCharCode(...value)});
       },
     );
@@ -48,6 +48,14 @@ function Operation({details, onDismiss, onRead, onWrite, onIndicationUpdates}) {
       Defines.BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED,
       ({uuid, charUUID, error}) => {
         setError(error);
+        console.log(
+          '+ RD ERR + DISPO:',
+          uuid,
+          'CHAR:',
+          charUUID,
+          'error:',
+          error,
+        );
         setTimeout(() => {
           setError(undefined);
         }, 3000);
@@ -56,12 +64,7 @@ function Operation({details, onDismiss, onRead, onWrite, onIndicationUpdates}) {
     const charWriteListener = emitter.addListener(
       Defines.BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK,
       ({uuid, charUUID}) => {
-        console.log(
-          '================================ WRITE +++++++++++',
-          uuid,
-          charUUID,
-        );
-        // setReadValue({raw: value, string: String.fromCharCode(...value)});
+        console.log('+ WR + DISPO:', uuid, 'CHAR:', charUUID, 'VALUE:', value);
       },
     );
 
@@ -69,6 +72,14 @@ function Operation({details, onDismiss, onRead, onWrite, onIndicationUpdates}) {
       Defines.BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED,
       ({uuid, charUUID, error}) => {
         setError(error);
+        console.log(
+          '+ WR ERR + DISPO:',
+          uuid,
+          'CHAR:',
+          charUUID,
+          'VALUE:',
+          value,
+        );
         setTimeout(() => {
           setError(undefined);
         }, 3000);
@@ -93,10 +104,8 @@ function Operation({details, onDismiss, onRead, onWrite, onIndicationUpdates}) {
         <View
           style={{
             backgroundColor: 'teal',
-            // paddingTop: 12,
             borderTopRightRadius: 12,
             borderTopLeftRadius: 12,
-            // maxHeight: '20%',
             minHeight: '50%',
           }}>
           <View
@@ -162,7 +171,6 @@ function Operation({details, onDismiss, onRead, onWrite, onIndicationUpdates}) {
                   minHeight: 40,
                   paddingLeft: 5,
                 }}
-                // placeholder="pp"
               />
               <TouchableOpacity
                 onPress={() => onRead(details)}
@@ -182,20 +190,10 @@ function Operation({details, onDismiss, onRead, onWrite, onIndicationUpdates}) {
             <View
               style={{
                 flexDirection: 'row',
-                // backgroundColor: 'red',
                 flex: 1,
-                // alignItems: 'center',
                 justifyContent: 'space-around',
                 gap: 5,
               }}>
-              {/* <Text
-                style={{
-                  color: 'white',
-                  // flex: 1,
-                  textAlign: 'center',
-                }}>
-                Value:
-              </Text> */}
               <TextInput
                 editable={false}
                 multiline
@@ -212,7 +210,6 @@ function Operation({details, onDismiss, onRead, onWrite, onIndicationUpdates}) {
                   minHeight: 40,
                   paddingLeft: 5,
                 }}
-                // placeholder="pp"
               />
               <TouchableOpacity
                 onPress={() => onWrite(details, writeValue.raw)}
@@ -234,7 +231,6 @@ function Operation({details, onDismiss, onRead, onWrite, onIndicationUpdates}) {
                   borderRadius: 20,
                   padding: 5,
                   marginBottom: 10,
-                  // borderWidth: 1,
                 }}>
                 <Text
                   style={{
@@ -246,27 +242,6 @@ function Operation({details, onDismiss, onRead, onWrite, onIndicationUpdates}) {
                 </Text>
               </View>
             )}
-            {/* <View
-              style={{
-                flexDirection: 'row',
-                // backgroundColor: 'red',
-                minHeight: 50,
-                justifyContent: 'space-around',
-                // marginBottom: 20,
-                gap: 5,
-              }}>
-               <TouchableOpacity
-                style={{
-                  height: 30,
-                  width: 30,
-                  borderRadius: 15,
-                  backgroundColor: 'aquamarine',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}>
-                <Text>⇅</Text>
-              </TouchableOpacity> 
-            </View> */}
           </View>
         </View>
       </View>
@@ -277,7 +252,7 @@ function Operation({details, onDismiss, onRead, onWrite, onIndicationUpdates}) {
 export default function Characteristics({route, navigation}) {
   const {data} = route.params;
   const [details, setDetails] = useState(undefined);
-
+  const [randomRead, setRandomRead] = useState(false);
   useEffect(() => {
     const disconnectListener = emitter.addListener(
       Defines.BLE_PERIPHERAL_DISCONNECTED,
@@ -353,7 +328,6 @@ export default function Characteristics({route, navigation}) {
                 marginVertical: 0,
                 marginHorizontal: 0,
                 marginBottom: 4,
-                // paddingHorizontal: 3,
                 height: 50,
                 flexDirection: 'row',
                 gap: 4,

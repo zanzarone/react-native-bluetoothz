@@ -20,7 +20,6 @@ import * as BluetoothZ from 'react-native-bluetoothz';
 import {requestPermissions, Permission} from './utils/androidPermissions';
 
 function BleBulb({status, requestAdapterStatus}) {
-  // console.log(status);
   return (
     <View
       style={{
@@ -177,7 +176,6 @@ const Device = ({
       minHeight: 70,
       borderBottomColor: 'gray',
       borderBottomWidth: 1,
-      // alignItems: 'center',
       gap: 5,
       marginVertical: 1,
       flexDirection: 'row',
@@ -227,9 +225,7 @@ const Device = ({
     <View
       style={{
         flexDirection: 'row',
-        // alignItems: 'center',
         justifyContent: 'space-between',
-        // height: '100%',
         flex: 1,
       }}>
       <TouchableOpacity
@@ -262,10 +258,33 @@ const Device = ({
           <TouchableOpacity
             disabled={disabled}
             onPress={() => {
+              for (let i = 0; i < 100; i++)
+                BluetoothZ.readCharacteristic({
+                  uuid,
+                  charUUID:
+                    Platform.OS === 'android'
+                      ? '00002a24-0000-1000-8000-00805f9b34fb'
+                      : '2A24',
+                });
+            }}
+            style={{
+              height: 40,
+              backgroundColor: 'crimson',
+              width: 40,
+              borderRadius: 10,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            <Text style={{color: 'white', fontSize: 13}}>T</Text>
+          </TouchableOpacity>
+        )}
+        {connected && ready && (
+          <TouchableOpacity
+            disabled={disabled}
+            onPress={() => {
               onMore(uuid);
             }}
             style={{
-              // backgroundColor: 'lightgreen',
               height: 26,
               width: 26,
               borderRadius: 10,
@@ -470,6 +489,48 @@ export default function Home({route, navigation}) {
         />
       </Section>
       {/* <ScrollView> */}
+      {devices.some(d => d.ready) && (
+        <Section title={'Test'}>
+          <View
+            style={{
+              flexDirection: 'row',
+              width: '100%',
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingHorizontal: 16,
+              gap: 10,
+            }}>
+            <TouchableOpacity
+              onPress={async () => {
+                navigation.push('CommonTest', {
+                  data: {
+                    devices: devices.filter(d => d.ready),
+                  },
+                });
+              }}
+              style={{
+                borderRadius: 20,
+                padding: 10,
+                backgroundColor: 'royalblue',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flex: 1,
+                flexDirection: 'row',
+                gap: 5,
+              }}>
+              <Text style={{color: 'snow', fontSize: 18}}>Parallel</Text>
+              <Text
+                style={{
+                  color: 'snow',
+                  fontWeight: 'bold',
+                  fontSize: 18,
+                }}>
+                Test
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Section>
+      )}
       <Section
         title={'Scan devices'}
         subtitle={'You can press the button to retrieve the status'}>
@@ -503,22 +564,13 @@ export default function Home({route, navigation}) {
           style={{
             flexDirection: 'row',
             width: '100%',
-            // alignItems: 'center',
-            // justifyContent: 'center',
             paddingHorizontal: 10,
             gap: 10,
           }}>
-          {/* <Text style={{color: 'snow'}}>Allow duplicates:</Text>
-          <Switch
-            on={allowDuplicates}
-            onPress={() => {
-              setAllowDup(old => !old);
-            }}
-          /> */}
           <TouchableOpacity
             onPress={() => {
               if (!isScanning) {
-                setDevices([]);
+                setDevices(o => o.filter(d => d.connected));
                 BluetoothZ.startScan({options: {allowDuplicates}, filter});
               } else {
                 BluetoothZ.stopScan();
@@ -532,7 +584,6 @@ export default function Home({route, navigation}) {
               alignItems: 'center',
               justifyContent: 'center',
               flex: 1,
-              // marginHorizontal: 16,
               flexDirection: 'row',
               gap: 5,
             }}>
@@ -548,54 +599,6 @@ export default function Home({route, navigation}) {
               Scan
             </Text>
           </TouchableOpacity>
-          {/* <TouchableOpacity
-            onPress={() => requestAdapterStatus()}
-            style={{
-              borderRadius: 18,
-              padding: 10,
-              backgroundColor: 'lightblue',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flex: 1,
-              // marginHorizontal: 16,
-              flexDirection: 'row',
-              gap: 5,
-            }}>
-            <Text style={{color: 'darkslategray', fontSize: 18}}>Scan</Text>
-            <Text
-              style={{
-                color: 'darkslategray',
-                fontWeight: 'bold',
-                fontSize: 18,
-              }}>
-              Settings
-            </Text>
-          </TouchableOpacity> */}
-          {/* <TouchableOpacity
-            onPress={() => {
-              if (!isScanning) {
-                setDevices([]);
-                BluetoothZ.startScan({options: {allowDuplicates}, filter});
-              } else {
-                BluetoothZ.stopScan();
-              }
-              scan(old => !old);
-            }}
-            style={{
-              backgroundColor: !isScanning ? 'palegreen' : 'crimson',
-              padding: 10,
-              borderRadius: 20,
-              flex: 1,
-              alignItems: 'center',
-            }}>
-            <Text
-              style={{
-                color: isScanning ? 'snow' : 'green',
-                fontSize: 16,
-              }}>
-              {isScanning ? 'Stop scan' : 'Start scan'}
-            </Text>
-          </TouchableOpacity> */}
         </View>
         <View
           style={{
@@ -605,7 +608,6 @@ export default function Home({route, navigation}) {
           <ScrollView
             style={{
               width: '100%',
-              // backgroundColor: 'red',
             }}>
             {devices.map((d, index) => {
               return (
