@@ -34,24 +34,18 @@ import com.facebook.react.modules.core.DeviceEventManagerModule;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.Arguments;
 
-
-import com.facebook.react.bridge.NativeModule;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.Promise;
 
-import java.io.UnsupportedEncodingException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 public class BluetoothzModule extends ReactContextBaseJavaModule {
     private static final String Characteristic_User_Description = "00002901-0000-1000-8000-00805f9b34fb";
@@ -68,6 +62,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
     public static final String BLE_PERIPHERAL_CONNECTED = "BLE_PERIPHERAL_CONNECTED";
     public static final String BLE_PERIPHERAL_DISCONNECTED = "BLE_PERIPHERAL_DISCONNECTED";
     public static final String BLE_PERIPHERAL_CONNECT_FAILED = "BLE_PERIPHERAL_CONNECT_FAILED";
+    public static final String BLE_PERIPHERAL_DISCONNECT_FAILED = "BLE_PERIPHERAL_DISCONNECT_FAILED";
     public static final String BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED = "BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED";
     public static final String BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED = "BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED";
     public static final String BLE_PERIPHERAL_CHARACTERISTIC_READ_OK = "BLE_PERIPHERAL_CHARACTERISTIC_READ_OK";
@@ -79,8 +74,8 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
     public static final String BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED = "BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED";
 
     private BluetoothAdapter bluetoothAdapter;
-    private BluetoothLeScanner bluetoothLeScanner;
-    private Pattern filter;
+    private String filter;
+    private boolean allowDuplicates = false;
     private int listenerCount = 0;
     private ReactApplicationContext reactContext;
     private LocalBroadcastReceiver  mLocalBroadcastReceiver     = new LocalBroadcastReceiver();
@@ -116,16 +111,17 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
         @SuppressLint("MissingPermission")
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
-            super.onScanResult(callbackType, result);
-//            Log.d("SAMUELE", ""+ result.getDevice().getName());
             BluetoothDevice device = result.getDevice();
             if(device.getName() != null && !device.getName().isEmpty()){
                 boolean niceFind = true;
                 if(filter != null) {
-                    niceFind = filter.matcher(device.getName()).matches();
+                    niceFind = device.getName().toLowerCase().contains(filter.toLowerCase());
+                }
+                if(niceFind && !allowDuplicates) {
+                    niceFind = !mPeripherals.containsKey(device.getAddress());
                 }
                 if(niceFind) {
-//                    Log.d("SAMUELE - no filter", ""+ result.getDevice().getName());
+                    mPeripherals.put(device.getAddress(), new Peripheral());
                     WritableMap params = Arguments.createMap();
                     params.putString("uuid", device.getAddress());
                     params.putString("name", device.getName());
@@ -141,27 +137,25 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             String uuid = gatt.getDevice().getAddress();
+            WritableMap params = Arguments.createMap();
+            params.putString("uuid", uuid);
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                mPeripherals.put(gatt.getDevice().getAddress(), new Peripheral(gatt));
-                WritableMap params = Arguments.createMap();
-                params.putString("uuid", uuid);
-                Log.w("SAMUELE", "Device CONNECTED!!!!." + uuid);
-                sendEvent(reactContext, BLE_PERIPHERAL_CONNECTED, params);
+//                Log.w("SAMUELE", "Device CONNECTED!!!!." + uuid);
                 // Attempts to discover services after successful connection.
                 if(mPeripherals.containsKey(gatt.getDevice().getAddress())) {
                     Peripheral p = mPeripherals.get(gatt.getDevice().getAddress());
+                    p.setGattServer(gatt);
+                    p.setConnected(true);
                     p.discover();
+                    sendEvent(reactContext, BLE_PERIPHERAL_CONNECTED, params);
                 }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 // disconnected from the GATT Server
                 if(mPeripherals.containsKey(gatt.getDevice().getAddress())) {
-                    Peripheral p = mPeripherals.remove(gatt.getDevice().getAddress());
+                    Peripheral p = mPeripherals.get(gatt.getDevice().getAddress());
                     p.flush();
+                    sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECTED, params);
                 }
-                WritableMap params = Arguments.createMap();
-                params.putString("uuid", uuid);
-                Log.w("SAMUELE", "Device DISCONNECTED!!!!." + uuid);
-                sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECTED, params);
             }
         }
         @SuppressLint("MissingPermission")
@@ -169,7 +163,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.w("SAMUELE", "onServicesDiscovered received: " + gatt.getDevice().getAddress());
-                if( mPeripherals.containsKey(gatt.getDevice().getAddress())){
+                if( mPeripherals.containsKey(gatt.getDevice().getAddress()) ){
                     List<BluetoothGattService> services = gatt.getServices();
                     Peripheral p = mPeripherals.get(gatt.getDevice().getAddress());
                     for (BluetoothGattService service : services) {
@@ -186,12 +180,16 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
                     }
                     WritableMap params = Arguments.createMap();
                     params.putString("uuid", gatt.getDevice().getAddress());
+                    Log.e("SAMUELE", "onServicesDiscovered received: " + status);
                     sendEvent(reactContext, BLE_PERIPHERAL_READY, params);
                     p.mBluetoothGATT.requestMtu(512);
                     p.mBluetoothGATT.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH);
                 }
             } else {
+                WritableMap params = Arguments.createMap();
+                params.putString("uuid", gatt.getDevice().getAddress());
                 Log.e("SAMUELE", "onServicesDiscovered received: " + status);
+                sendEvent(reactContext, BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED, params);
             }
         }
 
@@ -202,10 +200,13 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
             String charUUID = characteristic.getUuid().toString();
             params.putString("uuid", uuid);
             params.putString("charUUID", charUUID);
-//            Log.d("POPPI", "" +status);
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                String bufferString = BluetoothzModule.bytesToHex(characteristic.getValue());
-                params.putString("value", bufferString);
+                WritableArray value = Arguments.createArray();
+                byte [] buffer = characteristic.getValue();
+                for(int i=0; i<buffer.length; i++)
+                  value.pushInt(buffer[i]);
+//                String bufferString = BluetoothzModule.bytesToHex(characteristic.getValue());
+                params.putArray("value", value);
                 sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, params );
             }else{
                 sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, params );
@@ -216,7 +217,9 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             WritableMap params = Arguments.createMap();
             String uuid = characteristic.getUuid().toString();
+            String charUUID = characteristic.getUuid().toString();
             params.putString("uuid", uuid);
+            params.putString("charUUID", charUUID);
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 String bufferString = BluetoothzModule.bytesToHex(characteristic.getValue());
                 params.putString("value", bufferString);
@@ -231,14 +234,18 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
                 BluetoothGatt gatt,
                 BluetoothGattCharacteristic characteristic
         ) {
-            String bufferString = BluetoothzModule.bytesToHex(characteristic.getValue());
+            WritableArray value = Arguments.createArray();
+            byte [] buffer = characteristic.getValue();
+            for(int i=0; i<buffer.length; i++)
+              value.pushInt(buffer[i]);
 //            Log.d(" POPPI ", "" + bufferString);
             WritableMap params = Arguments.createMap();
             params.putString("uuid", gatt.getDevice().getAddress());
             params.putString("charUUID", characteristic.getUuid().toString());
-            params.putString("value", bufferString);
+            params.putArray("value", value);
             sendEvent(reactContext, BLE_PERIPHERAL_NOTIFICATION_UPDATES, params );
         }
+
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
             Log.w("PORCO", BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE+";;;;"+status + (descriptor.getValue() == BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE));
@@ -251,53 +258,84 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
         private BluetoothGatt mBluetoothGATT;
         private HashMap<String, Pair<BluetoothGattCharacteristic, Boolean>> mCharacteristic;
 
+        private boolean connected = false;
+
         @SuppressLint("MissingPermission")
-        public Peripheral(BluetoothGatt gatt){
-            this.mBluetoothGATT     = gatt;
+        public Peripheral(){
             this.mCharacteristic    = new HashMap<>();
+        }
+
+        public boolean isConnected(){
+          return connected;
+        }
+
+        public void setConnected(boolean connected) {
+          this.connected = connected;
+        }
+
+        public void setGattServer(BluetoothGatt gatt){
+          this.mBluetoothGATT = gatt;
         }
         @SuppressLint("MissingPermission")
         public void discover() {
-            this.mBluetoothGATT.discoverServices();
+          this.mBluetoothGATT.discoverServices();
         }
         @SuppressLint("MissingPermission")
         public void disconnect() {
-            this.mBluetoothGATT.disconnect();
+          this.mBluetoothGATT.disconnect();
         }
         @SuppressLint("MissingPermission")
         public void flush() {
             this.mBluetoothGATT.close();
             this.mBluetoothGATT = null;
             this.mCharacteristic.clear();
+            this.connected = false;
+        }
+        public String[] allCharacteristics(){
+          String [] charsUUID = new String[mCharacteristic.size()];
+          mCharacteristic.keySet().toArray(charsUUID);
+          return charsUUID;
         }
         @SuppressLint("MissingPermission")
         public void setCharacteristic(BluetoothGattCharacteristic c){
-            mCharacteristic.put(c.getUuid().toString(), new Pair<>(c, false));
+          mCharacteristic.put(c.getUuid().toString(), new Pair<>(c, false));
         }
         @SuppressLint("MissingPermission")
-        public void readCharacteristic(String uuid){
-            BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
-            mBluetoothGATT.readCharacteristic(characteristic);
+        public boolean readCharacteristic(String uuid){
+            if(mCharacteristic.containsKey(uuid)) {
+              BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
+              mBluetoothGATT.readCharacteristic(characteristic);
+              return true;
+            }
+            return false;
         }
         @SuppressLint("MissingPermission")
-        public void writeCharacteristic(String uuid, byte[] value, int NOT_IMPLEMENTED_type){
-            BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
-            characteristic.setValue(value);
-            mBluetoothGATT.writeCharacteristic(characteristic);
+        public boolean writeCharacteristic(String uuid, byte[] value, int NOT_IMPLEMENTED_type){
+            if(mCharacteristic.containsKey(uuid)) {
+              BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
+              characteristic.setValue(value);
+              mBluetoothGATT.writeCharacteristic(characteristic);
+              return true;
+            }
+            return false;
         }
         @SuppressLint("MissingPermission")
-        public void changeCharacteristicNotification(String uuid, boolean enable){
-            BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
-            mBluetoothGATT.setCharacteristicNotification(characteristic, enable);
-            WritableMap params = Arguments.createMap();
-            params.putString("uuid", mBluetoothGATT.getDevice().getAddress());
-            params.putString("charUUID", characteristic.getUuid().toString());
-            params.putBoolean("enable", enable);
-            sendEvent(reactContext, BLE_PERIPHERAL_NOTIFICATION_CHANGED, params );
-            BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString(Client_Characteristic_Configuration));
-            descriptor.setValue( enable ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
-            mBluetoothGATT.writeDescriptor(descriptor);
-            mCharacteristic.put(uuid, new Pair<>(characteristic, enable));
+        public boolean changeCharacteristicNotification(String uuid, boolean enable){
+            if(mCharacteristic.containsKey(uuid)) {
+              BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
+              mBluetoothGATT.setCharacteristicNotification(characteristic, enable);
+              WritableMap params = Arguments.createMap();
+              params.putString("uuid", mBluetoothGATT.getDevice().getAddress());
+              params.putString("charUUID", characteristic.getUuid().toString());
+              params.putBoolean("enable", enable);
+              sendEvent(reactContext, BLE_PERIPHERAL_NOTIFICATION_CHANGED, params);
+              BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString(Client_Characteristic_Configuration));
+              descriptor.setValue(enable ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+              mBluetoothGATT.writeDescriptor(descriptor);
+              mCharacteristic.put(uuid, new Pair<>(characteristic, enable));
+              return true;
+            }
+            return false;
         }
     }
 
@@ -326,6 +364,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
         constants.put(BLE_PERIPHERAL_CONNECTED, BLE_PERIPHERAL_CONNECTED);
         constants.put(BLE_PERIPHERAL_DISCONNECTED, BLE_PERIPHERAL_DISCONNECTED);
         constants.put(BLE_PERIPHERAL_CONNECT_FAILED, BLE_PERIPHERAL_CONNECT_FAILED);
+        constants.put(BLE_PERIPHERAL_DISCONNECT_FAILED, BLE_PERIPHERAL_DISCONNECT_FAILED);
         constants.put(BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED, BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED);
         constants.put(BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED, BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED);
         constants.put(BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, BLE_PERIPHERAL_CHARACTERISTIC_READ_OK);
@@ -375,7 +414,6 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void status() {
-        WritableMap params = Arguments.createMap();
         if (this.bluetoothAdapter == null) {
             sendBleStatus(-1, reactContext);
             return;
@@ -407,42 +445,52 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
 
     @SuppressLint("MissingPermission")
     @ReactMethod
-    public void startScan(@Nullable ReadableArray services, @Nullable String filter) {
-        this.bluetoothLeScanner = BluetoothAdapter.getDefaultAdapter().getBluetoothLeScanner();
-        if(this.bluetoothLeScanner != null) {
-            ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
-            if(filter != null) {
-                this.filter = Pattern.compile(filter);
+    public void startScan(@Nullable ReadableArray services, @Nullable String filter, @Nullable ReadableMap options) {
+        BluetoothLeScanner bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
+        ArrayList<ScanFilter> servicesFilter = null;
+        if(services != null){
+            servicesFilter = new ArrayList<>();
+            for ( int i =0; i< services.size(); i++) {
+                String serviceUUID = services.getString(i);
+                ScanFilter f = new ScanFilter.Builder().setServiceUuid(new ParcelUuid( UUID.fromString(serviceUUID))).build();
+                servicesFilter.add(f);
             }
-            ArrayList<ScanFilter> servicesFilter = null;
-            if(services != null){
-                servicesFilter = new ArrayList<>();
-                for ( int i =0; i< services.size(); i++) {
-                    String serviceUUID = services.getString(i);
-                    ScanFilter f = new ScanFilter.Builder().setServiceUuid(new ParcelUuid( UUID.fromString(serviceUUID))).build();
-                    servicesFilter.add(f);
-                }
-            }
-            this.bluetoothLeScanner.startScan(servicesFilter, settings, mScanCallback);
-            sendEvent(reactContext, BLE_ADAPTER_SCAN_START, null);
         }
+        this.filter = null;
+        if(filter != null) {
+          this.filter = filter;
+        }
+        this.allowDuplicates = false;
+        if(options != null) {
+          if(options.hasKey("allowDuplicates")){
+            this.allowDuplicates = options.getBoolean("allowDuplicates");
+          }
+        }
+        this.mPeripherals.clear();
+        ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
+        bluetoothLeScanner.startScan(servicesFilter, settings, mScanCallback);
+        sendEvent(reactContext, BLE_ADAPTER_SCAN_START, null);
     }
 
     @SuppressLint("MissingPermission")
     @ReactMethod
     public void stopScan() {
-        this.bluetoothLeScanner.stopScan(mScanCallback);
+        bluetoothAdapter.getBluetoothLeScanner().stopScan(mScanCallback);
         sendEvent(reactContext, BLE_ADAPTER_SCAN_END, null);
     }
 
     @SuppressLint("MissingPermission")
     @ReactMethod
     public void connect(String uuid) {
-        if(mPeripherals.containsKey(uuid)) {
-            return;
+        if(!mPeripherals.containsKey(uuid) || (mPeripherals.containsKey(uuid) && mPeripherals.get(uuid).isConnected())) {
+          WritableMap params = Arguments.createMap();
+          params.putString("uuid", uuid);
+          params.putString("error", "Device already disconnected:" + uuid);
+          Log.w("SAMUELE", "Device not found with provided address." + uuid);
+          sendEvent(reactContext, BLE_PERIPHERAL_CONNECT_FAILED, params);
+          return;
         }
         try {
-//            Log.d("SAMUELE","=====> CONNECT");
             final BluetoothDevice device = bluetoothAdapter.getRemoteDevice(uuid);
             device.connectGatt(reactContext, false, mBluetoothGATTCallback);
         } catch (IllegalArgumentException exception) {
@@ -457,7 +505,6 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
     @SuppressLint("MissingPermission")
     @ReactMethod
     public void cancel(String uuid) {
-//        Log.d("SAMUELE","=====> CANCEL CONN");
         this.disconnect(uuid);
     }
 
@@ -465,58 +512,80 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void disconnect(String uuid) {
 //        Log.d("SAMUELE","=====> DISCONNECT");
-        if(!mPeripherals.containsKey(uuid)) {
-            WritableMap params = Arguments.createMap();
-            params.putString("uuid", uuid);
-            params.putString("warning", "Device already disconnected:" + uuid);
-            Log.w("SAMUELE", "Device already disconnected." + uuid);
-            sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECTED, params);
-            return;
+        if(!mPeripherals.containsKey(uuid) || (mPeripherals.containsKey(uuid) && !mPeripherals.get(uuid).isConnected())) {
+          WritableMap params = Arguments.createMap();
+          params.putString("uuid", uuid);
+          params.putString("error", "Device already disconnected:" + uuid);
+          Log.w("SAMUELE", "Device not found with provided address." + uuid);
+          sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECT_FAILED, params);
+          return;
         }
         Peripheral p = mPeripherals.get(uuid);
         p.disconnect();
+    }
+
+    @ReactMethod
+    public void getAllCharacteristicSync(String uuid, Promise promise) {
+      if(!mPeripherals.containsKey(uuid) || (mPeripherals.containsKey(uuid) && !mPeripherals.get(uuid).isConnected())) {
+        promise.reject("error", "peripheral not connected");
+        return;
+      }
+      Peripheral p = mPeripherals.get(uuid);
+      WritableMap params = Arguments.createMap();
+      WritableArray array = Arguments.fromArray(p.allCharacteristics());
+      params.putArray("characteristics", array);
+      promise.resolve(params);
     }
 
     @SuppressLint("MissingPermission")
     @ReactMethod
     public void readCharacteristicValue(String uuid,String charUUID) {
 //        Log.d("SAMUELE","=====> readCharacteristicValue");
-        if(!mPeripherals.containsKey(uuid)) {
+      if(!mPeripherals.containsKey(uuid) || (mPeripherals.containsKey(uuid) && !mPeripherals.get(uuid).isConnected())) {
             WritableMap params = Arguments.createMap();
             params.putString("uuid", uuid);
             params.putString("charUUID", charUUID);
-            params.putString("warning", "Device already disconnected:" + uuid);
+            params.putString("error", "Device already disconnected:" + uuid);
             Log.w("SAMUELE", "Device not found with provided address." + uuid);
             sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, params);
             return;
         }
         Peripheral p = mPeripherals.get(uuid);
-        p.readCharacteristic(charUUID);
+        if(!p.readCharacteristic(charUUID)){
+          WritableMap params = Arguments.createMap();
+          params.putString("uuid", uuid);
+          params.putString("charUUID", charUUID);
+          params.putString("error", "Device already disconnected:" + uuid);
+          Log.w("SAMUELE", "Characteristic not found with provided address." + charUUID);
+          sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, params);
+        }
     }
 
     @SuppressLint("MissingPermission")
     @ReactMethod
-    public void writeCharacteristic(String uuid,String charUUID, String value) {
+    public void writeCharacteristicValue(String uuid,String charUUID, ReadableArray value) {
 //        Log.d("SAMUELE","=====> writeCharacteristic");
-        if(!mPeripherals.containsKey(uuid)) {
+        if(!mPeripherals.containsKey(uuid) || (mPeripherals.containsKey(uuid) && !mPeripherals.get(uuid).isConnected())) {
             WritableMap params = Arguments.createMap();
             params.putString("uuid", uuid);
-            params.putString("warning", "Device already disconnected:" + uuid);
+            params.putString("charUUID", charUUID);
+            params.putString("error", "Device already disconnected:" + uuid);
             Log.w("SAMUELE", "Device not found with provided address." + uuid);
             sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, params);
             return;
         }
-        try {
-            byte[] byteArr = value.getBytes("UTF-8");
-            Peripheral p = mPeripherals.get(uuid);
-            p.writeCharacteristic(charUUID, byteArr, 0);
-        } catch (UnsupportedEncodingException e) {
-            WritableMap params = Arguments.createMap();
-            params.putString("uuid", uuid);
-            params.putString("charUUID", charUUID);
-            Log.w("SAMUELE", "Device not found with provided address." + uuid);
-            sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, params);
-            return;
+        byte [] byteArr = new byte[value.size()];
+        for (int i=0; i<value.size(); i++) {
+          byteArr[i] = (byte) value.getInt(i);
+        }
+        Peripheral p = mPeripherals.get(uuid);
+        if(!p.writeCharacteristic(charUUID, byteArr, 0)){
+          WritableMap params = Arguments.createMap();
+          params.putString("uuid", uuid);
+          params.putString("charUUID", charUUID);
+          params.putString("error", "Device already disconnected:" + uuid);
+          Log.w("SAMUELE", "Characteristic not found with provided address." + charUUID);
+          sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, params);
         }
     }
 
@@ -524,22 +593,28 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void changeCharacteristicNotification(String uuid,String charUUID, boolean enable) {
 //        Log.d("SAMUELE","=====> changeCharacteristicNotification" + uuid + charUUID + enable);
-        if(!mPeripherals.containsKey(uuid)) {
+      if(!mPeripherals.containsKey(uuid) || (mPeripherals.containsKey(uuid) && !mPeripherals.get(uuid).isConnected())) {
             WritableMap params = Arguments.createMap();
             params.putString("uuid", uuid);
             params.putString("charUUID", charUUID);
-            params.putString("warning", "Device already disconnected:" + uuid);
+            params.putString("error", "Device already disconnected:" + uuid);
             Log.w("SAMUELE", "Device not found with provided address." + uuid);
             sendEvent(reactContext, BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, params);
             return;
         }
         Peripheral p = mPeripherals.get(uuid);
-        p.changeCharacteristicNotification(charUUID, enable);
+        if(!p.changeCharacteristicNotification(charUUID, enable)){
+          WritableMap params = Arguments.createMap();
+          params.putString("uuid", uuid);
+          params.putString("charUUID", charUUID);
+          params.putString("error", "Device already disconnected:" + uuid);
+          Log.w("SAMUELE", "Characteristic not found with provided address." + charUUID);
+          sendEvent(reactContext, BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, params);
+        }
     }
 
-
 /**
- 
+
  ================================================================================================================
  ================================================================================================================
  ================================================================================================================

@@ -105,41 +105,39 @@ class Peripheral {
     self.connected = false
   }
 
-  func readCharacteristic(_ uuid:String){
+  func readCharacteristic(_ uuid:String) -> Bool {
     if let ch = self.characteristics[uuid] {
       self.gattServer.readValue(for: ch)
-    }else{
-      /// ERRORE DA CONTROLLARE
+      return true
     }
+    return false
   }
 
-  func writeCharacteristic(_ uuid:String, value:NSArray){
+  func writeCharacteristic(_ uuid:String, value:NSArray) -> Bool {
     if let ch = self.characteristics[uuid] {
       var array : [UInt8] = []
       for i in 0..<value.count {
         array.append(value[i] as! UInt8)
       }
       self.gattServer.writeValue(Data(array), for: ch, type: .withResponse)
-    }else{
-      /// ERRORE DA CONTROLLARE
+      return true
     }
+    return false
   }
 
-  func changeCharacteristicNotification(_ uuid:String, enable:Bool) {
+  func changeCharacteristicNotification(_ uuid:String, enable:Bool) -> Bool {
     if let ch = self.characteristics[uuid] {
       self.gattServer.setNotifyValue(enable, for: ch)
-    }else{
-      /// ERRORE DA CONTROLLARE
+      return true
     }
+    return false
   }
   
-  func isNotifying(_ uuid:String) -> Bool{
-    if let ch = self.characteristics[uuid] {
-      return ch.isNotifying
-    }else{
-      /// ERRORE DA CONTROLLARE
-      return false
+  func isNotifying(_ uuid:String) -> Bool {
+    guard let ch = self.characteristics[uuid] else {
+        return false
     }
+    return ch.isNotifying
   }
 }
 
@@ -313,7 +311,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     print ("SAMU - ========================>>>> connect")
     /// i'm already connected to a device
     if self.isConnected(uuidString: uuidString) {
-      self.sendEvent(withName: BLE_PERIPHERAL_CONNECT_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
+      print ("SAMU - ========================>>>> connect - isConnected")
       return
     }
     let p = self.peripherals[uuidString]!.getGATTServer()
@@ -325,7 +323,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
   {
     print("SAMU - 1")
     if !self.isConnected(uuidString: uuidString) {
-      self.sendEvent(withName: BLE_PERIPHERAL_DISCONNECT_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
+      print ("SAMU - ========================>>>> connect - !isConnected")
       return
     }
     let p = self.peripherals[uuidString]!.getGATTServer()
@@ -337,7 +335,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
   {
     print("SAMU 14 ========================>>>> disconnect")
     if !self.isConnected(uuidString: uuidString) {
-      self.sendEvent(withName: BLE_PERIPHERAL_DISCONNECT_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
+      /// i need to disconnect the current device before attempting a new connection
       return
     }
     let p : Peripheral = self.peripherals[uuidString]!
@@ -349,7 +347,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     func getAllCharacteristicSync(_ uuid:String, resolve: RCTPromiseResolveBlock, rejecter:RCTPromiseRejectBlock) -> Void {
         if !self.isConnected(uuidString: uuid) {
           /// i need to disconnect the current device before attempting a new connection
-            rejecter("error", "peripheral not found with uuid:\(uuid)", nil)
+            rejecter("status", "peripheral not found with uuid:\(uuid)", nil)
             return
         }
         let p : Peripheral = self.peripherals[uuid]!
@@ -366,7 +364,9 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
       return
     }
     let p : Peripheral = self.peripherals[uuid]!
-    p.readCharacteristic(charUUID)
+    if !p.readCharacteristic(charUUID) {
+        self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "characteristic not found with uuid:\(uuid)"])
+    }
   }
 
     @objc
@@ -375,11 +375,13 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     /// ("========================>>>> readCharacteristicValue")
     if !self.isConnected(uuidString: uuid) {
       /// i need to disconnect the current device before attempting a new connection
-      self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": uuid, "charUUID": charUUID,  "error": "peripheral not found with uuid:\(uuid)"])
+      self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "peripheral not found with uuid:\(uuid)"])
       return
     }
     let p : Peripheral = self.peripherals[uuid]!
-    p.writeCharacteristic(charUUID, value: value)
+    if !p.writeCharacteristic(charUUID, value: value) {
+        self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "characteristic not found with uuid:\(uuid)"])
+    }
   }
   
     @objc
@@ -391,7 +393,9 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
       return
     }
     let p : Peripheral = self.peripherals[uuid]!
-    p.changeCharacteristicNotification(charUUID, enable: enable)
+    if !p.changeCharacteristicNotification(charUUID, enable: enable) {
+      self.sendEvent(withName: BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "charUUID": charUUID, "error": "characteristic not found with uuid:\(uuid)"])
+    }
   }
   
   
@@ -422,7 +426,9 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
       return
     }
     var niceFind = true
-    if let pattern = self.scanFilter {
+    if let pattern = self.scanFilter
+    {
+//        print("SOOOOOOOKA - niceFind 0 - ",peripheral.identifier.uuidString , pattern, peripheral.identifier.uuidString.range(of: pattern, options: .caseInsensitive))
       niceFind = name.range(of: pattern, options: .caseInsensitive) != nil
     }
     print("SOOOOOOOKA - niceFind 1 - ", niceFind)
