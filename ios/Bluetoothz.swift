@@ -7,6 +7,7 @@
 import Foundation
 import React
 import CoreBluetooth
+import iOSDFULibrary
 
 let BLE_ADAPTER_STATUS_DID_UPDATE               : String  = "BLE_ADAPTER_STATUS_DID_UPDATE"
 let BLE_ADAPTER_STATUS_INVALID                  : String  = "BLE_ADAPTER_STATUS_INVALID"
@@ -31,6 +32,21 @@ let BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED  : String  = "BLE_PERIPHERAL_CHAR
 let BLE_PERIPHERAL_NOTIFICATION_UPDATES         : String  = "BLE_PERIPHERAL_NOTIFICATION_UPDATES"
 let BLE_PERIPHERAL_NOTIFICATION_CHANGED         : String  = "BLE_PERIPHERAL_NOTIFICATION_CHANGED"
 let BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED   : String  = "BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED"
+
+let BLE_PERIPHERAL_DFU_PROCESS_FAILED           : String  = "BLE_PERIPHERAL_DFU_PROCESS_FAILED"
+let BLE_PERIPHERAL_DFU_PROCESS_STARTED          : String  = "BLE_PERIPHERAL_DFU_PROCESS_STARTED"
+let BLE_PERIPHERAL_DFU_PROGRESS                 : String  = "BLE_PERIPHERAL_DFU_PROGRESS"
+let BLE_PERIPHERAL_DFU_DEBUG                    : String  = "BLE_PERIPHERAL_DFU_DEBUG"
+let BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE        : String  = "BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE"
+
+let BLE_PERIPHERAL_DFU_STATUS_ABORTED           : String  = "BLE_PERIPHERAL_DFU_STATUS_ABORTED"
+let BLE_PERIPHERAL_DFU_STATUS_STARTING          : String  = "BLE_PERIPHERAL_DFU_STATUS_STARTING"
+let BLE_PERIPHERAL_DFU_STATUS_COMPLETED         : String  = "BLE_PERIPHERAL_DFU_STATUS_COMPLETED"
+let BLE_PERIPHERAL_DFU_STATUS_UPLOADING         : String  = "BLE_PERIPHERAL_DFU_STATUS_UPLOADING"
+let BLE_PERIPHERAL_DFU_STATUS_CONNECTING        : String  = "BLE_PERIPHERAL_DFU_STATUS_CONNECTING"
+let BLE_PERIPHERAL_DFU_STATUS_VALIDATING        : String  = "BLE_PERIPHERAL_DFU_STATUS_VALIDATING"
+let BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING     : String  = "BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING"
+let BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU      : String  = "BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU"
 
 public extension Data {
     private static let hexAlphabet = Array("0123456789abcdef".unicodeScalars)
@@ -141,56 +157,79 @@ class Peripheral {
   }
 }
 
+class DFUHelper {
+    var enableDebug         : Bool = false
+    var currentPeripheralId : UUID!
+    var firmware            : DFUFirmware!
+    var serviceInitiator    : DFUServiceInitiator!
+    var controller          : DFUServiceController!
+    /// DFU PROPS
+    var processResolve     : RCTPromiseResolveBlock?
+    var processReject      : RCTPromiseRejectBlock?
+}
+
+class SyncHelper {
+    var disconnectResolve     : RCTPromiseResolveBlock?
+    var disconnectReject      : RCTPromiseRejectBlock?
+}
+
 @objc(BluetoothZ)
-class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegate
+class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegate,  DFUServiceDelegate, DFUProgressDelegate, LoggerDelegate
 {
   /// PROPS
-  var centralManager        : CBCentralManager? = nil
-  var peripherals           : [String:Peripheral] = [:]
-  var scanFilter            : String? = nil
-  var allowDuplicates       : Bool?
+    var centralManager        : CBCentralManager? = nil
+    var peripherals           : [String:Peripheral] = [:]
+    var scanFilter            : String? = nil
+    var allowDuplicates       : Bool?
+    var dfuHelper             : DFUHelper!
+    var syncHelper            : SyncHelper!
+
+    private func isConnected(uuidString:String) -> Bool {
+        return self.peripherals.contains(where: { (key: String, value: Peripheral) -> Bool in
+          return key.compare(uuidString) == .orderedSame && value.isConnected()
+        })
+    }
   
-  private func isConnected(uuidString:String) -> Bool {
-    return self.peripherals.contains(where: { (key: String, value: Peripheral) -> Bool in
-      return key.compare(uuidString) == .orderedSame && value.isConnected()
-    })
-  }
+    @objc
+    override static func requiresMainQueueSetup() -> Bool
+    {
+        /// ("========================>>>> requiresMainQueueSetup")
+        return true;
+    }
   
-  @objc
-  override static func requiresMainQueueSetup() -> Bool
-  {
-    /// ("========================>>>> requiresMainQueueSetup")
-    return true;
-  }
-  
-  override func supportedEvents() -> [String]!
-  {
-    return [
-      BLE_ADAPTER_STATUS_DID_UPDATE,
-      BLE_ADAPTER_STATUS_INVALID,
-      BLE_ADAPTER_STATUS_POWERED_ON,
-      BLE_ADAPTER_STATUS_POWERED_OFF,
-      BLE_ADAPTER_STATUS_UNKNOW,
-      BLE_ADAPTER_SCAN_START,
-      BLE_ADAPTER_SCAN_END,
-      BLE_PERIPHERAL_FOUND,
-      BLE_PERIPHERAL_READY,
-      BLE_PERIPHERAL_READ_RSSI,
-      BLE_PERIPHERAL_CONNECTED,
-      BLE_PERIPHERAL_DISCONNECTED,
-      BLE_PERIPHERAL_CONNECT_FAILED,
-      BLE_PERIPHERAL_DISCONNECT_FAILED,
-      BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED,
-      BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED,
-      BLE_PERIPHERAL_CHARACTERISTIC_READ_OK,
-      BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED,
-      BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK,
-      BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED,
-      BLE_PERIPHERAL_NOTIFICATION_UPDATES,
-      BLE_PERIPHERAL_NOTIFICATION_CHANGED,
-      BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED
-    ]
-  }
+    override func supportedEvents() -> [String]!
+    {
+        return [
+          BLE_ADAPTER_STATUS_DID_UPDATE,
+          BLE_ADAPTER_STATUS_INVALID,
+          BLE_ADAPTER_STATUS_POWERED_ON,
+          BLE_ADAPTER_STATUS_POWERED_OFF,
+          BLE_ADAPTER_STATUS_UNKNOW,
+          BLE_ADAPTER_SCAN_START,
+          BLE_ADAPTER_SCAN_END,
+          BLE_PERIPHERAL_FOUND,
+          BLE_PERIPHERAL_READY,
+          BLE_PERIPHERAL_READ_RSSI,
+          BLE_PERIPHERAL_CONNECTED,
+          BLE_PERIPHERAL_DISCONNECTED,
+          BLE_PERIPHERAL_CONNECT_FAILED,
+          BLE_PERIPHERAL_DISCONNECT_FAILED,
+          BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED,
+          BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED,
+          BLE_PERIPHERAL_CHARACTERISTIC_READ_OK,
+          BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED,
+          BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK,
+          BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED,
+          BLE_PERIPHERAL_NOTIFICATION_UPDATES,
+          BLE_PERIPHERAL_NOTIFICATION_CHANGED,
+          BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED,
+          BLE_PERIPHERAL_DFU_PROCESS_FAILED,
+          BLE_PERIPHERAL_DFU_PROCESS_STARTED,
+          BLE_PERIPHERAL_DFU_PROGRESS,
+          BLE_PERIPHERAL_DFU_DEBUG,
+          BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE
+        ]
+    }
   
   @objc
   override func constantsToExport() -> [AnyHashable : Any]!
@@ -220,55 +259,68 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
       BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED:BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED,
       BLE_PERIPHERAL_NOTIFICATION_UPDATES:BLE_PERIPHERAL_NOTIFICATION_UPDATES,
       BLE_PERIPHERAL_NOTIFICATION_CHANGED:BLE_PERIPHERAL_NOTIFICATION_CHANGED,
-      BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED:BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED
+      BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED:BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED,
+      BLE_PERIPHERAL_DFU_PROCESS_FAILED: BLE_PERIPHERAL_DFU_PROCESS_FAILED,
+      BLE_PERIPHERAL_DFU_PROCESS_STARTED:BLE_PERIPHERAL_DFU_PROCESS_STARTED,
+      BLE_PERIPHERAL_DFU_PROGRESS:BLE_PERIPHERAL_DFU_PROGRESS,
+      BLE_PERIPHERAL_DFU_DEBUG:BLE_PERIPHERAL_DFU_DEBUG,
+      BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE:BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,
+      BLE_PERIPHERAL_DFU_STATUS_ABORTED:BLE_PERIPHERAL_DFU_STATUS_ABORTED,
+      BLE_PERIPHERAL_DFU_STATUS_STARTING:BLE_PERIPHERAL_DFU_STATUS_STARTING,
+      BLE_PERIPHERAL_DFU_STATUS_COMPLETED:BLE_PERIPHERAL_DFU_STATUS_COMPLETED,
+      BLE_PERIPHERAL_DFU_STATUS_UPLOADING:BLE_PERIPHERAL_DFU_STATUS_UPLOADING,
+      BLE_PERIPHERAL_DFU_STATUS_CONNECTING:BLE_PERIPHERAL_DFU_STATUS_CONNECTING,
+      BLE_PERIPHERAL_DFU_STATUS_VALIDATING:BLE_PERIPHERAL_DFU_STATUS_VALIDATING,
+      BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING:BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING,
+      BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU:BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU
     ]
   }
 
-  @objc
-  func setup()
-  {
-    /// ("========================>>>> setup")
-    if(centralManager == nil) {
-      self.centralManager =  CBCentralManager(delegate: self, queue: nil)
-    }
-  }
-  
     @objc
-  func statusSync(_ resolve: RCTPromiseResolveBlock, reject:RCTPromiseRejectBlock) -> Void {
-    if let manager = self.centralManager {
-//      resolve(NSNumber(value:manager.state.rawValue))
-      switch manager.state {
-        case .poweredOff: resolve( ["status":  BLE_ADAPTER_STATUS_POWERED_OFF] )
-          break
-        case .poweredOn: resolve( ["status":  BLE_ADAPTER_STATUS_POWERED_ON] )
-          break
-        default:
-          resolve( ["status":  BLE_ADAPTER_STATUS_UNKNOW] )
-          break
-      }
-    }else{
-      reject("status", "could not retrieve status", nil)
+    func setup()
+    {
+        /// ("========================>>>> setup")
+        if(centralManager == nil) {
+          self.centralManager =  CBCentralManager(delegate: self, queue: nil)
+        }
     }
-  }
 
-  @objc
-  func status() {
-    if let manager = self.centralManager {
-      switch manager.state {
-        case .poweredOff: 
-          self.sendEvent(withName: BLE_ADAPTER_STATUS_DID_UPDATE, body: [ "status": BLE_ADAPTER_STATUS_POWERED_OFF])
-          break
-        case .poweredOn: 
-          self.sendEvent(withName: BLE_ADAPTER_STATUS_DID_UPDATE, body: [ "status": BLE_ADAPTER_STATUS_POWERED_ON])
-          break
-        default:
-          self.sendEvent(withName: BLE_ADAPTER_STATUS_DID_UPDATE, body: [ "status": BLE_ADAPTER_STATUS_UNKNOW])
-          break
-      }
-    }else{
-      self.sendEvent(withName: BLE_ADAPTER_STATUS_DID_UPDATE, body: [ "status": BLE_ADAPTER_STATUS_UNKNOW])
+    @objc
+    func statusSync(_ resolve: RCTPromiseResolveBlock, reject:RCTPromiseRejectBlock) -> Void {
+        if let manager = self.centralManager {
+        //      resolve(NSNumber(value:manager.state.rawValue))
+          switch manager.state {
+            case .poweredOff: resolve( ["status":  BLE_ADAPTER_STATUS_POWERED_OFF] )
+              break
+            case .poweredOn: resolve( ["status":  BLE_ADAPTER_STATUS_POWERED_ON] )
+              break
+            default:
+              resolve( ["status":  BLE_ADAPTER_STATUS_UNKNOW] )
+              break
+          }
+        }else{
+          reject("status", "could not retrieve status", nil)
+        }
     }
-  }
+
+    @objc
+    func status() {
+        if let manager = self.centralManager {
+            switch manager.state {
+            case .poweredOff:
+              self.sendEvent(withName: BLE_ADAPTER_STATUS_DID_UPDATE, body: [ "status": BLE_ADAPTER_STATUS_POWERED_OFF])
+              break
+            case .poweredOn:
+              self.sendEvent(withName: BLE_ADAPTER_STATUS_DID_UPDATE, body: [ "status": BLE_ADAPTER_STATUS_POWERED_ON])
+              break
+            default:
+              self.sendEvent(withName: BLE_ADAPTER_STATUS_DID_UPDATE, body: [ "status": BLE_ADAPTER_STATUS_UNKNOW])
+              break
+            }
+        }else{
+          self.sendEvent(withName: BLE_ADAPTER_STATUS_DID_UPDATE, body: [ "status": BLE_ADAPTER_STATUS_UNKNOW])
+        }
+    }
   
     @objc
   func startScan(_ serviceUUIDs: [String]? = nil, deviceNameFilter:String? = nil, options:NSDictionary)
@@ -294,7 +346,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     }
     self.peripherals.removeAll()
     self.centralManager?.scanForPeripherals(withServices: services, options: nil)
-    self.sendEvent(withName: BLE_ADAPTER_SCAN_START, body: nil)
+//    self.sendEvent(withName: BLE_ADAPTER_SCAN_START, body: nil)
   }
   
     @objc
@@ -329,19 +381,33 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     let p = self.peripherals[uuidString]!.getGATTServer()
     self.centralManager?.cancelPeripheralConnection(p)
   }
-  
-    @objc
-  func disconnect(_ uuidString: String)
-  {
-    print("SAMU 14 ========================>>>> disconnect")
-    if !self.isConnected(uuidString: uuidString) {
-      /// i need to disconnect the current device before attempting a new connection
-      return
-    }
-    let p : Peripheral = self.peripherals[uuidString]!
-    self.centralManager?.cancelPeripheralConnection(p.getGATTServer())
-  }
     
+      @objc
+    func disconnect(_ uuidString: String)
+    {
+      print("SAMU 14 ========================>>>> disconnect")
+      if !self.isConnected(uuidString: uuidString) {
+        /// i need to disconnect the current device before attempting a new connection
+        return
+      }
+      let p : Peripheral = self.peripherals[uuidString]!
+      self.centralManager?.cancelPeripheralConnection(p.getGATTServer())
+    }
+    
+    @objc
+    func disconnectSync(_ uuidString: String, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
+    {
+        print("SAMU 14 ========================>>>> disconnect")
+        if !self.isConnected(uuidString: uuidString) {
+            rejecter(BLE_PERIPHERAL_DISCONNECT_FAILED, "peripheral not found with uuid:\(uuidString)", nil)
+            return
+        }
+        self.syncHelper = SyncHelper()
+        self.syncHelper.disconnectResolve = resolve
+        self.syncHelper.disconnectReject = rejecter
+        let p : Peripheral = self.peripherals[uuidString]!
+        self.centralManager?.cancelPeripheralConnection(p.getGATTServer())
+    }
     
     @objc
     func getAllCharacteristicSync(_ uuid:String, resolve: RCTPromiseResolveBlock, rejecter:RCTPromiseRejectBlock) -> Void {
@@ -397,15 +463,160 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
       self.sendEvent(withName: BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "charUUID": charUUID, "error": "characteristic not found with uuid:\(uuid)"])
     }
   }
-  
-  
-  /// =======================================================================================================================================
-  /// =======================================================================================================================================
-  /// =======================================================================================================================================
-  /// ===============  BLE DELEGATE
-  /// =======================================================================================================================================
-  /// =======================================================================================================================================
-  /// =======================================================================================================================================
+    
+    private func initiateDFU(forPeripheral p:Peripheral, andFirmware fw:DFUFirmware, withOptions options:NSDictionary) {
+        let uuid = p.getGATTServer().identifier
+        // Change for iOS 13
+        Thread.sleep(forTimeInterval: 1) //Work around for not finding the peripheral in iOS 13
+        // Change for iOS 13
+        self.dfuHelper.currentPeripheralId = uuid
+        self.dfuHelper.firmware = fw
+        self.dfuHelper.serviceInitiator = DFUServiceInitiator(queue: DispatchQueue(label: "Other"))
+        self.dfuHelper.serviceInitiator.delegate = self
+        self.dfuHelper.serviceInitiator.progressDelegate = self
+        self.dfuHelper.serviceInitiator.logger = self
+        self.dfuHelper.serviceInitiator.dataObjectPreparationDelay = 0.4 // sec
+        if let opt = options as? [String: Any]{
+            if let alternativeAdvertisingNameEnabled = opt["alternativeAdvertisingNameEnabled"] as? Bool {
+                self.dfuHelper.serviceInitiator.alternativeAdvertisingNameEnabled = alternativeAdvertisingNameEnabled
+            }
+            if let enableDebug = opt["enableDebug"] as? Bool {
+                self.dfuHelper.enableDebug = enableDebug
+            }
+        }
+        if #available(iOS 11.0, macOS 10.13, *) {
+            self.dfuHelper.serviceInitiator.packetReceiptNotificationParameter = 0
+        }
+        // Change for iOS 13
+        Thread.sleep(forTimeInterval: 2) //Work around for not finding the peripheral in iOS 13
+        // End change for iOS 13
+        self.dfuHelper.controller = self.dfuHelper.serviceInitiator.with(firmware: fw).start(target: p.getGATTServer())
+    }
+        
+    @objc
+    func startDFU(_ uuid: String , filePath:String , options:NSDictionary)
+    {
+        guard let p = self.peripherals[uuid] else{
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
+            return
+        }
+        if self.isConnected(uuidString: uuid) {
+          /// i need to disconnect the current device before attempting a new connection
+          self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": uuid, "error": "peripheral with uuid:\(uuid) still connected!"])
+          return
+        }
+        guard let url = URL(string: filePath.contains("file://") ? filePath : "file://\(filePath)") else {
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": uuid, "error": "Attempted to start DFU with invalid(\(filePath) filePath"])
+            return
+        }
+        guard let fw = try? DFUFirmware(urlToZipFile: url) else {
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": uuid, "error": "Invalid firmware"])
+            return
+        }
+        self.dfuHelper = DFUHelper()
+        initiateDFU(forPeripheral: p, andFirmware: fw, withOptions: options)
+    }
+    
+    @objc
+    func startDFUSync(_ uuid: String , filePath:String , options:NSDictionary, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
+    {
+        guard let p = self.peripherals[uuid] else{
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
+            return
+        }
+        if self.isConnected(uuidString: uuid) {
+          /// i need to disconnect the current device before attempting a new connection
+          self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": uuid, "error": "peripheral with uuid:\(uuid) still connected!"])
+          return
+        }
+        guard let url = URL(string: filePath.contains("file://") ? filePath : "file://\(filePath)") else {
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": uuid, "error": "Attempted to start DFU with invalid(\(filePath) filePath"])
+            return
+        }
+        guard let fw = try? DFUFirmware(urlToZipFile: url) else {
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": uuid, "error": "Invalid firmware"])
+            return
+        }
+        self.dfuHelper = DFUHelper()
+        self.dfuHelper.processResolve = resolve
+        self.dfuHelper.processReject = rejecter
+        initiateDFU(forPeripheral: p, andFirmware: fw, withOptions: options)
+    }
+    
+    /// =======================================================================================================================================
+    /// =======================================================================================================================================
+    /// =======================================================================================================================================
+    /// ===============  DFU DELEGATE
+    /// =======================================================================================================================================
+    /// =======================================================================================================================================
+    /// =======================================================================================================================================
+    func dfuStateDidChange(to state: iOSDFULibrary.DFUState) {
+        switch (state)
+        {
+        case .completed:
+            let body = ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_COMPLETED]
+            if let success = self.dfuHelper.processResolve {
+                success(body)
+            }else{
+                self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: body )
+            }
+            break
+        case .aborted:
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_ABORTED])
+            break
+        case .starting:
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_STARTING])
+            break
+        case .uploading:
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_UPLOADING])
+            break
+        case .connecting:
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_CONNECTING])
+            break
+        case .validating:
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_VALIDATING])
+            break
+        case .disconnecting:
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING])
+            break
+        case .enablingDfuMode:
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU])
+            break
+        }
+    }
+    
+    func dfuError(_ error: iOSDFULibrary.DFUError, didOccurWithMessage message: String) {
+        if let failure = self.dfuHelper.processReject {
+            failure(BLE_PERIPHERAL_DFU_PROCESS_FAILED, "Error: \(message)(\(error.rawValue))", nil)
+        }else{
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "error":"Error: \(message)(\(error.rawValue))"])
+        }
+    }
+    
+    func dfuProgressDidChange(for part: Int, outOf totalParts: Int, to progress: Int, currentSpeedBytesPerSecond: Double, avgSpeedBytesPerSecond: Double){
+        self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROGRESS, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString,
+                                                                     "part": part,
+                                                                     "totalParts": totalParts,
+                                                                     "progress": progress,
+                                                                     "currentSpeedBytesPerSecond": currentSpeedBytesPerSecond,
+                                                                     "avgSpeedBytesPerSecond": avgSpeedBytesPerSecond
+                                                                    ])
+    }
+    
+    func logWith(_ level: iOSDFULibrary.LogLevel, message: String) {
+        if self.dfuHelper.enableDebug {
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_DEBUG, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString,
+                                                                         "message": "\(level.rawValue) - \(message)"
+                                                                        ])
+        }
+    }
+    /// =======================================================================================================================================
+    /// =======================================================================================================================================
+    /// =======================================================================================================================================
+    /// ===============  BLE DELEGATE
+    /// =======================================================================================================================================
+    /// =======================================================================================================================================
+    /// =======================================================================================================================================
   func centralManagerDidUpdateState(_ central: CBCentralManager)
   {
     /// ("========================>>>> centralManagerDidUpdateState")
@@ -453,17 +664,27 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     }
   }
   
-  func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?)
-  {
-    var body : [String : Any] = ["uuid": peripheral.identifier.uuidString]
-    if let error = error {
-      body["error"] = error.localizedDescription
+    func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?)
+    {
+        if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
+            p.flush()
+        }
+        var body : [String : Any] = ["uuid": peripheral.identifier.uuidString]
+        if let error = error {
+            body["error"] = error.localizedDescription
+            if let failure = self.syncHelper.disconnectReject {
+                failure(BLE_PERIPHERAL_DISCONNECT_FAILED, error.localizedDescription, nil)
+            }else{
+                self.sendEvent(withName: BLE_PERIPHERAL_DISCONNECTED, body: body)
+            }
+        }else{
+            if let success = self.syncHelper.disconnectResolve {
+                success(body)
+            }else{
+                self.sendEvent(withName: BLE_PERIPHERAL_DISCONNECTED, body: body)
+            }
+        }
     }
-    self.sendEvent(withName: BLE_PERIPHERAL_DISCONNECTED, body: body)
-    if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
-      p.flush()
-    }
-  }
   
   func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?)
   {
@@ -529,18 +750,16 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     
 //    func peripheral:(CBPeripheral *)peripheral didWriteValueForCharacteristic:(CBCharacteristic *)characteristic error:(nullable NSError *)error
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-        if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
-          let charUUID = characteristic.uuid.uuidString
-          if let err = error {
-              self.sendEvent(withName:  BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": peripheral.identifier.uuidString, "charUUID":charUUID, "error": err.localizedDescription])
-            return
-          }
-          if let data = characteristic.value{
-            self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, body: ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": data.bytes])
-          }else{
-            self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, body: ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": nil])
-          }
-        }
+      let charUUID = characteristic.uuid.uuidString
+      if let err = error {
+          self.sendEvent(withName:  BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": peripheral.identifier.uuidString, "charUUID":charUUID, "error": err.localizedDescription])
+        return
+      }
+      if let data = characteristic.value{
+        self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, body: ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": data.bytes])
+      }else{
+        self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, body: ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": nil])
+      }
     }
   
   func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?){

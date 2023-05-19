@@ -18,6 +18,7 @@ import {
 
 import * as BluetoothZ from 'react-native-bluetoothz';
 import {requestPermissions, Permission} from './utils/androidPermissions';
+import RNFS from 'react-native-fs';
 
 function BleBulb({status, requestAdapterStatus}) {
   return (
@@ -170,134 +171,287 @@ const Device = ({
   ready,
   notifying,
   onMore,
-}) => (
-  <View
-    style={{
-      minHeight: 70,
-      borderBottomColor: 'gray',
-      borderBottomWidth: 1,
-      gap: 5,
-      marginVertical: 1,
-      flexDirection: 'row',
-      width: '100%',
-    }}>
-    <View style={{justifyContent: 'center'}}>
-      {!connected && (
-        <View
-          style={{
-            backgroundColor: 'slategray',
-            height: 24,
-            width: 24,
-            borderRadius: 12,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-          <Text style={{fontSize: 10}}>❔</Text>
-        </View>
-      )}
-      {connected && !ready && (
-        <View
-          style={{
-            backgroundColor: 'lightskyblue',
-            height: 24,
-            width: 24,
-            borderRadius: 12,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-          <Text style={{fontSize: 10}}>◦</Text>
-        </View>
-      )}
-      {connected && ready && (
-        <View
-          style={{
-            backgroundColor: 'lightgreen',
-            height: 24,
-            width: 24,
-            borderRadius: 12,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-          <Text style={{fontSize: 10}}>✔️</Text>
-        </View>
-      )}
-    </View>
+}) => {
+  const [progress, setProgress] = useState(undefined);
+  useEffect(() => {
+    const dfuFailedListener = BluetoothZ.emitter.addListener(
+      BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED,
+      ({uuid, error}) => {
+        console.log('+ DFU + DISPO:', uuid, 'error:', error);
+      },
+    );
+
+    const dfuStatusListener = BluetoothZ.emitter.addListener(
+      BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,
+      ({uuid, status}) => {
+        console.log('+ DFU STATUS + DISPO:', uuid, 'status:', status);
+      },
+    );
+
+    const dfuProgressListener = BluetoothZ.emitter.addListener(
+      BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROGRESS,
+      ({
+        uuid,
+        part,
+        totalParts,
+        progress,
+        currentSpeedBytesPerSecond,
+        avgSpeedBytesPerSecond,
+      }) => {
+        console.log(
+          '+ DFU PROGRESS + DISPO:',
+          uuid,
+          'part:',
+          part,
+          'totalParts:',
+          totalParts,
+          'progress:',
+          progress,
+          'currentSpeedBytesPerSecond:',
+          currentSpeedBytesPerSecond,
+          'avgSpeedBytesPerSecond:',
+          avgSpeedBytesPerSecond,
+        );
+        setProgress(progress);
+      },
+    );
+
+    return function cleanUp() {
+      console.log('=================>>>>>>>>>>>> OFF');
+      dfuFailedListener?.remove();
+      dfuStatusListener?.remove();
+      dfuProgressListener?.remove();
+    };
+  }, []);
+  return (
     <View
       style={{
+        minHeight: 130,
+        borderBottomColor: 'gray',
+        borderBottomWidth: 1,
+        gap: 5,
+        marginVertical: 1,
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        flex: 1,
+        width: '100%',
       }}>
-      <TouchableOpacity
-        style={{flex: 2, justifyContent: 'center'}}
-        disabled={disabled}
-        onPress={() => {
-          onPress();
-        }}>
-        <Text style={{fontWeight: 'bold', color: disabled ? 'gray' : 'snow'}}>
-          {name}
-        </Text>
-        <Text
-          style={{
-            fontSize: 9,
-            fontStyle: 'italic',
-            color: disabled ? 'gray' : 'snow',
-          }}>
-          {uuid}
-        </Text>
-      </TouchableOpacity>
-      <View
-        style={{
-          flex: 1,
-          gap: 10,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-        }}>
-        {true && (
-          <TouchableOpacity
-            disabled={disabled}
-            onPress={() => {
-              for (let i = 0; i < 100; i++)
-                BluetoothZ.readCharacteristic({
-                  uuid,
-                  charUUID:
-                    Platform.OS === 'android'
-                      ? '00002a24-0000-1000-8000-00805f9b34fb'
-                      : '2A24',
-                });
-            }}
+      <View style={{justifyContent: 'center'}}>
+        {!connected && (
+          <View
             style={{
-              height: 40,
-              backgroundColor: 'crimson',
-              width: 40,
-              borderRadius: 10,
+              backgroundColor: 'slategray',
+              height: 24,
+              width: 24,
+              borderRadius: 12,
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-            <Text style={{color: 'white', fontSize: 13}}>T</Text>
-          </TouchableOpacity>
+            <Text style={{fontSize: 10}}>❔</Text>
+          </View>
+        )}
+        {connected && !ready && (
+          <View
+            style={{
+              backgroundColor: 'lightskyblue',
+              height: 24,
+              width: 24,
+              borderRadius: 12,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            <Text style={{fontSize: 10}}>◦</Text>
+          </View>
         )}
         {connected && ready && (
-          <TouchableOpacity
-            disabled={disabled}
-            onPress={() => {
-              onMore(uuid);
-            }}
+          <View
             style={{
-              height: 26,
-              width: 26,
-              borderRadius: 10,
+              backgroundColor: 'lightgreen',
+              height: 24,
+              width: 24,
+              borderRadius: 12,
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-            <Text style={{color: 'white', fontSize: 13}}>▶︎</Text>
-          </TouchableOpacity>
+            <Text style={{fontSize: 10}}>✔️</Text>
+          </View>
         )}
       </View>
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          flex: 1,
+          paddingVertical: 5,
+        }}>
+        <View
+          style={{flex: 2, justifyContent: 'space-between'}}
+          disabled={disabled}
+          onPress={() => {
+            onPress();
+          }}>
+          <Text style={{fontWeight: 'bold', color: disabled ? 'gray' : 'snow'}}>
+            {name}
+          </Text>
+          <Text
+            style={{
+              fontSize: 9,
+              fontStyle: 'italic',
+              color: disabled ? 'gray' : 'snow',
+            }}>
+            {uuid}
+          </Text>
+          <View
+            style={{backgroundColor: 'dimgray', borderRadius: 5, height: 20}}>
+            <View
+              style={{
+                backgroundColor: 'yellow',
+                borderRadius: 5,
+                height: 20,
+                width: progress ? `${progress}%` : '0%',
+              }}></View>
+            <Text style={{position: 'absolute'}}>
+              {progress ? `${progress}%` : '0%'}
+            </Text>
+          </View>
+          <View
+            style={{
+              // flex: 1,
+              gap: 10,
+              flexDirection: 'row',
+              alignItems: 'center',
+              // justifyContent: 'flex-end',
+            }}>
+            {true && (
+              <TouchableOpacity
+                disabled={disabled}
+                onPress={async () => {
+                  console.log('GO !', Date.now(), RNFS.MainBundlePath);
+                  const result = await RNFS.readDir(RNFS.MainBundlePath);
+                  let firmwarePath = null;
+                  result.forEach(element => {
+                    if (
+                      element.name.includes('XPower_Firmware_Revision_') &&
+                      element.isFile()
+                    )
+                      firmwarePath = element.path;
+                    console.log(
+                      'GOT RESULT',
+                      element.name,
+                      element.isDirectory(),
+                    );
+                  });
+                  console.log('===>', uuid, firmwarePath);
+                  BluetoothZ.startDFU({uuid, filePath: firmwarePath});
+                }}
+                style={{
+                  height: 40,
+                  backgroundColor: 'yellow',
+                  width: 40,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                <Text style={{color: 'black', fontSize: 13}}>DFU</Text>
+              </TouchableOpacity>
+            )}
+            {true && (
+              <TouchableOpacity
+                disabled={disabled}
+                onPress={async () => {
+                  console.log('GO !', Date.now(), RNFS.MainBundlePath);
+                  const result = await RNFS.readDir(RNFS.MainBundlePath);
+                  let firmwarePath = null;
+                  result.forEach(element => {
+                    if (
+                      element.name.includes('XPower_Firmware_Revision_') &&
+                      element.isFile()
+                    )
+                      firmwarePath = element.path;
+                    console.log(
+                      'GOT RESULT',
+                      element.name,
+                      element.isDirectory(),
+                    );
+                  });
+                  console.log('===>', uuid, firmwarePath);
+                  BluetoothZ.startDFUSync({uuid, filePath: firmwarePath})
+                    .then(r => {
+                      console.log('OKOKOKOKOKOKOKOKOKOKOKOKOKOKOKOKO');
+                    })
+                    .catch(e => {
+                      console.log('ERREREREREEEEEEREEEEERREEEEEEEEREER', e);
+                    });
+                }}
+                style={{
+                  height: 40,
+                  backgroundColor: 'cyan',
+                  width: 40,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                <Text style={{color: 'black', fontSize: 13}}>SDFU</Text>
+              </TouchableOpacity>
+            )}
+            {true && (
+              <TouchableOpacity
+                disabled={disabled}
+                onPress={async () => {
+                  console.log('GO !', Date.now(), RNFS.MainBundlePath);
+                  // BluetoothZ.disconnectSync({uuid})
+                  //   .then(r => {
+                  //     console.log('Disconnecteeeeeeeeeeed');
+                  //   })
+                  //   .catch(e => {
+                  //     console.log('ERERERERERER Disconnect', e);
+                  //   });
+                  try {
+                    await BluetoothZ.disconnectSync({uuid});
+                  } catch (error) {
+                    console.log(error?.code, error.message);
+                  }
+                }}
+                style={{
+                  height: 40,
+                  backgroundColor: 'magenta',
+                  width: 40,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                <Text style={{color: 'black', fontSize: 13}}>S-D</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+        <View
+          style={{
+            flex: 1,
+            gap: 10,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+          }}>
+          {connected && ready && (
+            <TouchableOpacity
+              disabled={disabled}
+              onPress={() => {
+                onMore(uuid);
+              }}
+              style={{
+                height: 26,
+                width: 26,
+                borderRadius: 10,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+              <Text style={{color: 'white', fontSize: 13}}>▶︎</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 function Header() {
   return (
@@ -391,7 +545,7 @@ export default function Home({route, navigation}) {
   const [allowDuplicates, setAllowDup] = useState(
     BluetoothZ.scanOptions.allowDuplicates,
   );
-  const [filter, setFilter] = useState('PC8');
+  const [filter, setFilter] = useState('XP');
   const [modal, setModal] = useState(undefined);
 
   useEffect(() => {
@@ -477,6 +631,17 @@ export default function Home({route, navigation}) {
         <Header />
         {Platform.OS === 'android' && <AndroidPerms />}
       </SafeAreaView>
+      <Modal
+        animationType="slide"
+        visible={false}
+        transparent
+        style={{height: 180}}>
+        <View style={{backgroundColor: 'crimson', minHeight: 140}}>
+          <SafeAreaView>
+            <Text>AAA</Text>
+          </SafeAreaView>
+        </View>
+      </Modal>
       <Section
         title={'Adapter status'}
         subtitle={'You can press the button to retrieve the status'}>

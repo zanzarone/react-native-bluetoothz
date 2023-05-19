@@ -1,6 +1,6 @@
 {
   "name": "react-native-bluetoothz",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "test",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -35,7 +35,8 @@
     "example": "yarn --cwd example",
     "bootstrap": "yarn example && yarn install && yarn example pods",
     "clean": "del-cli android/build",
-    "preflight": "node ./scripts/release.js"
+    "preflight": "node ./scripts/release.js",
+    "dep-clean": "node ./scripts/dep_clean.js"
   },
   "keywords": [
     "react-native",

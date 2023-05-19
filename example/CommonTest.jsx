@@ -16,7 +16,7 @@ import {
 
 import {
   readCharacteristic,
-  writeCharacteristic,
+  startDFU,
   emitter,
   Defines,
 } from 'react-native-bluetoothz';

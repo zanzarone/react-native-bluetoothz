@@ -24,6 +24,8 @@ const Defines = {
   ...BLE.getConstants(),
 };
 
+/// 00001530-1212-EFDE-1523-785FEABCD123 DFU Service
+
 module.exports.Defines = Defines;
 
 /// Inizializzo le variabili di stato
@@ -32,7 +34,14 @@ let scanWatchDog = null;
 let connectionWatchDog = new Map();
 let isScanning = false;
 const scanOptions = { allowDuplicates: false };
+const dfuOptions = {
+  alternativeAdvertisingNameEnabled: false,
+  retries: 3,
+  maxMtu: 23,
+  enableDebug: false,
+};
 module.exports.scanOptions = Object.freeze(scanOptions);
+module.exports.dfuOptions = Object.freeze(dfuOptions);
 
 class Queue {
   constructor() {
@@ -304,6 +313,16 @@ module.exports.disconnect = ({ uuid }) => {
 };
 
 /// funzione per interrompere la scansione bluetooth
+const disconnectSync = ({ uuid }) => {
+  console.log('====> DISCONNECT', uuid);
+  invalideConnWatchdog(uuid);
+  return BLE.disconnectSync(uuid);
+};
+
+/// funzione per interrompere la scansione bluetooth
+module.exports.disconnectSync = ({ uuid }) => disconnectSync({ uuid });
+
+/// funzione per interrompere la scansione bluetooth
 module.exports.getAllCharacteristic = async ({ uuid }) => {
   try {
     return await BLE.getAllCharacteristicSync(uuid);
@@ -336,4 +355,38 @@ module.exports.changeCharacteristicNotification = ({
   const task = () =>
     BLE.changeCharacteristicNotification(uuid, charUUID, enable);
   queue.enqueue(task, uuid);
+};
+
+/// funzione per interrompere la scansione bluetooth
+module.exports.startDFU = async ({ uuid, filePath, options = dfuOptions }) => {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    throw new Error('Platform not supported (not android or ios)');
+  }
+  if (Platform.OS === 'ios') {
+    try {
+      await disconnectSync({ uuid });
+    } catch (error) {
+      console.log(error);
+    }
+  }
+  BLE.startDFU(uuid, filePath, options);
+};
+
+/// funzione per interrompere la scansione bluetooth
+module.exports.startDFUSync = async ({
+  uuid,
+  filePath,
+  options = dfuOptions,
+}) => {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    throw new Error('Platform not supported (not android or ios)');
+  }
+  if (Platform.OS === 'ios') {
+    try {
+      await disconnectSync({ uuid });
+    } catch (error) {
+      console.log(error);
+    }
+  }
+  return BLE.startDFUSync(uuid, filePath, options);
 };
