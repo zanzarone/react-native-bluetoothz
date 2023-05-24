@@ -29,21 +29,43 @@ const root = path.resolve(__dirname, '..');
 // }
 const exampleDIR = path.join(root, 'example');
 console.log(root, exampleDIR);
-// execSync(`cd ${path.join(root, 'example')}`, { stdio: 'inherit' });
-// execSync('cwd', { stdio: 'inherit' });
-execSync(`npm r react-native-bluetoothz --prefix ${exampleDIR}`, {
-  stdio: 'inherit',
+
+const readline = require('readline');
+
+// Crea un'interfaccia per leggere l'input
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
 });
-execSync(`cd ${path.join(exampleDIR, 'ios')} && pod install`, {
-  stdio: 'inherit',
+
+// Chiedi all'utente di inserire qualcosa
+rl.question('\n > Are you sure you want to run dep-clean? [Y/n] ', (answer) => {
+  if (answer.toLowerCase() === 'yes' || answer.toLowerCase() === 'y') {
+    console.log('Running the script...');
+    execSync(`npm r react-native-bluetoothz --prefix ${exampleDIR}`, {
+      stdio: 'inherit',
+    });
+    execSync(`cd ${path.join(exampleDIR, 'ios')} && pod install`, {
+      stdio: 'inherit',
+    });
+    execSync(`npm i react-native-bluetoothz --prefix ${exampleDIR}`, {
+      stdio: 'inherit',
+    });
+    execSync(`npm run preflight`, {
+      stdio: 'inherit',
+    });
+    execSync(`cd ${path.join(exampleDIR, 'ios')} && pod install`, {
+      stdio: 'inherit',
+    });
+    execSync('npm pack');
+  } else {
+    console.log('Script execution canceled.');
+  }
+  // Chiudi l'interfaccia dopo aver ottenuto l'input
+  rl.close();
 });
-execSync(`npm i react-native-bluetoothz --prefix ${exampleDIR}`, {
-  stdio: 'inherit',
+
+// Gestisci l'evento di chiusura dell'interfaccia
+rl.on('close', () => {
+  console.log('Input terminato.');
 });
-execSync(`npm run preflight`, {
-  stdio: 'inherit',
-});
-execSync(`cd ${path.join(exampleDIR, 'ios')} && pod install`, {
-  stdio: 'inherit',
-});
-// execSync('npm pack');

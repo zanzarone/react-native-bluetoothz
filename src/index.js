@@ -36,8 +36,6 @@ let isScanning = false;
 const scanOptions = { allowDuplicates: false };
 const dfuOptions = {
   alternativeAdvertisingNameEnabled: false,
-  retries: 3,
-  maxMtu: 23,
   enableDebug: false,
 };
 module.exports.scanOptions = Object.freeze(scanOptions);
@@ -166,11 +164,11 @@ function stopScan() {
 
 function cancel({ uuid }) {
   console.log('====> CANCEL CONN', uuid);
-  invalideConnWatchdog(uuid);
+  invalidateConnWatchdog(uuid);
   BLE.cancel(uuid);
 }
 
-function invalideConnWatchdog(uuid) {
+function invalidateConnWatchdog(uuid) {
   if (connectionWatchDog.has(uuid)) {
     console.log('- invalidate TIMER ', uuid);
     clearTimeout(connectionWatchDog.get(uuid));
@@ -179,8 +177,8 @@ function invalideConnWatchdog(uuid) {
   }
 }
 
-function startWatchdog(uuid) {
-  console.log('+ startWatchdog ', uuid);
+function startConnWatchdog(uuid) {
+  console.log('+ startConnWatchdog ', uuid);
   for (const [key, value] of connectionWatchDog) {
     console.log(`!!!! ${key} = ${value}`);
   }
@@ -199,15 +197,15 @@ bleEmitter.addListener(Defines.BLE_PERIPHERAL_CONNECTED, (event) => {
   reconnectCount = null;
   console.log('!! BLE_PERIPHERAL_CONNECTED ', event);
   const { uuid } = event;
-  invalideConnWatchdog(uuid);
-  startWatchdog(uuid);
+  invalidateConnWatchdog(uuid);
+  startConnWatchdog(uuid);
 });
 
 /// aggancio ascoltatore periferica pronta
 bleEmitter.addListener(Defines.BLE_PERIPHERAL_READY, (event) => {
   console.log('!! BLE_PERIPHERAL_READY ', event);
   const { uuid } = event;
-  invalideConnWatchdog(uuid);
+  invalidateConnWatchdog(uuid);
 });
 
 /// aggancio ascoltatore periferica pronta
@@ -225,7 +223,7 @@ bleEmitter.addListener(Defines.BLE_PERIPHERAL_DISCONNECTED, (event) => {
     return;
   }
   reconnectCount = null;
-  invalideConnWatchdog(uuid);
+  invalidateConnWatchdog(uuid);
   queue.invalidate(uuid);
 });
 
@@ -233,7 +231,7 @@ bleEmitter.addListener(Defines.BLE_PERIPHERAL_DISCONNECTED, (event) => {
 bleEmitter.addListener(Defines.BLE_PERIPHERAL_CONNECT_FAILED, (event) => {
   reconnectCount = null;
   const { uuid } = event;
-  invalideConnWatchdog(uuid);
+  invalidateConnWatchdog(uuid);
   console.log('x BLE_PERIPHERAL_CONNECT_FAILED ', event);
 });
 
@@ -243,8 +241,8 @@ bleEmitter.addListener(
   (event) => {
     const { uuid } = event;
     // console.log('!! BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED ', event);
-    invalideConnWatchdog(uuid);
-    startWatchdog(uuid);
+    invalidateConnWatchdog(uuid);
+    startConnWatchdog(uuid);
   }
 );
 
@@ -295,27 +293,42 @@ module.exports.connect = ({
     cancel({ uuid });
   }
   console.log('====> CONNECT', uuid);
-  startWatchdog(uuid);
+  startConnWatchdog(uuid);
   BLE.connect(uuid);
   if (maxRetryCount > 0 && this.autoReconnect === null) {
     reconnectCount = maxRetryCount;
   }
 };
 
+// module.exports.connectSync = async ({ uuid }) => {
+//   let connTimeout = setTimeout(() =>{}, 5000)
+//   try {
+//     await BLE.connectSync(uuid);
+//   } catch (error) {
+
+//   }
+// };
+
 /// funzione per interrompere la scansione bluetooth
 module.exports.cancel = ({ uuid }) => cancel({ uuid });
+
+module.exports.cancelSync = ({ uuid }) => {
+  console.log('====> CANCEL CONN', uuid);
+  invalidateConnWatchdog(uuid);
+  return BLE.cancel(uuid);
+};
 
 /// funzione per interrompere la scansione bluetooth
 module.exports.disconnect = ({ uuid }) => {
   console.log('====> DISCONNECT', uuid);
-  invalideConnWatchdog(uuid);
+  invalidateConnWatchdog(uuid);
   BLE.disconnect(uuid);
 };
 
 /// funzione per interrompere la scansione bluetooth
 const disconnectSync = ({ uuid }) => {
   console.log('====> DISCONNECT', uuid);
-  invalideConnWatchdog(uuid);
+  invalidateConnWatchdog(uuid);
   return BLE.disconnectSync(uuid);
 };
 

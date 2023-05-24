@@ -1,6 +1,7 @@
 package com.bluetoothz;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
@@ -18,15 +19,28 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Build;
+import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.ParcelUuid;
 import android.util.Log;
 import android.util.Pair;
 
+import no.nordicsemi.android.dfu.DfuBaseService;
+import no.nordicsemi.android.dfu.DfuProgressListener;
+import no.nordicsemi.android.dfu.DfuProgressListenerAdapter;
+import no.nordicsemi.android.dfu.DfuServiceController;
+import no.nordicsemi.android.dfu.DfuServiceInitiator;
+import no.nordicsemi.android.dfu.DfuServiceListenerHelper;
+//import no.nordicsemi.android.dfu.Lif;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.facebook.react.ReactApplication;
+import com.facebook.react.ReactInstanceManager;
+import com.facebook.react.bridge.LifecycleEventListener;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableArray;
@@ -47,7 +61,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.UUID;
 
-public class BluetoothzModule extends ReactContextBaseJavaModule {
+public class BluetoothzModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
     private static final String Characteristic_User_Description = "00002901-0000-1000-8000-00805f9b34fb";
     private static final String Client_Characteristic_Configuration = "00002902-0000-1000-8000-00805f9b34fb";
     public static final String BLE_ADAPTER_STATUS_DID_UPDATE = "BLE_ADAPTER_STATUS_DID_UPDATE";
@@ -71,19 +85,59 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
     public static final String BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED = "BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED";
     public static final String BLE_PERIPHERAL_NOTIFICATION_UPDATES = "BLE_PERIPHERAL_NOTIFICATION_UPDATES";
     public static final String BLE_PERIPHERAL_NOTIFICATION_CHANGED = "BLE_PERIPHERAL_NOTIFICATION_CHANGED";
-    public static final String BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED = "BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED";
+    public static final String BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED    = "BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED";
+    public static final String BLE_PERIPHERAL_DFU_PROCESS_FAILED             = "BLE_PERIPHERAL_DFU_PROCESS_FAILED";
+    public static final String BLE_PERIPHERAL_DFU_PROCESS_STARTED            = "BLE_PERIPHERAL_DFU_PROCESS_STARTED";
+    public static final String BLE_PERIPHERAL_DFU_PROGRESS                   = "BLE_PERIPHERAL_DFU_PROGRESS";
+    public static final String BLE_PERIPHERAL_DFU_DEBUG                      = "BLE_PERIPHERAL_DFU_DEBUG";
+    public static final String BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE          = "BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE";
+    public static final String BLE_PERIPHERAL_DFU_STATUS_ABORTED             = "BLE_PERIPHERAL_DFU_STATUS_ABORTED";
+    public static final String BLE_PERIPHERAL_DFU_STATUS_STARTING            = "BLE_PERIPHERAL_DFU_STATUS_STARTING";
+    public static final String BLE_PERIPHERAL_DFU_STATUS_STARTED             = "BLE_PERIPHERAL_DFU_STATUS_STARTED";
+    public static final String BLE_PERIPHERAL_DFU_STATUS_COMPLETED           = "BLE_PERIPHERAL_DFU_STATUS_COMPLETED";
+    public static final String BLE_PERIPHERAL_DFU_STATUS_UPLOADING           = "BLE_PERIPHERAL_DFU_STATUS_UPLOADING";
+    public static final String BLE_PERIPHERAL_DFU_STATUS_CONNECTING          = "BLE_PERIPHERAL_DFU_STATUS_CONNECTING";
+    public static final String BLE_PERIPHERAL_DFU_STATUS_CONNECTED           = "BLE_PERIPHERAL_DFU_STATUS_CONNECTED";
+    public static final String BLE_PERIPHERAL_DFU_STATUS_DISCONNECTED       = "BLE_PERIPHERAL_DFU_STATUS_DISCONNECTED";
+    public static final String BLE_PERIPHERAL_DFU_STATUS_VALIDATING          = "BLE_PERIPHERAL_DFU_STATUS_VALIDATING";
+    public static final String BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING       = "BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING";
+    public static final String BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU        = "BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU";
 
-    private BluetoothAdapter bluetoothAdapter;
-    private String filter;
-    private boolean allowDuplicates = false;
-    private int listenerCount = 0;
-    private ReactApplicationContext reactContext;
-    private LocalBroadcastReceiver  mLocalBroadcastReceiver     = new LocalBroadcastReceiver();
-    private LocalScanCallback  mScanCallback                    = new LocalScanCallback();
-    private LocalBluetoothGattCallback  mBluetoothGATTCallback  = new LocalBluetoothGattCallback();
-    private HashMap<String, Peripheral> mPeripherals            = new HashMap<String, Peripheral>();
+  private BluetoothAdapter bluetoothAdapter;
+  private String filter;
+  private boolean allowDuplicates = false;
+  private int listenerCount = 0;
+  private ReactApplicationContext reactContext;
+  private LocalBroadcastReceiver  mLocalBroadcastReceiver;
+  private LocalScanCallback  mScanCallback;
+  private LocalBluetoothGattCallback  mBluetoothGATTCallback;
+  private LocalDfuProgressListener mLocalDfuProgressListener;
+  private HashMap<String, Peripheral> mPeripherals;
+  private DfuHelper mDfuHelper;
+  private SyncHelper mSyncHelper;
 
-    private static final byte[] HEX_ARRAY = "0123456789ABCDEF".getBytes(StandardCharsets.US_ASCII);
+  private static final byte[] HEX_ARRAY = "0123456789ABCDEF".getBytes(StandardCharsets.US_ASCII);
+
+    public BluetoothzModule(ReactApplicationContext context) {
+        super(context);
+        this.reactContext = context;
+        this.mPeripherals = new HashMap<>();
+        this.mLocalBroadcastReceiver = new LocalBroadcastReceiver();
+        this.mScanCallback = new LocalScanCallback();
+        this.mBluetoothGATTCallback = new LocalBluetoothGattCallback();
+        this.mLocalDfuProgressListener = new LocalDfuProgressListener();
+        this.reactContext.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
+        this.mSyncHelper = new SyncHelper();
+        /**
+         ================================================================================================================
+         =============================================== DFU ============================================================
+         ================================================================================================================
+         */
+        this.reactContext.addLifecycleEventListener(this);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            DfuServiceInitiator.createDfuNotificationChannel(reactContext);
+        }
+    }
 
     private static String bytesToHex(byte[] bytes) {
         byte[] hexChars = new byte[bytes.length * 2];
@@ -105,6 +159,22 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
             }
         }
     }
+
+  private class SyncHelper {
+      public Promise disconnectPromise;
+      public Promise connectPromise;
+  }
+
+  private class DfuHelper {
+    public Boolean enableDebug  = false;
+    public String currentPeripheralId;
+    public String firmwarePath;
+    public DfuServiceInitiator serviceInitiator;
+    public DfuServiceController controller;
+    /// DFU PROPS
+    public Promise dfuPromise;
+  }
+
 
     // Device scan callback.
     public class LocalScanCallback extends ScanCallback {
@@ -147,14 +217,34 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
                     p.setGattServer(gatt);
                     p.setConnected(true);
                     p.discover();
-                    sendEvent(reactContext, BLE_PERIPHERAL_CONNECTED, params);
+                    if( mSyncHelper.connectPromise != null ) {
+                      mSyncHelper.connectPromise.resolve(params);
+                    }else{
+                      sendEvent(reactContext, BLE_PERIPHERAL_CONNECTED, params);
+                    }
+                }else{
+                  if( mSyncHelper.connectPromise != null ) {
+                    mSyncHelper.disconnectPromise.reject(BLE_PERIPHERAL_CONNECT_FAILED, "Device already connected:" + uuid);
+                  }else{
+                    sendEvent(reactContext, BLE_PERIPHERAL_CONNECT_FAILED, params);
+                  }
                 }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 // disconnected from the GATT Server
                 if(mPeripherals.containsKey(gatt.getDevice().getAddress())) {
                     Peripheral p = mPeripherals.get(gatt.getDevice().getAddress());
                     p.flush();
-                    sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECTED, params);
+                    if( mSyncHelper.disconnectPromise != null ) {
+                      mSyncHelper.disconnectPromise.resolve(params);
+                    }else{
+                      sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECTED, params);
+                    }
+                }else{
+                  if( mSyncHelper.disconnectPromise != null ) {
+                    mSyncHelper.disconnectPromise.reject(BLE_PERIPHERAL_DISCONNECT_FAILED, "Device already disconnected:" + uuid);
+                  }else{
+                    sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECT_FAILED, params);
+                  }
                 }
             }
         }
@@ -339,12 +429,6 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
         }
     }
 
-    public BluetoothzModule(ReactApplicationContext context) {
-        super(context);
-        this.reactContext = context;
-        this.reactContext.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
-    }
-
     private static void sendEvent(ReactContext reactContext, String eventName, @Nullable WritableMap params) {
         reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit(eventName, params);
     }
@@ -479,49 +563,85 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
         sendEvent(reactContext, BLE_ADAPTER_SCAN_END, null);
     }
 
-    @SuppressLint("MissingPermission")
-    @ReactMethod
-    public void connect(String uuid) {
-        if(!mPeripherals.containsKey(uuid) || (mPeripherals.containsKey(uuid) && mPeripherals.get(uuid).isConnected())) {
-          WritableMap params = Arguments.createMap();
-          params.putString("uuid", uuid);
-          params.putString("error", "Device already disconnected:" + uuid);
-          Log.w("SAMUELE", "Device not found with provided address." + uuid);
-          sendEvent(reactContext, BLE_PERIPHERAL_CONNECT_FAILED, params);
-          return;
-        }
-        try {
-            final BluetoothDevice device = bluetoothAdapter.getRemoteDevice(uuid);
-            device.connectGatt(reactContext, false, mBluetoothGATTCallback);
-        } catch (IllegalArgumentException exception) {
-            WritableMap params = Arguments.createMap();
-            params.putString("uuid", uuid);
-            params.putString("error", exception.getLocalizedMessage());
-            Log.w("SAMUELE", "Device not found with provided address." + uuid);
-            sendEvent(reactContext, BLE_PERIPHERAL_CONNECT_FAILED, params);
-        }
+  @SuppressLint("MissingPermission")
+  @ReactMethod
+  public void connect(String uuid) {
+    if(!mPeripherals.containsKey(uuid) || (mPeripherals.containsKey(uuid) && mPeripherals.get(uuid).isConnected())) {
+      WritableMap params = Arguments.createMap();
+      params.putString("uuid", uuid);
+      params.putString("error", "Device already disconnected:" + uuid);
+      Log.w("SAMUELE", "Device not found with provided address." + uuid);
+      sendEvent(reactContext, BLE_PERIPHERAL_CONNECT_FAILED, params);
+      return;
     }
-
-    @SuppressLint("MissingPermission")
-    @ReactMethod
-    public void cancel(String uuid) {
-        this.disconnect(uuid);
+    try {
+      final BluetoothDevice device = bluetoothAdapter.getRemoteDevice(uuid);
+      device.connectGatt(reactContext, false, mBluetoothGATTCallback);
+    } catch (IllegalArgumentException exception) {
+      WritableMap params = Arguments.createMap();
+      params.putString("uuid", uuid);
+      params.putString("error", exception.getLocalizedMessage());
+      Log.w("SAMUELE", "Device not found with provided address." + uuid);
+      sendEvent(reactContext, BLE_PERIPHERAL_CONNECT_FAILED, params);
     }
+  }
 
-    @SuppressLint("MissingPermission")
+  @SuppressLint("MissingPermission")
+  @ReactMethod
+  public void connectSync(String uuid, Promise promise) {
+    if(!mPeripherals.containsKey(uuid) || (mPeripherals.containsKey(uuid) && mPeripherals.get(uuid).isConnected())) {
+      promise.reject(BLE_PERIPHERAL_CONNECT_FAILED,"Device already connected:" + uuid );
+      return;
+    }
+    this.mSyncHelper.connectPromise = promise;
+    try {
+      final BluetoothDevice device = bluetoothAdapter.getRemoteDevice(uuid);
+      device.connectGatt(reactContext, false, mBluetoothGATTCallback);
+    } catch (IllegalArgumentException exception) {
+      mSyncHelper.connectPromise.reject(BLE_PERIPHERAL_CONNECT_FAILED, exception.getLocalizedMessage());
+      Log.w("SAMUELE", "Device not found with provided address." + uuid);
+    }
+  }
+
+  @SuppressLint("MissingPermission")
+  @ReactMethod
+  public void cancel(String uuid) {
+    this.disconnect(uuid);
+  }
+
+
+  @SuppressLint("MissingPermission")
+  @ReactMethod
+  public void cancelSync(String uuid, Promise promise) {
+      this.disconnectSync(uuid, promise);
+  }
+
+  @SuppressLint("MissingPermission")
     @ReactMethod
     public void disconnect(String uuid) {
-//        Log.d("SAMUELE","=====> DISCONNECT");
-        if(!mPeripherals.containsKey(uuid) || (mPeripherals.containsKey(uuid) && !mPeripherals.get(uuid).isConnected())) {
-          WritableMap params = Arguments.createMap();
-          params.putString("uuid", uuid);
-          params.putString("error", "Device already disconnected:" + uuid);
-          Log.w("SAMUELE", "Device not found with provided address." + uuid);
-          sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECT_FAILED, params);
-          return;
-        }
-        Peripheral p = mPeripherals.get(uuid);
-        p.disconnect();
+  //        Log.d("SAMUELE","=====> DISCONNECT");
+      if(!mPeripherals.containsKey(uuid) || (mPeripherals.containsKey(uuid) && !mPeripherals.get(uuid).isConnected())) {
+        WritableMap params = Arguments.createMap();
+        params.putString("uuid", uuid);
+        params.putString("error", "Device already disconnected:" + uuid);
+        Log.w("SAMUELE", "Device not found with provided address." + uuid);
+        sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECT_FAILED, params);
+        return;
+      }
+      Peripheral p = mPeripherals.get(uuid);
+      p.disconnect();
+    }
+
+    @SuppressLint("MissingPermission")
+    @ReactMethod
+    public void disconnectSync(String uuid, Promise promise) {
+      if(!mPeripherals.containsKey(uuid) || (mPeripherals.containsKey(uuid) && !mPeripherals.get(uuid).isConnected())) {
+        promise.reject(BLE_PERIPHERAL_DISCONNECT_FAILED, "Device already disconnected:" + uuid);
+        return;
+      }
+      mSyncHelper.disconnectPromise = promise;
+      Peripheral p = mPeripherals.get(uuid);
+      p.disconnect();
     }
 
     @ReactMethod
@@ -613,14 +733,154 @@ public class BluetoothzModule extends ReactContextBaseJavaModule {
         }
     }
 
-/**
+  /**
+   =============================================== DFU ============================================================
+   ================================================================================================================
+   ================================================================================================================
+   ================================================================================================================
+   */
 
- ================================================================================================================
- ================================================================================================================
- ================================================================================================================
- ================================================================================================================
+  @Override
+  public void onHostResume() {
+    DfuServiceListenerHelper.registerProgressListener(this.reactContext, this.mLocalDfuProgressListener);
+  }
 
- */
+  @Override
+  public void onHostPause() {
+  }
+
+  @Override
+  public void onHostDestroy() {
+    DfuServiceListenerHelper.unregisterProgressListener(this.reactContext, this.mLocalDfuProgressListener);
+  }
+
+  private class LocalDfuProgressListener extends DfuProgressListenerAdapter {
+
+    @Override
+    public void onDeviceConnecting(@NonNull final String deviceAddress) {
+      WritableMap map = Arguments.createMap();
+      map.putString("uuid", deviceAddress);
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_CONNECTING, map);
+    }
+
+    @Override
+    public void onDeviceConnected(@NonNull final String deviceAddress) {
+      WritableMap map = Arguments.createMap();
+      map.putString("uuid", deviceAddress);
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_CONNECTED, map);
+    }
+
+    @Override
+    public void onDfuProcessStarting(@NonNull final String deviceAddress) {
+      WritableMap map = Arguments.createMap();
+      map.putString("uuid", deviceAddress);
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_STARTING, map);
+    }
+
+    @Override
+    public void onDfuProcessStarted(@NonNull final String deviceAddress) {
+      WritableMap map = Arguments.createMap();
+      map.putString("uuid", deviceAddress);
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_STARTED, map);
+    }
+
+    @Override
+    public void onEnablingDfuMode(@NonNull final String deviceAddress) {
+      WritableMap map = Arguments.createMap();
+      map.putString("uuid", deviceAddress);
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU, map);
+    }
+
+    @Override
+    public void onProgressChanged(@NonNull final String deviceAddress, final int percent,
+                                  final float speed, final float avgSpeed,
+                                  final int currentPart, final int partsTotal) {
+      WritableMap map = Arguments.createMap();
+      map.putString("uuid", deviceAddress);
+      map.putInt("progress", percent);
+      map.putDouble("currentSpeedBytesPerSecond", speed);
+      map.putDouble("avgSpeedBytesPerSecond", avgSpeed);
+      map.putInt("part", currentPart);
+      map.putInt("totalParts", partsTotal);
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROGRESS, map);
+    }
+
+    @Override
+    public void onFirmwareValidating(@NonNull final String deviceAddress) {
+      WritableMap map = Arguments.createMap();
+      map.putString("uuid", deviceAddress);
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_VALIDATING, map);
+    }
+
+    @Override
+    public void onDeviceDisconnecting(final String deviceAddress) {
+      WritableMap map = Arguments.createMap();
+      map.putString("uuid", deviceAddress);
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING, map);
+    }
+
+    @Override
+    public void onDeviceDisconnected(@NonNull final String deviceAddress) {
+      WritableMap map = Arguments.createMap();
+      map.putString("uuid", deviceAddress);
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DISCONNECTED, map);
+    }
+
+    @Override
+    public void onDfuCompleted(@NonNull final String deviceAddress) {
+      WritableMap map = Arguments.createMap();
+      map.putString("uuid", deviceAddress);
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_COMPLETED, map);
+    }
+
+    @Override
+    public void onDfuAborted(@NonNull final String deviceAddress) {
+      WritableMap map = Arguments.createMap();
+      map.putString("uuid", deviceAddress);
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_ABORTED, map);
+    }
+
+    @Override
+    public void onError(@NonNull final String deviceAddress,
+                        final int error, final int errorType, final String message) {
+      WritableMap map = Arguments.createMap();
+      map.putString("uuid", deviceAddress);
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_FAILED, map);
+    }
+  }
+
+  @ReactMethod
+  public void startDFU(String uuid, String filePath, ReadableMap options) {
+    this.mDfuHelper = new DfuHelper();
+    this.mDfuHelper.currentPeripheralId = uuid;
+    this.mDfuHelper.firmwarePath = filePath;
+    this.mDfuHelper.serviceInitiator = new DfuServiceInitiator(uuid).setKeepBond(false);
+    this.mDfuHelper.serviceInitiator.setPacketsReceiptNotificationsValue(1);
+    this.mDfuHelper.enableDebug = false;
+    if(options.hasKey("enableDebug")){
+      this.mDfuHelper.enableDebug = options.getBoolean("enableDebug");
+    }
+    this.mDfuHelper.serviceInitiator.setPrepareDataObjectDelay(300L);
+    if(options.hasKey("packetDelay")){
+      this.mDfuHelper.serviceInitiator.setPrepareDataObjectDelay(options.getInt("packetDelay"));
+    }
+    this.mDfuHelper.serviceInitiator.setUnsafeExperimentalButtonlessServiceInSecureDfuEnabled(true);
+    this.mDfuHelper.serviceInitiator.setZip(filePath);
+    this.mDfuHelper.controller = this.mDfuHelper.serviceInitiator.start(this.reactContext, LocalDfuService.class);
+  }
+
+  @ReactMethod
+  public void startDFUSync(String uuid, String filePath, ReadableMap options, Promise promise) {
+    startDFU(uuid, filePath, options);
+    this.mDfuHelper.dfuPromise = promise;
+  }
+
+  /**
+   ================================================================================================================
+   ================================================================================================================
+   ================================================================================================================
+   ================================================================================================================
+   */
 
     @ReactMethod
     public void addListener(String eventName) {

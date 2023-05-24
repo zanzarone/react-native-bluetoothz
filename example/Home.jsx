@@ -325,7 +325,22 @@ const Device = ({
                 disabled={disabled}
                 onPress={async () => {
                   console.log('GO !', Date.now(), RNFS.MainBundlePath);
-                  const result = await RNFS.readDir(RNFS.MainBundlePath);
+                  if (Platform === 'ios') {
+                    let result = await RNFS.readDir(RNFS.MainBundlePath);
+                  } else {
+                    RNFS.readFileAssets(resFileName, 'base64')
+                      .then(content => {
+                        return RNFS.writeFile(cacheFilePath, content, 'base64');
+                      })
+                      .then(() => {
+                        console.log(
+                          'File copied to cache directory successfully.',
+                        );
+                      })
+                      .catch(error => {
+                        console.log('Error copying file:', error);
+                      });
+                  }
                   let firmwarePath = null;
                   result.forEach(element => {
                     if (
