@@ -18,7 +18,26 @@ import {
 
 import * as BluetoothZ from 'react-native-bluetoothz';
 import {requestPermissions, Permission} from './utils/androidPermissions';
+import DocumentPicker from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
+
+const pickDocument = async () => {
+  try {
+    const res = await DocumentPicker.pickSingle({
+      type: [DocumentPicker.types.allFiles],
+    });
+    console.log('URI:', res.uri);
+    console.log('Type:', res.type);
+    console.log('Name:', res.name);
+    console.log('Size:', res.size);
+  } catch (err) {
+    if (DocumentPicker.isCancel(err)) {
+      console.log('User cancelled the picker');
+    } else {
+      console.log('Error:', err);
+    }
+  }
+};
 
 function BleBulb({status, requestAdapterStatus}) {
   return (
@@ -324,38 +343,39 @@ const Device = ({
               <TouchableOpacity
                 disabled={disabled}
                 onPress={async () => {
-                  console.log('GO !', Date.now(), RNFS.MainBundlePath);
-                  if (Platform === 'ios') {
-                    let result = await RNFS.readDir(RNFS.MainBundlePath);
-                  } else {
-                    RNFS.readFileAssets(resFileName, 'base64')
-                      .then(content => {
-                        return RNFS.writeFile(cacheFilePath, content, 'base64');
-                      })
-                      .then(() => {
-                        console.log(
-                          'File copied to cache directory successfully.',
-                        );
-                      })
-                      .catch(error => {
-                        console.log('Error copying file:', error);
-                      });
-                  }
-                  let firmwarePath = null;
-                  result.forEach(element => {
-                    if (
-                      element.name.includes('XPower_Firmware_Revision_') &&
-                      element.isFile()
-                    )
-                      firmwarePath = element.path;
-                    console.log(
-                      'GOT RESULT',
-                      element.name,
-                      element.isDirectory(),
-                    );
-                  });
-                  console.log('===>', uuid, firmwarePath);
-                  BluetoothZ.startDFU({uuid, filePath: firmwarePath});
+                  pickDocument();
+                  // console.log('GO !', Date.now(), RNFS.MainBundlePath);
+                  // if (Platform === 'ios') {
+                  //   let result = await RNFS.readDir(RNFS.MainBundlePath);
+                  // } else {
+                  //   RNFS.readFileAssets(resFileName, 'base64')
+                  //     .then(content => {
+                  //       return RNFS.writeFile(cacheFilePath, content, 'base64');
+                  //     })
+                  //     .then(() => {
+                  //       console.log(
+                  //         'File copied to cache directory successfully.',
+                  //       );
+                  //     })
+                  //     .catch(error => {
+                  //       console.log('Error copying file:', error);
+                  //     });
+                  // }
+                  // let firmwarePath = null;
+                  // result.forEach(element => {
+                  //   if (
+                  //     element.name.includes('XPower_Firmware_Revision_') &&
+                  //     element.isFile()
+                  //   )
+                  //     firmwarePath = element.path;
+                  //   console.log(
+                  //     'GOT RESULT',
+                  //     element.name,
+                  //     element.isDirectory(),
+                  //   );
+                  // });
+                  // console.log('===>', uuid, firmwarePath);
+                  // BluetoothZ.startDFU({uuid, filePath: firmwarePath});
                 }}
                 style={{
                   height: 40,
