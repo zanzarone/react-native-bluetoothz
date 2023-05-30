@@ -22,9 +22,11 @@ import DocumentPicker from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
 
 const pickDocument = async () => {
+  let res;
   try {
-    const res = await DocumentPicker.pickSingle({
+    res = await DocumentPicker.pickSingle({
       type: [DocumentPicker.types.allFiles],
+      copyTo: 'cachesDirectory',
     });
     console.log('URI:', res.uri);
     console.log('Type:', res.type);
@@ -37,6 +39,7 @@ const pickDocument = async () => {
       console.log('Error:', err);
     }
   }
+  return res;
 };
 
 function BleBulb({status, requestAdapterStatus}) {
@@ -192,6 +195,7 @@ const Device = ({
   onMore,
 }) => {
   const [progress, setProgress] = useState(undefined);
+  const [dfuStatus, setDfuStatus] = useState(undefined);
   useEffect(() => {
     const dfuFailedListener = BluetoothZ.emitter.addListener(
       BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED,
@@ -204,6 +208,7 @@ const Device = ({
       BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,
       ({uuid, status}) => {
         console.log('+ DFU STATUS + DISPO:', uuid, 'status:', status);
+        setDfuStatus(status);
       },
     );
 
@@ -303,21 +308,31 @@ const Device = ({
         }}>
         <View
           style={{flex: 2, justifyContent: 'space-between'}}
-          disabled={disabled}
-          onPress={() => {
-            onPress();
-          }}>
+          disabled={disabled}>
           <Text style={{fontWeight: 'bold', color: disabled ? 'gray' : 'snow'}}>
             {name}
           </Text>
-          <Text
-            style={{
-              fontSize: 9,
-              fontStyle: 'italic',
-              color: disabled ? 'gray' : 'snow',
-            }}>
-            {uuid}
-          </Text>
+          <View style={{flexDirection: 'row', gap: 5}}>
+            <Text
+              style={{
+                fontSize: 9,
+                fontStyle: 'italic',
+                color: disabled ? 'gray' : 'snow',
+              }}>
+              {uuid}
+            </Text>
+            {dfuStatus && (
+              <Text
+                style={{
+                  fontSize: 9,
+                  fontStyle: 'italic',
+                  fontWeight: 'bold',
+                  color: 'cyan',
+                }}>
+                {dfuStatus}
+              </Text>
+            )}
+          </View>
           <View
             style={{backgroundColor: 'dimgray', borderRadius: 5, height: 20}}>
             <View
@@ -327,7 +342,17 @@ const Device = ({
                 height: 20,
                 width: progress ? `${progress}%` : '0%',
               }}></View>
-            <Text style={{position: 'absolute'}}>
+            <Text
+              style={{
+                position: 'absolute',
+                color: 'black',
+                fontWeight: 'bold',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                textAlign: 'center',
+              }}>
               {progress ? `${progress}%` : '0%'}
             </Text>
           </View>
@@ -343,39 +368,18 @@ const Device = ({
               <TouchableOpacity
                 disabled={disabled}
                 onPress={async () => {
-                  pickDocument();
-                  // console.log('GO !', Date.now(), RNFS.MainBundlePath);
-                  // if (Platform === 'ios') {
-                  //   let result = await RNFS.readDir(RNFS.MainBundlePath);
-                  // } else {
-                  //   RNFS.readFileAssets(resFileName, 'base64')
-                  //     .then(content => {
-                  //       return RNFS.writeFile(cacheFilePath, content, 'base64');
-                  //     })
-                  //     .then(() => {
-                  //       console.log(
-                  //         'File copied to cache directory successfully.',
-                  //       );
-                  //     })
-                  //     .catch(error => {
-                  //       console.log('Error copying file:', error);
-                  //     });
-                  // }
-                  // let firmwarePath = null;
-                  // result.forEach(element => {
-                  //   if (
-                  //     element.name.includes('XPower_Firmware_Revision_') &&
-                  //     element.isFile()
-                  //   )
-                  //     firmwarePath = element.path;
-                  //   console.log(
-                  //     'GOT RESULT',
-                  //     element.name,
-                  //     element.isDirectory(),
-                  //   );
-                  // });
-                  // console.log('===>', uuid, firmwarePath);
-                  // BluetoothZ.startDFU({uuid, filePath: firmwarePath});
+                  const result = await pickDocument();
+                  console.log(result);
+                  if (result) {
+                    BluetoothZ.startDFU({
+                      uuid,
+                      filePath: result.fileCopyUri,
+                      pathType:
+                        Platform.OS === 'ios'
+                          ? BluetoothZ.Defines.FILE_PATH_TYPE_STRING
+                          : BluetoothZ.Defines.FILE_PATH_TYPE_URL,
+                    });
+                  }
                 }}
                 style={{
                   height: 40,
@@ -389,6 +393,57 @@ const Device = ({
               </TouchableOpacity>
             )}
             {true && (
+              <TouchableOpacity
+                disabled={disabled}
+                onPress={async () => {
+                  BluetoothZ.pauseDFU({uuid});
+                }}
+                style={{
+                  height: 40,
+                  backgroundColor: 'orange',
+                  width: 40,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                <Text style={{color: 'black', fontSize: 13}}>DFU-S</Text>
+              </TouchableOpacity>
+            )}
+            {true && (
+              <TouchableOpacity
+                disabled={disabled}
+                onPress={async () => {
+                  BluetoothZ.resumeDFU({uuid});
+                }}
+                style={{
+                  height: 40,
+                  backgroundColor: 'palegreen',
+                  width: 40,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                <Text style={{color: 'black', fontSize: 13}}>DFU-R</Text>
+              </TouchableOpacity>
+            )}
+            {true && (
+              <TouchableOpacity
+                disabled={disabled}
+                onPress={async () => {
+                  BluetoothZ.abortDFU({uuid});
+                }}
+                style={{
+                  height: 40,
+                  backgroundColor: 'crimson',
+                  width: 40,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                <Text style={{color: 'black', fontSize: 13}}>DFU-A</Text>
+              </TouchableOpacity>
+            )}
+            {/* {false && (
               <TouchableOpacity
                 disabled={disabled}
                 onPress={async () => {
@@ -426,47 +481,55 @@ const Device = ({
                 }}>
                 <Text style={{color: 'black', fontSize: 13}}>SDFU</Text>
               </TouchableOpacity>
-            )}
-            {true && (
-              <TouchableOpacity
-                disabled={disabled}
-                onPress={async () => {
-                  console.log('GO !', Date.now(), RNFS.MainBundlePath);
-                  // BluetoothZ.disconnectSync({uuid})
-                  //   .then(r => {
-                  //     console.log('Disconnecteeeeeeeeeeed');
-                  //   })
-                  //   .catch(e => {
-                  //     console.log('ERERERERERER Disconnect', e);
-                  //   });
-                  try {
-                    await BluetoothZ.disconnectSync({uuid});
-                  } catch (error) {
-                    console.log(error?.code, error.message);
-                  }
-                }}
-                style={{
-                  height: 40,
-                  backgroundColor: 'magenta',
-                  width: 40,
-                  borderRadius: 10,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                <Text style={{color: 'black', fontSize: 13}}>S-D</Text>
-              </TouchableOpacity>
-            )}
+            )} */}
+            <TouchableOpacity
+              disabled={disabled}
+              onPress={() => onPress()}
+              style={{
+                height: 40,
+                backgroundColor: connected ? 'red' : 'green',
+                width: 40,
+                borderRadius: 10,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+              <Text style={{color: 'black', fontSize: 13}}>
+                {connected ? 'D' : 'C'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              disabled={disabled}
+              onPress={async () => {
+                try {
+                  await BluetoothZ.connectSync({uuid});
+                  console.log('CONNESSO!!!!');
+                } catch (error) {
+                  console.log('ERRORE!!!!', error);
+                }
+              }}
+              style={{
+                height: 40,
+                backgroundColor: 'cyan',
+                width: 40,
+                borderRadius: 10,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+              <Text style={{color: 'black', fontSize: 13}}>
+                {connected ? 'D' : 'C-s'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
-        <View
-          style={{
-            flex: 1,
-            gap: 10,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-          }}>
-          {connected && ready && (
+        {connected && ready && (
+          <View
+            style={{
+              // flex: 1,
+              gap: 10,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+            }}>
             <TouchableOpacity
               disabled={disabled}
               onPress={() => {
@@ -481,8 +544,8 @@ const Device = ({
               }}>
               <Text style={{color: 'white', fontSize: 13}}>▶︎</Text>
             </TouchableOpacity>
-          )}
-        </View>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -515,7 +578,7 @@ function Switch({on = false, showStatus = true, onPress}) {
         if (onPress) onPress();
       }}
       style={{
-        width: 50,
+        width: 40,
         height: 30,
         backgroundColor: 'transparent',
         borderColor: on ? 'lightgreen' : 'silver',
@@ -580,7 +643,7 @@ export default function Home({route, navigation}) {
   const [allowDuplicates, setAllowDup] = useState(
     BluetoothZ.scanOptions.allowDuplicates,
   );
-  const [filter, setFilter] = useState('XP');
+  const [filter, setFilter] = useState('PM9_201604');
   const [modal, setModal] = useState(undefined);
 
   useEffect(() => {
@@ -689,7 +752,7 @@ export default function Home({route, navigation}) {
         />
       </Section>
       {/* <ScrollView> */}
-      {devices.some(d => d.ready) && (
+      {/* {devices.some(d => d.ready) && (
         <Section title={'Test'}>
           <View
             style={{
@@ -730,7 +793,7 @@ export default function Home({route, navigation}) {
             </TouchableOpacity>
           </View>
         </Section>
-      )}
+      )} */}
       <Section
         title={'Scan devices'}
         subtitle={'You can press the button to retrieve the status'}>
@@ -797,6 +860,45 @@ export default function Home({route, navigation}) {
                 fontSize: 18,
               }}>
               Scan
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={async () => {
+              setDevices(o => o.filter(d => d.connected));
+              try {
+                const devs = await BluetoothZ.startScanSync({
+                  options: {allowDuplicates},
+                  filter,
+                });
+                console.log('===========???? ', devs);
+                setDevices(
+                  devs.map(d => {
+                    return {...d, rssi: 60, connected: false, ready: false};
+                  }),
+                );
+              } catch (error) {
+                console.log('PROBLEM ------->', error);
+                setDevices(o => o.filter(d => d.connected));
+              }
+            }}
+            style={{
+              borderRadius: 20,
+              padding: 10,
+              backgroundColor: 'lightblue',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 1,
+              flexDirection: 'row',
+              gap: 5,
+            }}>
+            <Text style={{color: 'snow', fontSize: 18}}>'Start'</Text>
+            <Text
+              style={{
+                color: 'snow',
+                fontWeight: 'bold',
+                fontSize: 18,
+              }}>
+              Scan Sync
             </Text>
           </TouchableOpacity>
         </View>

@@ -11,7 +11,10 @@ import {
 // import Modal from 'react-native-modal';
 const app = require('../app.json');
 
-let platformPermissions = [PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
+let platformPermissions = [
+  PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+  PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+];
 const v = +Platform.Version;
 if (v >= 31) {
   platformPermissions.push(PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT);

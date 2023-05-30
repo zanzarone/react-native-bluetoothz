@@ -40,6 +40,8 @@ const rl = readline.createInterface({
 
 // Chiedi all'utente di inserire qualcosa
 rl.question('\n > Are you sure you want to run dep-clean? [Y/n] ', (answer) => {
+  // Chiudi l'interfaccia dopo aver ottenuto l'input
+  rl.close();
   if (answer.toLowerCase() === 'yes' || answer.toLowerCase() === 'y') {
     console.log('Running the script...');
     execSync(`npm r react-native-bluetoothz --prefix ${exampleDIR}`, {
@@ -61,8 +63,6 @@ rl.question('\n > Are you sure you want to run dep-clean? [Y/n] ', (answer) => {
   } else {
     console.log('Script execution canceled.');
   }
-  // Chiudi l'interfaccia dopo aver ottenuto l'input
-  rl.close();
 });
 
 // Gestisci l'evento di chiusura dell'interfaccia
