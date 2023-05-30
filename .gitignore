@@ -1,4 +1,6 @@
 package-lock.json
+Podfile.lock
+example/ios/Podfile.lock
 *.tgz
 # OSX
 #

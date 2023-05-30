@@ -95,7 +95,7 @@ class Peripheral {
         gattServer.delegate = delegate
     }
     
-    func getRSSI() -> NSNumber {
+    func getLastRSSI() -> NSNumber {
         return self.lastRSSI
     }
     
@@ -432,7 +432,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
                 var device : [String:Any] = [:]
                 device["uuid"] = peripheral.getGATTServer().identifier.uuidString
                 device["name"] = peripheral.getGATTServer().name
-                device["rssi"] = peripheral.getRSSI()
+                device["rssi"] = peripheral.getLastRSSI()
                 devices.append(device)
             }
             resolve(devices)
