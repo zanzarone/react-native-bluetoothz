@@ -1,5 +1,5 @@
 import { NativeModules, Platform, NativeEventEmitter } from 'react-native';
-
+const Scheduler = require('./scheduler');
 const LINKING_ERROR =
   `The package 'react-native-bluetoothz' doesn't seem to be linked. Make sure: \n\n` +
   Platform.select({ ios: "- You have run 'pod install'\n", default: '' }) +
@@ -17,6 +17,15 @@ const BLE = NativeModules.BluetoothZ
       }
     );
 
+/**
+ *  ============  ================= ============
+ *  ============                    ============
+ *  ============      DEFINES       ============
+ *  ============                    ============
+ *  ============  ================= ============
+ */
+const DFU_ERROR_DEVICE_DISCONNECTED = Platform.OS === 'android' ? 4096 : 202;
+
 const Defines = {
   CONNECTION_TIMEOUT_MSEC: 10000,
   SCAN_TIMEOUT_MSEC: 8000,
@@ -25,18 +34,13 @@ const Defines = {
 };
 module.exports.Defines = Defines;
 
-/// 00001530-1212-EFDE-1523-785FEABCD123 DFU Service
-
-///
-const DFU_ERROR_DEVICE_DISCONNECTED = Platform.OS === 'android' ? 4096 : 202;
-
 /// Inizializzo le variabili di stato
 let reconnectCount = null;
 let scanWatchDog = null;
 let connectionWatchDog = new Map();
 let isScanning = false;
-const scanOptions = { allowDuplicates: false };
 let dfuRetryOptions = null;
+const scanOptions = { allowDuplicates: false };
 const dfuOptions = {
   alternativeAdvertisingNameEnabled: false,
   enableDebug: false,
@@ -44,61 +48,7 @@ const dfuOptions = {
 module.exports.scanOptions = Object.freeze(scanOptions);
 module.exports.dfuOptions = Object.freeze(dfuOptions);
 
-class Queue {
-  constructor() {
-    this.operations = [];
-    this.busy = false;
-    this.mutexLock = false;
-  }
-
-  exec() {
-    const { task, id } = this.operations.shift();
-    console.log(`enq, executing op:${id}, l:, ${this.operations.length}`);
-    task();
-  }
-
-  enqueue(task, uuid) {
-    if (this.mutexLock) {
-      console.log('enq, waiting, l:', this.operations.length);
-      // setTimeout(enqueue, 1000, task, uuid)
-      return;
-    }
-    const id = Math.floor(Math.random() * 100);
-    this.operations.push({ task, uuid, id });
-    if (!this.busy) {
-      this.busy = true;
-      this.exec();
-    } else {
-      console.log('scheduler busy! l:', this.operations.length);
-      this.operations.map((op) => console.log(`OP:${op.id}`));
-    }
-  }
-
-  dequeue(uuid) {
-    if (this.mutexLock) {
-      console.log('dequeue, waiting, l:', this.operations.length);
-      // setTimeout(dequeue, 1000, uuid)
-      return;
-    }
-    this.busy = false;
-    if (this.operations.length > 0) {
-      console.log('dequeuing...');
-      this.busy = true;
-      this.exec();
-    }
-  }
-
-  invalidate(uuid) {
-    this.mutexLock = true;
-    console.log('MUTEX LOCKED', this.operations.length);
-    this.operations = this.operations.filter((op) => op.uuid !== uuid);
-    this.mutexLock = false;
-    console.log('MUTEX UNLOCKED', this.operations.length);
-    this.dequeue();
-  }
-}
-
-const scheduler = new Queue();
+const scheduler = new Scheduler();
 
 /**
  *  ============  ================= ============
@@ -117,7 +67,7 @@ bleEmitter.addListener(
   Defines.BLE_PERIPHERAL_CHARACTERISTIC_READ_OK,
   (event) => {
     const { uuid } = event;
-    scheduler.dequeue(uuid);
+    scheduler.dequeue();
   }
 );
 
@@ -127,7 +77,7 @@ bleEmitter.addListener(
   (event) => {
     console.log('#################################### 000000000000000 ', event);
     const { uuid } = event;
-    scheduler.dequeue(uuid);
+    scheduler.dequeue();
   }
 );
 
@@ -136,7 +86,7 @@ bleEmitter.addListener(
   Defines.BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK,
   (event) => {
     const { uuid } = event;
-    scheduler.dequeue(uuid);
+    scheduler.dequeue();
   }
 );
 
@@ -145,14 +95,14 @@ bleEmitter.addListener(
   Defines.BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED,
   (event) => {
     const { uuid } = event;
-    scheduler.dequeue(uuid);
+    scheduler.dequeue();
   }
 );
 
 /// aggancio ascoltatore connessione alla periferica fallita
 bleEmitter.addListener(Defines.BLE_PERIPHERAL_NOTIFICATION_CHANGED, (event) => {
   const { uuid } = event;
-  scheduler.dequeue(uuid);
+  scheduler.dequeue();
 });
 
 /// aggancio ascoltatore connessione alla periferica fallita
@@ -160,7 +110,7 @@ bleEmitter.addListener(
   Defines.BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED,
   (event) => {
     const { uuid } = event;
-    scheduler.dequeue(uuid);
+    scheduler.dequeue();
   }
 );
 
@@ -236,8 +186,8 @@ bleEmitter.addListener(
 
 /// aggancio ascoltatore periferica connessa
 bleEmitter.addListener(Defines.BLE_PERIPHERAL_CONNECTED, (event) => {
-  reconnectCount = null;
   console.log('!! BLE_PERIPHERAL_CONNECTED ', event);
+  reconnectCount = null;
   const { uuid } = event;
   stopConnWatchdog(uuid);
   startConnWatchdog(uuid);
@@ -259,9 +209,9 @@ bleEmitter.addListener(Defines.BLE_PERIPHERAL_FOUND, (event) => {
 bleEmitter.addListener(Defines.BLE_PERIPHERAL_DISCONNECTED, (event) => {
   console.log('x BLE_PERIPHERAL_DISCONNECTED ', event);
   const { uuid } = event;
-  if (reconnectCount !== null && reconnectCount > 0) {
-    reconnectCount = reconnectCount - 1;
-    BLE.connect(uuid);
+  if (reconnectCount > 0) {
+    console.log('====> REDO CONNECT', uuid, reconnectCount - 1);
+    connect({ uuid, maxRetryCount: reconnectCount - 1 });
     return;
   }
   reconnectCount = null;
@@ -344,7 +294,7 @@ function incrementMacAddress(macAddress) {
   );
   // Uniamo le parti dell'indirizzo MAC in una stringa con i due punti
   const incrementedMacAddress = incrementedParts.join(':');
-  return incrementedMacAddress;
+  return incrementedMacAddress.toUpperCase();
 }
 
 function stopScan() {
@@ -392,6 +342,20 @@ async function startDFU({
     dfuRetryOptions = null;
   }
   BLE.startDFU(uuid, filePath, pathType, options);
+}
+
+function connect({ uuid, maxRetryCount = Defines.DEFAULT_MAX_RETRY_COUNT }) {
+  if (!uuid) {
+    throw new Error('Parameters UUID is mandatory');
+  }
+  if (connectionWatchDog.has(uuid)) {
+    console.log('====> ESTABILISHING CONNECTION ', uuid);
+    cancel({ uuid });
+  }
+  console.log('====> CONNECT', uuid);
+  startConnWatchdog(uuid);
+  BLE.connect(uuid);
+  reconnectCount = maxRetryCount > 0 ? maxRetryCount : null;
 }
 
 async function connectSync({ uuid }) {
@@ -490,21 +454,7 @@ module.exports.stopScan = () => stopScan();
 module.exports.connect = ({
   uuid,
   maxRetryCount = Defines.DEFAULT_MAX_RETRY_COUNT,
-}) => {
-  if (!uuid) {
-    throw new Error('Parameters UUID is mandatory');
-  }
-  if (connectionWatchDog.has(uuid)) {
-    console.log('====> ESTABILISHING CONNECTION ', uuid);
-    cancel({ uuid });
-  }
-  console.log('====> CONNECT', uuid);
-  startConnWatchdog(uuid);
-  BLE.connect(uuid);
-  if (maxRetryCount > 0 && this.autoReconnect === null) {
-    reconnectCount = maxRetryCount;
-  }
-};
+}) => connect({ uuid, maxRetryCount });
 
 module.exports.connectSync = async ({ uuid }) => connectSync({ uuid });
 
@@ -570,25 +520,39 @@ module.exports.changeCharacteristicNotification = ({
 
 module.exports.startDFU = startDFU;
 
-module.exports.pauseDFU = async ({ uuid }) => {
+module.exports.pauseDFU = ({ uuid }) => {
   if (!uuid) {
     throw new Error('Parameter UUID is mandatory');
   }
   BLE.pauseDFU(uuid);
 };
 
-module.exports.resumeDFU = async ({ uuid }) => {
+module.exports.resumeDFU = ({ uuid }) => {
   if (!uuid) {
     throw new Error('Parameter UUID is mandatory');
   }
   BLE.resumeDFU(uuid);
 };
 
-module.exports.abortDFU = async ({ uuid }) => {
+module.exports.abortDFU = ({ uuid }) => {
   if (!uuid) {
     throw new Error('Parameter UUID is mandatory');
   }
-  BLE.abortDFU(uuid.toUpperCase());
+  BLE.abortDFU(uuid);
+};
+
+module.exports.isConnectedSync = async ({ uuid }) => {
+  if (!uuid) {
+    throw new Error('Parameter UUID is mandatory');
+  }
+  return BLE.isConnectedSync(uuid);
+};
+
+module.exports.isDfuCompliantSync = async ({ uuid }) => {
+  if (!uuid) {
+    throw new Error('Parameter UUID is mandatory');
+  }
+  return BLE.isDfuCompliantSync(uuid);
 };
 
 /// Inizializzo il modulo nativo

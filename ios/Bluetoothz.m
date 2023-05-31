@@ -25,6 +25,8 @@ RCT_EXTERN_METHOD(connectSync:(NSString*)uuidString resolve:(RCTPromiseResolveBl
 
 RCT_EXTERN_METHOD(isConnectedSync:(NSString*)uuidString resolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(isDfuCompliantSync:(NSString*)uuidString resolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
+
 RCT_EXTERN_METHOD(cancel:(NSString*)uuidString)
 
 RCT_EXTERN_METHOD(disconnect:(NSString*)uuidString)

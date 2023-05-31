@@ -9,55 +9,62 @@ import React
 import CoreBluetooth
 import iOSDFULibrary
 
-let BLE_ADAPTER_STATUS_DID_UPDATE               : String  = "BLE_ADAPTER_STATUS_DID_UPDATE"
-let BLE_ADAPTER_STATUS_INVALID                  : String  = "BLE_ADAPTER_STATUS_INVALID"
-let BLE_ADAPTER_STATUS_POWERED_ON               : String  = "BLE_ADAPTER_STATUS_POWERED_ON"
-let BLE_ADAPTER_STATUS_POWERED_OFF              : String  = "BLE_ADAPTER_STATUS_POWERED_OFF"
-let BLE_ADAPTER_STATUS_UNKNOW                   : String  = "BLE_ADAPTER_STATUS_UNKNOW"
-let BLE_ADAPTER_SCAN_START                      : String  = "BLE_ADAPTER_SCAN_START"
-let BLE_ADAPTER_SCAN_END                        : String  = "BLE_ADAPTER_SCAN_END"
-let BLE_PERIPHERAL_FOUND                        : String  = "BLE_PERIPHERAL_FOUND"
-let BLE_PERIPHERAL_READY                        : String  = "BLE_PERIPHERAL_READY"
-let BLE_PERIPHERAL_READ_RSSI                    : String  = "BLE_PERIPHERAL_READ_RSSI"
-let BLE_PERIPHERAL_CONNECTED                    : String  = "BLE_PERIPHERAL_CONNECTED"
-let BLE_PERIPHERAL_DISCONNECTED                 : String  = "BLE_PERIPHERAL_DISCONNECTED"
-let BLE_PERIPHERAL_CONNECT_FAILED               : String  = "BLE_PERIPHERAL_CONNECT_FAILED"
-let BLE_PERIPHERAL_DISCONNECT_FAILED            : String  = "BLE_PERIPHERAL_DISCONNECT_FAILED"
-let BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED     : String  = "BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED"
-let BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED    : String  = "BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED"
-let BLE_PERIPHERAL_CHARACTERISTIC_READ_OK       : String  = "BLE_PERIPHERAL_CHARACTERISTIC_READ_OK"
-let BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED   : String  = "BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED"
-let BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK      : String  = "BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK"
-let BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED  : String  = "BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED"
-let BLE_PERIPHERAL_NOTIFICATION_UPDATES         : String  = "BLE_PERIPHERAL_NOTIFICATION_UPDATES"
-let BLE_PERIPHERAL_NOTIFICATION_CHANGED         : String  = "BLE_PERIPHERAL_NOTIFICATION_CHANGED"
-let BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED   : String  = "BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED"
-let BLE_PERIPHERAL_DFU_PROCESS_FAILED             : String = "BLE_PERIPHERAL_DFU_PROCESS_FAILED";
-let BLE_PERIPHERAL_DFU_PROCESS_STARTED            : String = "BLE_PERIPHERAL_DFU_PROCESS_STARTED";
-let BLE_PERIPHERAL_DFU_PROCESS_PAUSED            : String = "BLE_PERIPHERAL_DFU_PROCESS_PAUSED";
-let BLE_PERIPHERAL_DFU_PROCESS_RESUMED            : String = "BLE_PERIPHERAL_DFU_PROCESS_RESUMED";
-let BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED            : String = "BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED";
-let BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED            : String = "BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED";
-let BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED            : String = "BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED";
-let BLE_PERIPHERAL_DFU_PROGRESS                   : String = "BLE_PERIPHERAL_DFU_PROGRESS";
-let BLE_PERIPHERAL_DFU_DEBUG                      : String = "BLE_PERIPHERAL_DFU_DEBUG";
-let BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE          : String = "BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE";
-let BLE_PERIPHERAL_DFU_STATUS_ABORTED             : String = "BLE_PERIPHERAL_DFU_STATUS_ABORTED";
-let BLE_PERIPHERAL_DFU_STATUS_STARTING            : String = "BLE_PERIPHERAL_DFU_STATUS_STARTING";
-let BLE_PERIPHERAL_DFU_STATUS_STARTED             : String = "BLE_PERIPHERAL_DFU_STATUS_STARTED";
-let BLE_PERIPHERAL_DFU_STATUS_COMPLETED           : String = "BLE_PERIPHERAL_DFU_STATUS_COMPLETED";
-let BLE_PERIPHERAL_DFU_STATUS_UPLOADING           : String = "BLE_PERIPHERAL_DFU_STATUS_UPLOADING";
-let BLE_PERIPHERAL_DFU_STATUS_CONNECTING          : String = "BLE_PERIPHERAL_DFU_STATUS_CONNECTING";
-let BLE_PERIPHERAL_DFU_STATUS_CONNECTED           : String = "BLE_PERIPHERAL_DFU_STATUS_CONNECTED";
-let BLE_PERIPHERAL_DFU_STATUS_DISCONNECTED          : String = "BLE_PERIPHERAL_DFU_STATUS_DISCONNECTED";
-let BLE_PERIPHERAL_DFU_STATUS_SCANNING              : String = "BLE_PERIPHERAL_DFU_STATUS_SCANNING";
-let BLE_PERIPHERAL_DFU_STATUS_DFU_INTERFACE_FOUND   : String = "BLE_PERIPHERAL_DFU_STATUS_DFU_INTERFACE_FOUND";
-let BLE_PERIPHERAL_DFU_STATUS_VALIDATING            : String = "BLE_PERIPHERAL_DFU_STATUS_VALIDATING";
-let BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING         : String = "BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING";
-let BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU          : String = "BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU";
-//
-let FILE_PATH_TYPE_STRING                         : String = "FILE_PATH_TYPE_STRING";
-let FILE_PATH_TYPE_URL                             : String = "FILE_PATH_TYPE_URL";
+let BLE_ADAPTER_STATUS_DID_UPDATE                   : String  = "BLE_ADAPTER_STATUS_DID_UPDATE"
+let BLE_ADAPTER_STATUS_INVALID                      : String  = "BLE_ADAPTER_STATUS_INVALID"
+let BLE_ADAPTER_STATUS_POWERED_ON                   : String  = "BLE_ADAPTER_STATUS_POWERED_ON"
+let BLE_ADAPTER_STATUS_POWERED_OFF                  : String  = "BLE_ADAPTER_STATUS_POWERED_OFF"
+let BLE_ADAPTER_STATUS_UNKNOW                       : String  = "BLE_ADAPTER_STATUS_UNKNOW"
+let BLE_ADAPTER_SCAN_START                          : String  = "BLE_ADAPTER_SCAN_START"
+let BLE_ADAPTER_SCAN_END                            : String  = "BLE_ADAPTER_SCAN_END"
+let BLE_PERIPHERAL_FOUND                            : String  = "BLE_PERIPHERAL_FOUND"
+let BLE_PERIPHERAL_READY                            : String  = "BLE_PERIPHERAL_READY"
+let BLE_PERIPHERAL_READ_RSSI                        : String  = "BLE_PERIPHERAL_READ_RSSI"
+let BLE_PERIPHERAL_CONNECTED                        : String  = "BLE_PERIPHERAL_CONNECTED"
+let BLE_PERIPHERAL_DISCONNECTED                     : String  = "BLE_PERIPHERAL_DISCONNECTED"
+let BLE_PERIPHERAL_CONNECT_FAILED                   : String  = "BLE_PERIPHERAL_CONNECT_FAILED"
+let BLE_PERIPHERAL_DISCONNECT_FAILED                : String  = "BLE_PERIPHERAL_DISCONNECT_FAILED"
+let BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED         : String  = "BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED"
+let BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED        : String  = "BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED"
+let BLE_PERIPHERAL_CHARACTERISTIC_READ_OK           : String  = "BLE_PERIPHERAL_CHARACTERISTIC_READ_OK"
+let BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED       : String  = "BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED"
+let BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK          : String  = "BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK"
+let BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED      : String  = "BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED"
+let BLE_PERIPHERAL_NOTIFICATION_UPDATES             : String  = "BLE_PERIPHERAL_NOTIFICATION_UPDATES"
+let BLE_PERIPHERAL_NOTIFICATION_CHANGED             : String  = "BLE_PERIPHERAL_NOTIFICATION_CHANGED"
+let BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED       : String  = "BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED"
+let BLE_PERIPHERAL_DFU_COMPLIANT                    : String  = "BLE_PERIPHERAL_DFU_COMPLIANT";
+let BLE_PERIPHERAL_DFU_PROCESS_FAILED               : String  = "BLE_PERIPHERAL_DFU_PROCESS_FAILED";
+let BLE_PERIPHERAL_DFU_PROCESS_STARTED              : String  = "BLE_PERIPHERAL_DFU_PROCESS_STARTED";
+let BLE_PERIPHERAL_DFU_PROCESS_PAUSED               : String  = "BLE_PERIPHERAL_DFU_PROCESS_PAUSED";
+let BLE_PERIPHERAL_DFU_PROCESS_RESUMED              : String  = "BLE_PERIPHERAL_DFU_PROCESS_RESUMED";
+let BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED         : String  = "BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED";
+let BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED        : String  = "BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED";
+let BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED         : String  = "BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED";
+let BLE_PERIPHERAL_DFU_PROGRESS                     : String  = "BLE_PERIPHERAL_DFU_PROGRESS";
+let BLE_PERIPHERAL_DFU_DEBUG                        : String  = "BLE_PERIPHERAL_DFU_DEBUG";
+let BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE            : String  = "BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE";
+let BLE_PERIPHERAL_DFU_STATUS_ABORTED               : String  = "BLE_PERIPHERAL_DFU_STATUS_ABORTED";
+let BLE_PERIPHERAL_DFU_STATUS_STARTING              : String  = "BLE_PERIPHERAL_DFU_STATUS_STARTING";
+let BLE_PERIPHERAL_DFU_STATUS_STARTED               : String  = "BLE_PERIPHERAL_DFU_STATUS_STARTED";
+let BLE_PERIPHERAL_DFU_STATUS_COMPLETED             : String  = "BLE_PERIPHERAL_DFU_STATUS_COMPLETED";
+let BLE_PERIPHERAL_DFU_STATUS_UPLOADING             : String  = "BLE_PERIPHERAL_DFU_STATUS_UPLOADING";
+let BLE_PERIPHERAL_DFU_STATUS_CONNECTING            : String  = "BLE_PERIPHERAL_DFU_STATUS_CONNECTING";
+let BLE_PERIPHERAL_DFU_STATUS_CONNECTED             : String  = "BLE_PERIPHERAL_DFU_STATUS_CONNECTED";
+let BLE_PERIPHERAL_DFU_STATUS_DISCONNECTED          : String  = "BLE_PERIPHERAL_DFU_STATUS_DISCONNECTED";
+let BLE_PERIPHERAL_DFU_STATUS_SCANNING              : String  = "BLE_PERIPHERAL_DFU_STATUS_SCANNING";
+let BLE_PERIPHERAL_DFU_STATUS_DFU_INTERFACE_FOUND   : String  = "BLE_PERIPHERAL_DFU_STATUS_DFU_INTERFACE_FOUND";
+let BLE_PERIPHERAL_DFU_STATUS_VALIDATING            : String  = "BLE_PERIPHERAL_DFU_STATUS_VALIDATING";
+let BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING         : String  = "BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING";
+let BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU          : String  = "BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU";
+// =====================================================================================================================
+// =====================================================================================================================
+//                                                  DEFINES
+// =====================================================================================================================
+// =====================================================================================================================
+let FILE_PATH_TYPE_STRING                           : String  = "FILE_PATH_TYPE_STRING";
+let FILE_PATH_TYPE_URL                              : String  = "FILE_PATH_TYPE_URL";
+let DFU_SERVICE_UUID                                : String  = "FE59";
+
 
 public extension Data {
     private static let hexAlphabet = Array("0123456789abcdef".unicodeScalars)
@@ -88,6 +95,7 @@ class Peripheral {
     private var characteristics     : [String:CBCharacteristic] = [:]
     private var connected           : Bool = false
     private var lastRSSI            : NSNumber!
+    private var dfuCompliant        : Bool = false
     
     init(_ p:CBPeripheral, rssi: NSNumber, delegate: BluetoothZ) {
         gattServer = p
@@ -97,6 +105,14 @@ class Peripheral {
     
     func getLastRSSI() -> NSNumber {
         return self.lastRSSI
+    }
+    
+    func setDfuCompliant(compliant: Bool) {
+        self.dfuCompliant = compliant
+    }
+    
+    func isDfuCompliant() -> Bool {
+        return self.dfuCompliant
     }
     
     func getGATTServer() -> CBPeripheral {
@@ -127,6 +143,10 @@ class Peripheral {
         for i in 0..<s.count {
             let service = s[i]
             self.services[service.uuid.uuidString] = service
+            print("@@@@@@@@@@@@@@@@@@@@@@@   \(service.uuid.uuidString) = \(DFU_SERVICE_UUID)" )
+            if service.uuid.uuidString.compare(DFU_SERVICE_UUID, options: .caseInsensitive) == .orderedSame {
+                self.setDfuCompliant(compliant: true)
+            }
         }
         for i in 0..<s.count {
             self.gattServer.discoverCharacteristics([], for: s[i])
@@ -142,6 +162,7 @@ class Peripheral {
         self.characteristics.removeAll()
         self.services.removeAll()
         self.connected = false
+        self.dfuCompliant = false
     }
     
     func readCharacteristic(_ uuid:String) -> Bool {
@@ -251,6 +272,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             BLE_PERIPHERAL_NOTIFICATION_UPDATES,
             BLE_PERIPHERAL_NOTIFICATION_CHANGED,
             BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED,
+            BLE_PERIPHERAL_DFU_COMPLIANT,
             BLE_PERIPHERAL_DFU_PROCESS_FAILED,
             BLE_PERIPHERAL_DFU_PROCESS_STARTED,
             BLE_PERIPHERAL_DFU_PROCESS_PAUSED,
@@ -280,8 +302,6 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     @objc
     override func constantsToExport() -> [AnyHashable : Any]!
     {
-        /// ("========================>>>> constantsToExport")
-        
         return [
             BLE_ADAPTER_STATUS_DID_UPDATE:BLE_ADAPTER_STATUS_DID_UPDATE,
             BLE_ADAPTER_STATUS_INVALID:BLE_ADAPTER_STATUS_INVALID,
@@ -306,6 +326,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             BLE_PERIPHERAL_NOTIFICATION_UPDATES:BLE_PERIPHERAL_NOTIFICATION_UPDATES,
             BLE_PERIPHERAL_NOTIFICATION_CHANGED:BLE_PERIPHERAL_NOTIFICATION_CHANGED,
             BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED:BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED,
+            BLE_PERIPHERAL_DFU_COMPLIANT:BLE_PERIPHERAL_DFU_COMPLIANT,
             BLE_PERIPHERAL_DFU_PROCESS_FAILED:BLE_PERIPHERAL_DFU_PROCESS_FAILED,
             BLE_PERIPHERAL_DFU_PROCESS_STARTED:BLE_PERIPHERAL_DFU_PROCESS_STARTED,
             BLE_PERIPHERAL_DFU_PROCESS_PAUSED:BLE_PERIPHERAL_DFU_PROCESS_PAUSED,
@@ -477,6 +498,15 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     func isConnectedSync(_ uuidString: String, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
     {
         resolve( self.isConnected(uuidString: uuidString) );
+    }
+    
+    @objc
+    func isDfuCompliantSync(_ uuidString: String, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
+    {
+        let compliant = self.peripherals.contains(where: { (key: String, value: Peripheral) -> Bool in
+            return key.compare(uuidString) == .orderedSame && value.isDfuCompliant()
+        })
+        resolve( compliant );
     }
     
     @objc
@@ -861,6 +891,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             if let services = peripheral.services {
                 print("\n\n\n \(services)\n\n\n")
                 p.setServicesAndDiscoverCharacteristics(services)
+                sendEvent(withName: BLE_PERIPHERAL_DFU_COMPLIANT, body: ["compliant" : p.isDfuCompliant()])
             }
         }
     }
