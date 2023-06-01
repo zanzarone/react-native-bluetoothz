@@ -1,7 +1,7 @@
 //
 //  BluetoothZ.swift
 //
-//  Created by Zanzarone on 30/03/23. 
+//  Created by Zanzarone on 30/03/23.
 //
 
 import Foundation
@@ -61,9 +61,16 @@ let BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU          : String  = "BLE_PERIPHERAL_
 //                                                  DEFINES
 // =====================================================================================================================
 // =====================================================================================================================
-let FILE_PATH_TYPE_STRING                           : String  = "FILE_PATH_TYPE_STRING";
-let FILE_PATH_TYPE_URL                              : String  = "FILE_PATH_TYPE_URL";
-let DFU_SERVICE_UUID                                : String  = "FE59";
+let DFU_OPTION_ENABLE_DEBUG                             : String  = "DFU_OPTION_ENABLE_DEBUG";
+let DFU_OPTION_PACKET_DELAY                             : String  = "DFU_OPTION_PACKET_DELAY";
+let FILE_PATH_TYPE_STRING                               : String  = "FILE_PATH_TYPE_STRING";
+let FILE_PATH_TYPE_URL                                  : String  = "FILE_PATH_TYPE_URL";
+// =====================================================================================================================
+// =====================================================================================================================
+//                                                  PRIVATE DEFINES
+// =====================================================================================================================
+// =====================================================================================================================
+let DFU_SERVICE_UUID                                    : String  = "FE59";
 
 
 public extension Data {
@@ -294,6 +301,8 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             BLE_PERIPHERAL_DFU_STATUS_VALIDATING,
             BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING,
             BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU,
+            DFU_OPTION_ENABLE_DEBUG,
+            DFU_OPTION_PACKET_DELAY,
             FILE_PATH_TYPE_STRING,
             FILE_PATH_TYPE_URL
         ]
@@ -350,6 +359,8 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             BLE_PERIPHERAL_DFU_STATUS_VALIDATING:BLE_PERIPHERAL_DFU_STATUS_VALIDATING,
             BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING:BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING,
             BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU:BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU,
+            DFU_OPTION_ENABLE_DEBUG:DFU_OPTION_ENABLE_DEBUG,
+            DFU_OPTION_PACKET_DELAY:DFU_OPTION_PACKET_DELAY,
             FILE_PATH_TYPE_STRING:FILE_PATH_TYPE_STRING,
             FILE_PATH_TYPE_URL:FILE_PATH_TYPE_URL
         ]
@@ -601,12 +612,14 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
         self.dfuHelper.serviceInitiator.delegate = self
         self.dfuHelper.serviceInitiator.progressDelegate = self
         self.dfuHelper.serviceInitiator.logger = self
+        self.dfuHelper.enableDebug = false
         self.dfuHelper.serviceInitiator.dataObjectPreparationDelay = 0.4 // sec
+        self.dfuHelper.serviceInitiator.alternativeAdvertisingNameEnabled = false
         if let opt = options as? [String: Any]{
-            if let alternativeAdvertisingNameEnabled = opt["alternativeAdvertisingNameEnabled"] as? Bool {
-                self.dfuHelper.serviceInitiator.alternativeAdvertisingNameEnabled = alternativeAdvertisingNameEnabled
+            if let packetDelay = opt[DFU_OPTION_PACKET_DELAY] as? NSNumber {
+                self.dfuHelper.serviceInitiator.dataObjectPreparationDelay = TimeInterval(packetDelay.floatValue / 1000.0) // sec
             }
-            if let enableDebug = opt["enableDebug"] as? Bool {
+            if let enableDebug = opt[DFU_OPTION_ENABLE_DEBUG] as? Bool {
                 self.dfuHelper.enableDebug = enableDebug
             }
         }
@@ -725,7 +738,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
         switch (state)
         {
         case .completed:
-            let body = ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_COMPLETED]
+            let body = ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_COMPLETED, "description": "DFU Procedure successfully completed."]
             if let success = self.syncHelper.processResolve {
                 success(body)
             }else{
@@ -733,25 +746,25 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             }
             break
         case .aborted:
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_ABORTED])
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_ABORTED, "description": "DFU Procedure aborted by the user."])
             break
         case .starting:
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_STARTING])
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_STARTING, "description": "DFU Procedure started."])
             break
         case .uploading:
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_UPLOADING])
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_UPLOADING, "description": "Uploading firmware onto remote device."])
             break
         case .connecting:
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_CONNECTING])
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_CONNECTING, "description": "Connecting to the remote device."])
             break
         case .validating:
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_VALIDATING])
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_VALIDATING, "description": "Validating firmware."])
             break
         case .disconnecting:
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING])
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING, "description": "Disconnecting from remote device."])
             break
         case .enablingDfuMode:
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU])
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU, "description": "Enabling DFU interface on remote device."])
             break
         }
     }

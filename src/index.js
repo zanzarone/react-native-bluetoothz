@@ -42,8 +42,8 @@ let isScanning = false;
 let dfuRetryOptions = null;
 const scanOptions = { allowDuplicates: false };
 const dfuOptions = {
-  alternativeAdvertisingNameEnabled: false,
   enableDebug: false,
+  packetDelay: 300,
 };
 module.exports.scanOptions = Object.freeze(scanOptions);
 module.exports.dfuOptions = Object.freeze(dfuOptions);

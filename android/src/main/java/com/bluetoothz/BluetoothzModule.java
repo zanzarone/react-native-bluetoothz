@@ -117,6 +117,8 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   public static final String BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING = "BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING";
   public static final String BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU = "BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU";
   //
+  public static final String DFU_OPTION_ENABLE_DEBUG = "DFU_OPTION_ENABLE_DEBUG";
+  public static final String DFU_OPTION_PACKET_DELAY = "DFU_OPTION_PACKET_DELAY";
   public static final String FILE_PATH_TYPE_STRING = "FILE_PATH_TYPE_STRING";
   public static final String FILE_PATH_TYPE_URL = "FILE_PATH_TYPE_URL";
   private static final String DFU_SERVICE_UUID = "0000fe59";
@@ -586,6 +588,8 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     constants.put(BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING, BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING);
     constants.put(BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU, BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU);
     ///
+    constants.put(DFU_OPTION_ENABLE_DEBUG, DFU_OPTION_ENABLE_DEBUG);
+    constants.put(DFU_OPTION_PACKET_DELAY, DFU_OPTION_PACKET_DELAY);
     constants.put(FILE_PATH_TYPE_STRING, FILE_PATH_TYPE_STRING);
     constants.put(FILE_PATH_TYPE_URL, FILE_PATH_TYPE_URL);
     return constants;
@@ -902,12 +906,12 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     mDfuHelper.serviceInitiator = new DfuServiceInitiator(uuid).setKeepBond(false);
     mDfuHelper.serviceInitiator.setPacketsReceiptNotificationsValue(1);
     mDfuHelper.enableDebug = false;
-    if (options.hasKey("enableDebug")) {
-      mDfuHelper.enableDebug = options.getBoolean("enableDebug");
+    if (options.hasKey(DFU_OPTION_ENABLE_DEBUG)) {
+      mDfuHelper.enableDebug = options.getBoolean(DFU_OPTION_ENABLE_DEBUG);
     }
     mDfuHelper.serviceInitiator.setPrepareDataObjectDelay(300L);
-    if (options.hasKey("packetDelay")) {
-      mDfuHelper.serviceInitiator.setPrepareDataObjectDelay(options.getInt("packetDelay"));
+    if (options.hasKey(DFU_OPTION_PACKET_DELAY)) {
+      mDfuHelper.serviceInitiator.setPrepareDataObjectDelay(options.getInt(DFU_OPTION_PACKET_DELAY));
     }
     mDfuHelper.serviceInitiator.setUnsafeExperimentalButtonlessServiceInSecureDfuEnabled(true);
     return true;
@@ -1018,6 +1022,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap map = Arguments.createMap();
       map.putString("uuid", deviceAddress);
       map.putString("status", BLE_PERIPHERAL_DFU_STATUS_CONNECTING);
+      map.putString("description", "Connecting to the remote device.");
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
     }
 
@@ -1026,6 +1031,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap map = Arguments.createMap();
       map.putString("uuid", deviceAddress);
       map.putString("status", BLE_PERIPHERAL_DFU_STATUS_CONNECTED);
+      map.putString("description", "Remote device connected.");
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
     }
 
@@ -1034,6 +1040,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap map = Arguments.createMap();
       map.putString("uuid", deviceAddress);
       map.putString("status", BLE_PERIPHERAL_DFU_STATUS_STARTING);
+      map.putString("description", "Initializing DFU procedure.");
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
     }
 
@@ -1042,6 +1049,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap map = Arguments.createMap();
       map.putString("uuid", deviceAddress);
       map.putString("status", BLE_PERIPHERAL_DFU_STATUS_STARTED);
+      map.putString("description", "DFU Procedure started.");
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
     }
 
@@ -1050,6 +1058,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap map = Arguments.createMap();
       map.putString("uuid", deviceAddress);
       map.putString("status", BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU);
+      map.putString("description", "Enabling DFU interface on remote device.");
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
     }
 
@@ -1066,7 +1075,11 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       map.putInt("totalParts", partsTotal);
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROGRESS, map);
       if (percent == 1) {
-        sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_UPLOADING, null);
+        WritableMap map = Arguments.createMap();
+        map.putString("uuid", deviceAddress);
+        map.putString("status", BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU);
+        map.putString("description", "Uploading firmware onto remote device.");
+        sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_UPLOADING, map);
       }
     }
 
@@ -1075,6 +1088,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap map = Arguments.createMap();
       map.putString("uuid", deviceAddress);
       map.putString("status", BLE_PERIPHERAL_DFU_STATUS_VALIDATING);
+      map.putString("description", "Validating firmware.");
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
     }
 
@@ -1083,6 +1097,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap map = Arguments.createMap();
       map.putString("uuid", deviceAddress);
       map.putString("status", BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING);
+      map.putString("description", "Disconnecting from remote device.");
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
     }
 
@@ -1091,6 +1106,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap map = Arguments.createMap();
       map.putString("uuid", deviceAddress);
       map.putString("status", BLE_PERIPHERAL_DFU_STATUS_DISCONNECTED);
+      map.putString("description", "Remote device disconnected.");
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
     }
 
@@ -1099,6 +1115,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap map = Arguments.createMap();
       map.putString("uuid", deviceAddress);
       map.putString("status", BLE_PERIPHERAL_DFU_STATUS_COMPLETED);
+      map.putString("description", "DFU Procedure successfully completed.");
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
     }
 
@@ -1106,7 +1123,9 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     public void onDfuAborted(@NonNull final String deviceAddress) {
       WritableMap map = Arguments.createMap();
       map.putString("uuid", deviceAddress);
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_ABORTED, map);
+      map.putString("status", BLE_PERIPHERAL_DFU_STATUS_ABORTED);
+      map.putString("description", "DFU Procedure aborted by the user.");
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
     }
 
     @Override
@@ -1114,7 +1133,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
                         final int error, final int errorType, final String message) {
       WritableMap map = Arguments.createMap();
       map.putString("uuid", deviceAddress);
-      map.putString("error", "Error:" + message + "(" + error + ")");
+      map.putString("error", message);
       map.putInt("errorCode", error);
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_FAILED, map);
     }
