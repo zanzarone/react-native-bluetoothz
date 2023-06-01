@@ -1,23 +1,92 @@
 import * as React from 'react';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import Home from './Home.jsx';
+import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+
+import Home from './Home copy.jsx';
 import Characteristics from './Characteristics.jsx';
 import CommonTest from './CommonTest.jsx';
+import Main from './Main.jsx';
+import {Image, Text, View} from 'react-native';
 
 const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
 
-export default function MyStack() {
+export default function MyTabs() {
   return (
     <NavigationContainer>
-      <Stack.Navigator
+      <Tab.Navigator
         screenOptions={{
           headerShown: false,
+          tabBarShowLabel: false,
+          tabBarStyle: {
+            position: 'absolute',
+            bottom: 25,
+            left: 20,
+            right: 20,
+            borderRadius: 15,
+            height: 70,
+          },
         }}>
-        <Stack.Screen name="Home" component={Home} />
-        <Stack.Screen name="Characteristics" component={Characteristics} />
-        <Stack.Screen name="CommonTest" component={CommonTest} />
-      </Stack.Navigator>
+        <Tab.Screen
+          name="Main"
+          component={Main}
+          options={{
+            tabBarIcon: ({focused}) => {
+              return (
+                <View style={{alignItems: 'center'}}>
+                  <Image
+                    resizeMode="contain"
+                    style={{height: 30, width: 30}}
+                    source={require('./assets/icon/scanner-100.png')}
+                  />
+                  <Text
+                    style={{
+                      color: 'black',
+                      fontFamily: 'Nunito-Bold',
+                      fontSize: 12,
+                    }}>
+                    Scanner
+                  </Text>
+                </View>
+              );
+            },
+          }}
+        />
+        <Tab.Screen
+          name="Home"
+          component={Home}
+          options={{
+            tabBarIcon: ({focused}) => {
+              return (
+                <View>
+                  <Image
+                    resizeMode="contain"
+                    style={{height: 30, width: 30}}
+                    source={require('./assets/icon/scanner-100.png')}
+                  />
+                </View>
+              );
+            },
+          }}
+        />
+        {/* <Tab.Screen name="Settings" component={SettingsScreen} /> */}
+      </Tab.Navigator>
     </NavigationContainer>
   );
 }
+
+// export default function MyStack() {
+//   return (
+//     <NavigationContainer>
+//       <Stack.Navigator
+//         screenOptions={{
+//           headerShown: false,
+//         }}>
+//         <Stack.Screen name="Home" component={Home} />
+//         <Stack.Screen name="Characteristics" component={Characteristics} />
+//         <Stack.Screen name="CommonTest" component={CommonTest} />
+//       </Stack.Navigator>
+//     </NavigationContainer>
+//   );
+// }

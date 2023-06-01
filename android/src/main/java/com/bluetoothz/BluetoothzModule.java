@@ -1075,11 +1075,11 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       map.putInt("totalParts", partsTotal);
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROGRESS, map);
       if (percent == 1) {
-        WritableMap map = Arguments.createMap();
-        map.putString("uuid", deviceAddress);
-        map.putString("status", BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU);
-        map.putString("description", "Uploading firmware onto remote device.");
-        sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_UPLOADING, map);
+        WritableMap args = Arguments.createMap();
+        args.putString("uuid", deviceAddress);
+        args.putString("status", BLE_PERIPHERAL_DFU_STATUS_UPLOADING);
+        args.putString("description", "Uploading firmware onto remote device.");
+        sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
       }
     }
 

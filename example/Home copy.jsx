@@ -19,7 +19,6 @@ import {
 import * as BluetoothZ from 'react-native-bluetoothz';
 import {requestPermissions, Permission} from './utils/androidPermissions';
 import DocumentPicker from 'react-native-document-picker';
-import RNFS from 'react-native-fs';
 
 const pickDocument = async () => {
   let res;

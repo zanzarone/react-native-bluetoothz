@@ -331,7 +331,7 @@ PODS:
   - React-jsinspector (0.71.7)
   - React-logger (0.71.7):
     - glog
-  - react-native-bluetoothz (0.1.9):
+  - react-native-bluetoothz (0.1.11):
     - iOSDFULibrary
     - React-Core
   - react-native-document-picker (9.0.1):
@@ -638,7 +638,7 @@ SPEC CHECKSUMS:
   React-jsiexecutor: eaa5f71eb8f6861cf0e57f1a0f52aeb020d9e18e
   React-jsinspector: 9885f6f94d231b95a739ef7bb50536fb87ce7539
   React-logger: 3f8ebad1be1bf3299d1ab6d7f971802d7395c7ef
-  react-native-bluetoothz: 210cd3f10572b4578c9091a8e9915e0ed85eaae1
+  react-native-bluetoothz: 8e139c92cadf09654420f74697cf3a2a88b87e8f
   react-native-document-picker: 2b8f18667caee73a96708a82b284a4f40b30a156
   react-native-safe-area-context: 1d596539b05a78f2b346e954e7c577f6f9be7544
   React-perflogger: 2d505bbe298e3b7bacdd9e542b15535be07220f6
