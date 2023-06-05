@@ -4,8 +4,6 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 
 import Home from './Home copy.jsx';
-import Characteristics from './Characteristics.jsx';
-import CommonTest from './CommonTest.jsx';
 import Main from './Main.jsx';
 import {Image, Text, View} from 'react-native';
 
@@ -29,6 +27,31 @@ export default function MyTabs() {
           },
         }}>
         <Tab.Screen
+          name="Home"
+          component={Home}
+          options={{
+            tabBarIcon: ({focused}) => {
+              return (
+                <View style={{alignItems: 'center'}}>
+                  <Image
+                    resizeMode="contain"
+                    style={{height: 30, width: 30}}
+                    source={require('./assets/icon/scanner-100.png')}
+                  />
+                  <Text
+                    style={{
+                      color: 'black',
+                      fontFamily: 'Nunito-Bold',
+                      fontSize: 12,
+                    }}>
+                    Scanner
+                  </Text>
+                </View>
+              );
+            },
+          }}
+        />
+        {/* <Tab.Screen
           name="Main"
           component={Main}
           options={{
@@ -52,41 +75,8 @@ export default function MyTabs() {
               );
             },
           }}
-        />
-        <Tab.Screen
-          name="Home"
-          component={Home}
-          options={{
-            tabBarIcon: ({focused}) => {
-              return (
-                <View>
-                  <Image
-                    resizeMode="contain"
-                    style={{height: 30, width: 30}}
-                    source={require('./assets/icon/scanner-100.png')}
-                  />
-                </View>
-              );
-            },
-          }}
-        />
-        {/* <Tab.Screen name="Settings" component={SettingsScreen} /> */}
+        /> */}
       </Tab.Navigator>
     </NavigationContainer>
   );
 }
-
-// export default function MyStack() {
-//   return (
-//     <NavigationContainer>
-//       <Stack.Navigator
-//         screenOptions={{
-//           headerShown: false,
-//         }}>
-//         <Stack.Screen name="Home" component={Home} />
-//         <Stack.Screen name="Characteristics" component={Characteristics} />
-//         <Stack.Screen name="CommonTest" component={CommonTest} />
-//       </Stack.Navigator>
-//     </NavigationContainer>
-//   );
-// }

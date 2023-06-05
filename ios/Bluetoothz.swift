@@ -923,7 +923,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
                 }
                 print("\n\n\n COUNT \(p.servicesDiscovered())\n\n\n")
                 if p.servicesDiscovered() <= 0 {
-                    self.sendEvent(withName: BLE_PERIPHERAL_READY, body: ["uuid": _peripheral.identifier.uuidString])
+                    self.sendEvent(withName: BLE_PERIPHERAL_READY, body: ["uuid": _peripheral.identifier.uuidString, "dfuCompliant" : p.isDfuCompliant()])
                 }
             }
         }

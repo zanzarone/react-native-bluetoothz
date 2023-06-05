@@ -312,6 +312,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
           }
           WritableMap params = Arguments.createMap();
           params.putString("uuid", gatt.getDevice().getAddress());
+          params.putBoolean("dfuCompliant", p.isDfuCompliant());
           Log.e("SAMUELE", "onServicesDiscovered received: " + status);
           sendEvent(reactContext, BLE_PERIPHERAL_READY, params);
           p.mBluetoothGATT.requestMtu(512);

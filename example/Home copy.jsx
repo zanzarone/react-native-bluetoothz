@@ -19,6 +19,7 @@ import {
 import * as BluetoothZ from 'react-native-bluetoothz';
 import {requestPermissions, Permission} from './utils/androidPermissions';
 import DocumentPicker from 'react-native-document-picker';
+import Characteristics from './screens/Characteristics';
 
 const pickDocument = async () => {
   let res;
@@ -633,7 +634,26 @@ function AndroidPerms() {
   );
 }
 
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
+const Stack = createNativeStackNavigator();
+
 export default function Home({route, navigation}) {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+      }}>
+      <Stack.Screen name="Sections" component={Sections} initialParams={{}} />
+      <Stack.Screen
+        name="Characteristics"
+        component={Characteristics}
+        initialParams={{}}
+      />
+    </Stack.Navigator>
+  );
+}
+
+function Sections({route, navigation}) {
   const [isScanning, scan] = useState(false);
   const [bleStatus, setBLEStatus] = useState(
     BluetoothZ.Defines.BLE_ADAPTER_STATUS_UNKNOW,
@@ -921,7 +941,7 @@ export default function Home({route, navigation}) {
                   key={`${d.uuid}${index}`}
                   onMore={async uuid => {
                     const res = await BluetoothZ.getAllCharacteristic({
-                      uuid: d.uuid,
+                      uuid,
                     });
                     navigation.push('Characteristics', {
                       data: {
@@ -944,7 +964,6 @@ export default function Home({route, navigation}) {
             <View style={{minHeight: 600}} />
           </ScrollView>
         </View>
-        {/* </ScrollView> */}
       </Section>
     </View>
   );
