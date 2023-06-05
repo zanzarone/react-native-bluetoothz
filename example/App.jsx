@@ -51,7 +51,7 @@ export default function MyTabs() {
             },
           }}
         />
-        {/* <Tab.Screen
+        <Tab.Screen
           name="Main"
           component={Main}
           options={{
@@ -75,7 +75,7 @@ export default function MyTabs() {
               );
             },
           }}
-        /> */}
+        />
       </Tab.Navigator>
     </NavigationContainer>
   );

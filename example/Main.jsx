@@ -22,6 +22,7 @@ import * as BluetoothZ from 'react-native-bluetoothz';
 import Header from './components/Header';
 import DFUScreen from './screens/DFUScreen';
 import Toast from './components/Toast';
+import BackgroundShape from './components/BackgroundShape';
 const Stack = createNativeStackNavigator();
 
 function DeviceSignalIcon({rssi}) {
@@ -54,7 +55,7 @@ function DeviceSignalIcon({rssi}) {
   );
 }
 
-function AdvancedControls({devices, onError, onContinue, onDfu}) {
+function AdvancedControls({devices, onError, onContinue, onDfu, onTEST}) {
   if (devices.some(d => d.ready)) {
     let singleDevice = false;
     let dfuAvailable = false;
@@ -126,7 +127,38 @@ function AdvancedControls({devices, onError, onContinue, onDfu}) {
       </View>
     );
   }
-  return null;
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        zIndex: 1999,
+        // backgroundColor: 'green',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        position: 'absolute',
+        bottom: '15%',
+        right: '5%',
+        minWidth: 100,
+        height: 80,
+        gap: 10,
+      }}>
+      <TouchableOpacity
+        style={styles.continueButton}
+        onPress={() => {
+          console.log('ouuuu');
+          onTEST();
+        }}>
+        <Image
+          style={{
+            height: 34,
+            width: 34,
+          }}
+          resizeMode="contain"
+          source={require('./assets/icon/continue-100.png')}
+        />
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 const DevicesList = ({status, navigation, setSelectedDevices}) => {
@@ -226,6 +258,7 @@ const DevicesList = ({status, navigation, setSelectedDevices}) => {
       <Toast state={modalAlert} />
       <AdvancedControls
         devices={devices}
+        onTEST={() => navigation.push('DFUScreen')}
         onError={(icon, text) => {
           setModalAlert({icon, text});
           setTimeout(() => {
@@ -457,12 +490,7 @@ const Scanner = ({navigation}) => {
   return (
     <View style={{flex: 1, backgroundColor: 'snow'}}>
       <Header status={bluetoothStatus} canScan />
-      <View
-        style={[
-          styles.oval,
-          {backgroundColor: bluetoothStatus === true ? '#D4F174' : 'coral'},
-        ]}
-      />
+      <BackgroundShape bleStatus={bluetoothStatus} />
       <DevicesList status={bluetoothStatus} navigation={navigation} />
     </View>
   );
@@ -477,12 +505,12 @@ export default function Main({navigation}) {
       <Stack.Screen
         name="Scanner"
         component={Scanner}
-        initialParams={{navigation}}
+        // initialParams={navigation}
       />
       <Stack.Screen
         name="DFUScreen"
         component={DFUScreen}
-        initialParams={{navigation}}
+        // initialParams={navigation}
       />
     </Stack.Navigator>
   );
@@ -497,16 +525,6 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-  },
-  oval: {
-    position: 'absolute',
-    top: 0,
-    left: '25%',
-    zIndex: -1,
-    width: '130%',
-    height: '70%',
-    borderRadius: 240,
-    transform: [{scaleX: 2}],
   },
 });
 
