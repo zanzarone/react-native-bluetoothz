@@ -45,6 +45,25 @@ function toastIcon({state}) {
   return color;
 }
 
+function toastTitle({state}) {
+  let color;
+  switch (state?.type) {
+    case 'error':
+      color = 'Error';
+      break;
+    case 'warn':
+      color = 'Warning';
+      break;
+    case 'info':
+      color = 'Info';
+      break;
+    default:
+      color = 'Error';
+      break;
+  }
+  return color;
+}
+
 export default function Toast({state}) {
   return (
     <Modal transparent animationType="fade" visible={state !== undefined}>
@@ -57,12 +76,27 @@ export default function Toast({state}) {
           <View style={styles.modalAlert.iconContainer}>
             <Image
               resizeMode="contain"
-              style={{height: 35, width: 35}}
-              source={require('../assets/icon/error-100.png')}
+              style={{height: 32, width: 32}}
+              source={toastIcon({state})}
             />
           </View>
-          <View style={{backgroundColor: 'transparent', flex: 1, gap: 5}}>
-            <View style={[styles.modalAlert.messageContainer, {flexShrink: 1}]}>
+          <View style={{backgroundColor: 'transparent', flex: 1, gap: 0}}>
+            <Text
+              style={{
+                color: 'black',
+                // backgroundColor: 'pink',
+                textAlignVertical: 'center',
+                fontFamily: 'Nunito-Bold',
+                fontSize: 16,
+                minHeight: 32,
+              }}>
+              {state?.title ? state.title : toastTitle({state})}
+            </Text>
+            <View
+              style={[
+                styles.modalAlert.messageContainer,
+                {flexShrink: 1, backgroundColor: 'transparent'},
+              ]}>
               <Text
                 style={{
                   color: 'black',
@@ -139,7 +173,6 @@ const styles = StyleSheet.create({
     },
     messageContainer: {
       // backgroundColor: 'pink',
-      paddingTop: 7,
       // justifyContent: 'center',
       minHeight: 35,
       flex: 1,
@@ -148,13 +181,6 @@ const styles = StyleSheet.create({
 });
 
 if (Platform.OS === 'ios') {
-  styles.continueButton = {
-    ...styles.continueButton,
-    shadowColor: '#171717',
-    shadowOffset: {width: -2, height: 4},
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-  };
   styles.modalAlert.container = {
     ...styles.modalAlert.container,
     shadowColor: '#171717',
@@ -163,11 +189,6 @@ if (Platform.OS === 'ios') {
     shadowRadius: 3,
   };
 } else if (Platform.OS === 'android') {
-  styles.continueButton = {
-    ...styles.continueButton,
-    elevation: 4,
-    shadowColor: '#000000',
-  };
   styles.modalAlert.container = {
     ...styles.modalAlert.container,
     elevation: 4,

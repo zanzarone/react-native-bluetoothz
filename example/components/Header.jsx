@@ -7,19 +7,20 @@ export default function Header({
   canScan = false,
   canBrowseFile = false,
   onBrowseButtonPressed,
+  onGoBack,
 }) {
-  const [isScanning, setScanning] = useState(false);
-  useEffect(() => {
-    const stopScanListener = BluetoothZ.emitter.addListener(
-      BluetoothZ.Defines.BLE_ADAPTER_SCAN_END,
-      event => {
-        setScanning(false);
-      },
-    );
-    return function cleanup() {
-      stopScanListener?.remove();
-    };
-  }, []);
+  // const [isScanning, setScanning] = useState(false);
+  // useEffect(() => {
+  //   const stopScanListener = BluetoothZ.emitter.addListener(
+  //     BluetoothZ.Defines.BLE_ADAPTER_SCAN_END,
+  //     event => {
+  //       setScanning(false);
+  //     },
+  //   );
+  //   return function cleanup() {
+  //     stopScanListener?.remove();
+  //   };
+  // }, []);
 
   return (
     <View
@@ -33,6 +34,14 @@ export default function Header({
         gap: 5,
       }}>
       <View style={{alignItems: 'center', flexDirection: 'row'}}>
+        {onGoBack && (
+          <TouchableOpacity onPress={() => onGoBack()}>
+            <Image
+              style={{height: 35, width: 20}}
+              source={require('../assets/icon/goback-100.png')}
+            />
+          </TouchableOpacity>
+        )}
         <Image
           style={{height: 50, width: 50}}
           source={require('../assets/icon/logo-100.png')}
@@ -43,7 +52,7 @@ export default function Header({
         </Text>
       </View>
       <View style={{alignItems: 'center', flexDirection: 'row', gap: 5}}>
-        {canBrowseFile && (
+        {/* {canBrowseFile && (
           <TouchableOpacity
             disabled={status !== true}
             onPress={() => {
@@ -65,7 +74,7 @@ export default function Header({
             disabled={status !== true}
             onPress={async () => {
               if (!isScanning) {
-                BluetoothZ.startScan({});
+                BluetoothZ.startScan({timeout: -1});
               } else {
                 BluetoothZ.stopScan();
               }
@@ -85,7 +94,7 @@ export default function Header({
               }
             />
           </TouchableOpacity>
-        )}
+        )} */}
       </View>
     </View>
   );

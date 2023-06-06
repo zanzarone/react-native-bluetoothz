@@ -778,7 +778,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     }
     
     func dfuProgressDidChange(for part: Int, outOf totalParts: Int, to progress: Int, currentSpeedBytesPerSecond: Double, avgSpeedBytesPerSecond: Double){
-        self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROGRESS, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString,
+        self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_UPLOADING, "description": "Uploading firmware onto remote device.",
                                                                      "part": part,
                                                                      "totalParts": totalParts,
                                                                      "progress": progress,

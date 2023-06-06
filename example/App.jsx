@@ -3,7 +3,7 @@ import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 
-import Home from './Home copy.jsx';
+// import Home from './Home copy.jsx';
 import Main from './Main.jsx';
 import {Image, Text, View} from 'react-native';
 
@@ -26,7 +26,7 @@ export default function MyTabs() {
             height: 70,
           },
         }}>
-        <Tab.Screen
+        {/* <Tab.Screen
           name="Home"
           component={Home}
           options={{
@@ -36,7 +36,11 @@ export default function MyTabs() {
                   <Image
                     resizeMode="contain"
                     style={{height: 30, width: 30}}
-                    source={require('./assets/icon/scanner-100.png')}
+                    source={
+                      focused
+                        ? require('./assets/icon/scanner-selected-100.png')
+                        : require('./assets/icon/scanner-100.png')
+                    }
                   />
                   <Text
                     style={{
@@ -50,7 +54,7 @@ export default function MyTabs() {
               );
             },
           }}
-        />
+        /> */}
         <Tab.Screen
           name="Main"
           component={Main}
@@ -61,7 +65,11 @@ export default function MyTabs() {
                   <Image
                     resizeMode="contain"
                     style={{height: 30, width: 30}}
-                    source={require('./assets/icon/scanner-100.png')}
+                    source={
+                      focused
+                        ? require('./assets/icon/scanner-selected-100.png')
+                        : require('./assets/icon/scanner-100.png')
+                    }
                   />
                   <Text
                     style={{
