@@ -40,7 +40,7 @@ export default function MyTabs() {
                   />
                   <Text
                     style={{
-                      color: 'black',
+                      color: focused ? 'black' : 'silver',
                       fontFamily: 'Nunito-Bold',
                       fontSize: 12,
                     }}>
@@ -65,7 +65,7 @@ export default function MyTabs() {
                   />
                   <Text
                     style={{
-                      color: 'black',
+                      color: focused ? 'black' : 'silver',
                       fontFamily: 'Nunito-Bold',
                       fontSize: 12,
                     }}>

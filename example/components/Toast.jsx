@@ -61,7 +61,7 @@ export default function Toast({state}) {
               source={require('../assets/icon/error-100.png')}
             />
           </View>
-          <View style={{backgroundColor: 'transparent', flex: 1, gap: 10}}>
+          <View style={{backgroundColor: 'transparent', flex: 1, gap: 5}}>
             <View style={[styles.modalAlert.messageContainer, {flexShrink: 1}]}>
               <Text
                 style={{
@@ -75,10 +75,11 @@ export default function Toast({state}) {
             <View
               style={{
                 flexDirection: 'row',
-                // backgroundColor: 'pink',
+                paddingBottom: 8,
+                // backgroundColor: 'yellow',
                 // flex: 1,
                 // width: '90%',
-                justifyContent: 'center',
+                justifyContent: 'flex-end',
                 gap: 5,
               }}>
               {state?.userInput?.map(op => {
@@ -90,7 +91,7 @@ export default function Toast({state}) {
                       borderColor: 'black',
                       borderWidth: 1,
                       borderRadius: 15,
-                      padding: 5,
+                      padding: 8,
                       minWidth: 70,
                     }}>
                     <Text
@@ -117,7 +118,8 @@ const styles = StyleSheet.create({
     parent: {
       position: 'absolute',
       zIndex: 2000,
-      top: '8%',
+      // top: '8%',
+      bottom: '10%',
       width: '100%',
       paddingHorizontal: '5%',
       paddingBottom: 35,
@@ -126,18 +128,21 @@ const styles = StyleSheet.create({
       flexDirection: 'row',
       height: '100%',
       borderRadius: 15,
-      paddingVertical: 15,
-      paddingHorizontal: 5,
+      // minHeight: 120,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
       gap: 5,
     },
     iconContainer: {
-      backgroundColor: 'transparent',
-      // justifyContent: 'flex-start',
+      // backgroundColor: 'green',
+      // justifyContent: 'center',
     },
     messageContainer: {
-      backgroundColor: 'transparent',
-      justifyContent: 'center',
-      gap: 10,
+      // backgroundColor: 'pink',
+      paddingTop: 7,
+      // justifyContent: 'center',
+      minHeight: 35,
+      flex: 1,
     },
   },
 });

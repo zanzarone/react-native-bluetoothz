@@ -53,6 +53,32 @@ const DFUStatusDescription = ({status = undefined}) => {
   );
 };
 
+const DFUDevice = ({device = undefined}) => {
+  return (
+    <View>
+      <Text
+        style={{
+          fontFamily: 'Nunito-Black',
+          color: 'black',
+          fontSize: 22,
+          textAlign: 'center',
+        }}>
+        {device ? device : '-'}
+        {/* Status: */}
+      </Text>
+      {/* <Text
+        style={{
+          fontFamily: 'Nunito-Italic',
+          color: 'black',
+          fontSize: 18,
+          textAlign: 'center',
+        }}>
+        {device ? device : '-'}
+      </Text> */}
+    </View>
+  );
+};
+
 const DFUShowProgress = ({progress = undefined}) => {
   return (
     <View style={{height: 120, width: 120, backgroundColor: 'transparent'}}>
@@ -73,7 +99,8 @@ const DFUShowProgress = ({progress = undefined}) => {
       <View
         style={{
           position: 'absolute',
-          backgroundColor: 'goldenrod',
+          // backgroundColor: 'goldenrod',
+          backgroundColor: 'snow',
           //   borderRadius: 5,
           top: 27,
           left: 27,
@@ -124,6 +151,7 @@ const Controls = ({
   onStart,
   onPause,
   onResume,
+  onAbort,
 }) => {
   return (
     <View style={{flexDirection: 'row', gap: 10}}>
@@ -169,7 +197,11 @@ const Controls = ({
             borderRadius: 30,
           }}
           onPress={() => {
-            onStart && onStart();
+            if (status === undefined) {
+              onStart && onStart();
+            } else {
+              onAbort && onAbort();
+            }
           }}>
           {status === undefined && (
             <Image
@@ -295,8 +327,9 @@ export default function DFUScreen({navigation}) {
             alignItems: 'center',
             gap: 15,
           }}>
-          <DFUStatusDescription status={dfu?.status} />
+          <DFUDevice device={'SRM_PM9_203220'} />
           <DFUShowProgress progress={dfu?.progress} />
+          <DFUStatusDescription status={dfu?.status} />
           <DFUFirmwareFile fwFile={dfu?.fwFile} />
           <Controls
             navigation={navigation}
@@ -310,6 +343,33 @@ export default function DFUScreen({navigation}) {
                   {
                     callback: () => {
                       navigation.goBack();
+                    },
+                    name: 'OK',
+                  },
+                  {
+                    callback: () => {
+                      setModalAlert(undefined);
+                    },
+                    name: 'Cancel',
+                  },
+                ],
+              });
+              // setTimeout(() => {
+              //   setModalAlert(undefined);
+              // }, 5000);
+            }}
+            onAbort={() => {
+              setModalAlert({
+                type: 'warn',
+                text: 'Are you sure you want to abort?',
+                userInput: [
+                  {
+                    callback: () => {
+                      setModalAlert(undefined);
+                      setDfu(o => {
+                        return {...o, status: undefined, progress: 0};
+                      });
+                      clearInterval(testTimer.current);
                     },
                     name: 'OK',
                   },
