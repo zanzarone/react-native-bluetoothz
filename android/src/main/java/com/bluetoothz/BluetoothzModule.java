@@ -76,6 +76,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   public static final String BLE_ADAPTER_SCAN_START = "BLE_ADAPTER_SCAN_START";
   public static final String BLE_ADAPTER_SCAN_END = "BLE_ADAPTER_SCAN_END";
   public static final String BLE_PERIPHERAL_FOUND = "BLE_PERIPHERAL_FOUND";
+  public static final String BLE_PERIPHERAL_UPDATED_RSSI = "BLE_PERIPHERAL_UPDATED_RSSI";
   public static final String BLE_PERIPHERAL_READY = "BLE_PERIPHERAL_READY";
   public static final String BLE_PERIPHERAL_CONNECTED = "BLE_PERIPHERAL_CONNECTED";
   public static final String BLE_PERIPHERAL_DISCONNECTED = "BLE_PERIPHERAL_DISCONNECTED";
@@ -218,15 +219,33 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
         }
         if (niceFind && !allowDuplicates) {
           niceFind = !mPeripherals.containsKey(device.getAddress());
+          if(!niceFind) {
+            int rssi = result.getRssi();
+            Peripheral peripheral = mPeripherals.get(device.getAddress());
+            peripheral.setLastRSSI(rssi);
+            WritableMap params = Arguments.createMap();
+            params.putString("uuid", device.getAddress());
+            params.putInt("rssi", rssi);
+            sendEvent(reactContext, BLE_PERIPHERAL_UPDATED_RSSI, params);
+          }
         }
         if (niceFind) {
           int rssi = result.getRssi();
           Peripheral peripheral = new Peripheral(device, rssi);
+          List<ParcelUuid> uuids = result.getScanRecord().getServiceUuids();
+          if (uuids != null) {
+              for (ParcelUuid uuid : uuids) {
+                  if (uuid.getUuid().toString().contains(DFU_SERVICE_UUID)) {
+                    peripheral.setDfuCompliant(true);
+                  }
+              }
+          }
           mPeripherals.put(device.getAddress(), peripheral);
           if (mSyncHelper.scanPromise == null) {
             WritableMap params = Arguments.createMap();
             params.putString("uuid", device.getAddress());
             params.putString("name", device.getName());
+            params.putBoolean("dfuCompliant", peripheral.isDfuCompliant());
             params.putInt("rssi", rssi);
             sendEvent(reactContext, BLE_PERIPHERAL_FOUND, params);
           }
@@ -432,6 +451,10 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       return mLastRSSI;
     }
 
+    public void setLastRSSI(int rssi) {
+      this.mLastRSSI = rssi;
+    }
+
     public void setDfuCompliant(boolean compliant) {
       this.mDfuCompliant = compliant;
     }
@@ -549,6 +572,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     constants.put(BLE_ADAPTER_SCAN_START, BLE_ADAPTER_SCAN_START);
     constants.put(BLE_ADAPTER_SCAN_END, BLE_ADAPTER_SCAN_END);
     constants.put(BLE_PERIPHERAL_FOUND, BLE_PERIPHERAL_FOUND);
+    constants.put(BLE_PERIPHERAL_UPDATED_RSSI, BLE_PERIPHERAL_UPDATED_RSSI);
     constants.put(BLE_PERIPHERAL_READY, BLE_PERIPHERAL_READY);
     constants.put(BLE_PERIPHERAL_CONNECTED, BLE_PERIPHERAL_CONNECTED);
     constants.put(BLE_PERIPHERAL_DISCONNECTED, BLE_PERIPHERAL_DISCONNECTED);

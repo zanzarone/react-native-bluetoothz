@@ -1,4 +1,5 @@
-import {Image, Platform, TouchableOpacity} from 'react-native';
+import {Image, Platform, StyleSheet} from 'react-native';
+import TouchableDebounce from './TouchableDebounce';
 
 export default function RoundButton({
   onPress,
@@ -8,22 +9,8 @@ export default function RoundButton({
   style,
   disabled = false,
 }) {
-  let shadow;
-  if (Platform.OS === 'ios') {
-    shadow = {
-      shadowColor: '#171717',
-      shadowOffset: {width: -2, height: 4},
-      shadowOpacity: 0.2,
-      shadowRadius: 3,
-    };
-  } else if (Platform.OS === 'android') {
-    shadow = {
-      elevation: 4,
-      shadowColor: '#000000',
-    };
-  }
   return (
-    <TouchableOpacity
+    <TouchableDebounce
       disabled={disabled}
       style={[
         {
@@ -36,9 +23,9 @@ export default function RoundButton({
           borderRadius: buttonSize?.radius ? buttonSize?.radius : 30,
         },
         {...style},
-        {...shadow},
+        {...styles.shadow},
       ]}
-      onPress={() => onPress()}>
+      onPress={onPress}>
       <Image
         style={{
           height: iconSize.height,
@@ -47,6 +34,21 @@ export default function RoundButton({
         resizeMode="contain"
         source={icon}
       />
-    </TouchableOpacity>
+    </TouchableDebounce>
   );
 }
+
+const styles = StyleSheet.create({
+  shadow:
+    Platform.OS === 'ios'
+      ? {
+          shadowColor: '#171717',
+          shadowOffset: {width: -2, height: 4},
+          shadowOpacity: 0.2,
+          shadowRadius: 3,
+        }
+      : {
+          elevation: 4,
+          shadowColor: '#000000',
+        },
+});

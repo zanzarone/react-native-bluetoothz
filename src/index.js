@@ -30,6 +30,7 @@ const Defines = {
   CONNECTION_TIMEOUT_MSEC: 10000,
   SCAN_TIMEOUT_MSEC: 8000,
   DEFAULT_MAX_RETRY_COUNT: 5,
+  DFU_ERROR_DEVICE_DISCONNECTED,
   ...BLE.getConstants(),
 };
 module.exports.Defines = Defines;

@@ -1,11 +1,5 @@
-import {
-  Image,
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import {Image, Modal, StyleSheet, Text, View} from 'react-native';
+import TouchableDebounce from './TouchableDebounce';
 
 function toastColor({state}) {
   let color;
@@ -118,7 +112,7 @@ export default function Toast({state}) {
               }}>
               {state?.userInput?.map(op => {
                 return (
-                  <TouchableOpacity
+                  <TouchableDebounce
                     key={op?.name}
                     onPress={() => op?.callback()}
                     style={{
@@ -136,7 +130,7 @@ export default function Toast({state}) {
                       }}>
                       {op?.name}
                     </Text>
-                  </TouchableOpacity>
+                  </TouchableDebounce>
                 );
               })}
             </View>

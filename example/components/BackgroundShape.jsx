@@ -1,4 +1,4 @@
-import {StyleSheet, View} from 'react-native';
+import {Platform, StyleSheet, View} from 'react-native';
 
 export default function BackgroundShape({bleStatus}) {
   return (
@@ -14,8 +14,8 @@ export default function BackgroundShape({bleStatus}) {
 const styles = StyleSheet.create({
   oval: {
     position: 'absolute',
-    top: 0,
-    left: '25%',
+    top: Platform.OS === 'android' ? 0 : -40,
+    left: '20%',
     zIndex: -1,
     width: '130%',
     height: '70%',

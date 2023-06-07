@@ -1,19 +1,12 @@
-import {
-  Image,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import {Image, Platform, Text, View} from 'react-native';
 import {useEffect, useRef, useState} from 'react';
 import * as BluetoothZ from 'react-native-bluetoothz';
 import Header from '../components/Header';
-// import Progress from '../components/Progress';
 import DocumentPicker from 'react-native-document-picker';
 import Toast from '../components/Toast';
 import BackgroundShape from '../components/BackgroundShape';
 import RoundButton from '../components/RoundButton';
+import TouchableDebounce from '../components/TouchableDebounce';
 
 const pickFirmwareFile = async () => {
   let res;
@@ -77,7 +70,7 @@ const DFUDevice = ({devices = undefined, index = 0, onNext, onPrevious}) => {
       }}>
       <View style={{backgroundColor: 'transparent', height: 30, width: 30}}>
         {/* {devices.length > 1 && index > 0 && (
-          <TouchableOpacity
+          <TouchableDebounce
             onPress={() => onPrevious()}
             style={{
               backgroundColor: 'black',
@@ -94,7 +87,7 @@ const DFUDevice = ({devices = undefined, index = 0, onNext, onPrevious}) => {
               resizeMode="contain"
               source={require('../assets/icon/back-100.png')}
             />
-          </TouchableOpacity>
+          </TouchableDebounce>
         )} */}
       </View>
       <View>
@@ -119,7 +112,7 @@ const DFUDevice = ({devices = undefined, index = 0, onNext, onPrevious}) => {
       </View>
       <View style={{backgroundColor: 'transparent', height: 30, width: 30}}>
         {/* {devices.length > 1 && index < devices.length - 1 && (
-          <TouchableOpacity
+          <TouchableDebounce
             onPress={() => onNext()}
             style={{
               backgroundColor: 'black',
@@ -136,7 +129,7 @@ const DFUDevice = ({devices = undefined, index = 0, onNext, onPrevious}) => {
               resizeMode="contain"
               source={require('../assets/icon/forward-100.png')}
             />
-          </TouchableOpacity>
+          </TouchableDebounce>
         )} */}
       </View>
     </View>
@@ -333,7 +326,7 @@ export default function DFU({navigation, route}) {
 
     const dfuFailedListener = BluetoothZ.emitter.addListener(
       BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED,
-      ({uuid, error}) => {
+      ({uuid, error, errorCode}) => {
         console.log(
           '+ DFU + BLE_PERIPHERAL_DFU_PROCESS_FAILED:',
           uuid,
@@ -341,22 +334,27 @@ export default function DFU({navigation, route}) {
           error,
         );
         /// Mandare alert poi proseguo con il dispo seguente
-        // if (dfu?.currentDeviceIndex + 1 < devices.length) {
-        //   const {uuid} = devices[dfu?.currentDeviceIndex + 1];
-        //   const fwFile = dfu?.fwFile;
-        //   console.log('1 ==============>', uuid, fwFile);
-        //   BluetoothZ.startDFU({
-        //     uuid,
-        //     filePath: fwFile.fileCopyUri,
-        //     pathType:
-        //       Platform.OS === 'ios'
-        //         ? BluetoothZ.Defines.FILE_PATH_TYPE_STRING
-        //         : BluetoothZ.Defines.FILE_PATH_TYPE_URL,
-        //   });
-        //   setDfu(o => {
-        //     return {...o, currentDeviceIndex: o.currentDeviceIndex + 1};
-        //   });
-        // }
+        if (errorCode !== BluetoothZ.Defines.DFU_ERROR_DEVICE_DISCONNECTED) {
+          if (dfu?.currentDeviceIndex + 1 < devices.length) {
+            const {uuid} = devices[dfu?.currentDeviceIndex + 1];
+            const fwFile = dfu?.fwFile;
+            console.log('1 ==============>', uuid, fwFile);
+            BluetoothZ.startDFU({
+              uuid,
+              filePath: fwFile.fileCopyUri,
+              pathType:
+                Platform.OS === 'ios'
+                  ? BluetoothZ.Defines.FILE_PATH_TYPE_STRING
+                  : BluetoothZ.Defines.FILE_PATH_TYPE_URL,
+            });
+            setDfu({currentDeviceIndex: o.currentDeviceIndex + 1});
+          } else {
+            /// ho finito, ripulisco
+            setDfu({currentDeviceIndex: 0});
+            setModalAlert({type: 'error', text: error});
+            setTimeout(() => setModalAlert(undefined), 3000);
+          }
+        }
       },
     );
 
