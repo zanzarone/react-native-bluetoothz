@@ -77,7 +77,7 @@ export default function MyTabs() {
                 focused={focused}
                 tabName={'Scanner'}
                 icon={require('./assets/icon/settings-100.png')}
-                iconFocused={require('./assets/icon/settings-100.png')}
+                iconFocused={require('./assets/icon/settings-selected-100.png')}
               />
             ),
           }}

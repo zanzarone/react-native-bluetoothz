@@ -2,7 +2,7 @@ import {Image, Platform, Text, View} from 'react-native';
 import TouchableDebounce from './TouchableDebounce';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
-export default function Header({status, onGoBack}) {
+export default function Header({status, onGoBack, onFilter}) {
   let leftPart = (
     <View style={{alignItems: 'center', flexDirection: 'row'}}>
       {onGoBack && (
@@ -23,7 +23,17 @@ export default function Header({status, onGoBack}) {
     </View>
   );
   let rightPart = (
-    <View style={{alignItems: 'center', flexDirection: 'row', gap: 5}}></View>
+    <View style={{alignItems: 'center', flexDirection: 'row', gap: 5}}>
+      {onFilter && (
+        <TouchableDebounce onPress={() => onFilter()}>
+          <Image
+            resizeMode="contain"
+            style={{height: 30, width: 30}}
+            source={require('../assets/icon/filter2-100.png')}
+          />
+        </TouchableDebounce>
+      )}
+    </View>
   );
   return Platform.OS === 'android' ? (
     <View

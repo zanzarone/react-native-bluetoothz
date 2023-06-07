@@ -14,6 +14,7 @@ import BackgroundShape from '../components/BackgroundShape';
 import Toast from '../components/Toast';
 import RoundButton from '../components/RoundButton';
 import TouchableDebounce from '../components/TouchableDebounce';
+import FilterMenu from '../components/FilterMenu';
 
 function DeviceSignal({rssi}) {
   let image = null;
@@ -526,7 +527,7 @@ export default function Scanner({navigation}) {
 
   return (
     <View style={{flex: 1, backgroundColor: 'snow'}}>
-      <Header status={bluetoothStatus} />
+      <Header status={bluetoothStatus} onFilter={() => {}} />
       <BackgroundShape bleStatus={bluetoothStatus} />
       <DevicesList
         status={bluetoothStatus}
@@ -536,6 +537,7 @@ export default function Scanner({navigation}) {
       <Toast
       // state={modalAlert}
       />
+      <FilterMenu visible />
       <ScanButton isScanning={isScanning} />
     </View>
   );
