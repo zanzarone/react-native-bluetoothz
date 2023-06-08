@@ -306,6 +306,21 @@ export default function DFU({navigation, route}) {
     });
   }
 
+  function nextUpdate({error}) {
+    if (dfu?.currentDeviceIndex + 1 < devices.length) {
+      const {uuid} = devices[dfu?.currentDeviceIndex + 1];
+      initDFU({uuid});
+      setDfu(o => {
+        return {...o, currentDeviceIndex: o.currentDeviceIndex + 1};
+      });
+    } else {
+      /// ho finito, ripulisco
+      setDfu({currentDeviceIndex: 0});
+      setModalAlert({type: 'error', text: error});
+      setTimeout(() => setModalAlert(undefined), 3000);
+    }
+  }
+
   useEffect(() => {
     const bleAdapterListener = BluetoothZ.emitter.addListener(
       BluetoothZ.Defines.BLE_ADAPTER_STATUS_DID_UPDATE,
@@ -317,12 +332,29 @@ export default function DFU({navigation, route}) {
       },
     );
 
-    // const blePeripheralDisconnectedListener = BluetoothZ.emitter.addListener(
-    //   BluetoothZ.Defines.BLE_PERIPHERAL_DISCONNECTED,
-    //   ({uuid}) => {
-    //     navigation.goBack();
-    //   },
-    // );
+    const blePeripheralDfuScanFailedListener = BluetoothZ.emitter.addListener(
+      BluetoothZ.Defines.DFU_SCAN_FAILED,
+      ({uuid}) => {
+        nextUpdate({error: 'Could not start scan process!'});
+      },
+    );
+
+    const blePeripheralDfuIntNotFoundListener = BluetoothZ.emitter.addListener(
+      BluetoothZ.Defines.DFU_INTERFACE_NOT_FOUND,
+      ({uuid}) => {
+        nextUpdate({error: 'Could not find DFU enabled interface!'});
+      },
+    );
+
+    const blePeripheralDfuConnectFailedListener =
+      BluetoothZ.emitter.addListener(
+        BluetoothZ.Defines.DFU_INTERFACE_CONNECT_FAILED,
+        ({uuid}) => {
+          nextUpdate({
+            error: 'Could not connect to discovered DFU interface interface!',
+          });
+        },
+      );
 
     const dfuFailedListener = BluetoothZ.emitter.addListener(
       BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED,
@@ -335,25 +367,7 @@ export default function DFU({navigation, route}) {
         );
         /// Mandare alert poi proseguo con il dispo seguente
         if (errorCode !== BluetoothZ.Defines.DFU_ERROR_DEVICE_DISCONNECTED) {
-          if (dfu?.currentDeviceIndex + 1 < devices.length) {
-            const {uuid} = devices[dfu?.currentDeviceIndex + 1];
-            const fwFile = dfu?.fwFile;
-            console.log('1 ==============>', uuid, fwFile);
-            BluetoothZ.startDFU({
-              uuid,
-              filePath: fwFile.fileCopyUri,
-              pathType:
-                Platform.OS === 'ios'
-                  ? BluetoothZ.Defines.FILE_PATH_TYPE_STRING
-                  : BluetoothZ.Defines.FILE_PATH_TYPE_URL,
-            });
-            setDfu({currentDeviceIndex: o.currentDeviceIndex + 1});
-          } else {
-            /// ho finito, ripulisco
-            setDfu({currentDeviceIndex: 0});
-            setModalAlert({type: 'error', text: error});
-            setTimeout(() => setModalAlert(undefined), 3000);
-          }
+          nextUpdate({error});
         }
       },
     );
@@ -458,7 +472,7 @@ export default function DFU({navigation, route}) {
   }, [dfu, setDfu]);
 
   return (
-    <View style={{flex: 1, backgroundColor: 'snow'}}>
+    <View style={{flex: 1, backgroundColor: '#F7F7F7'}}>
       <Header
         status={bluetoothStatus}
         onGoBack={() => {

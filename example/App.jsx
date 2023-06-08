@@ -6,6 +6,7 @@ import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import Home from './Home copy.jsx';
 import Main from './Main.jsx';
 import {Image, Platform, StyleSheet, Text, View} from 'react-native';
+import Settings from './screens/Settings.jsx';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -61,12 +62,12 @@ export default function MyTabs() {
         />
         <Tab.Screen
           name="Settings"
-          component={Home}
+          component={Settings}
           options={{
             tabBarIcon: ({focused}) => (
               <TabBarButton
                 focused={focused}
-                tabName={'Scanner'}
+                tabName={'Settings'}
                 icon={require('./assets/icon/settings-100.png')}
                 iconFocused={require('./assets/icon/settings-selected-100.png')}
               />

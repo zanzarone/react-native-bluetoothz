@@ -65,7 +65,7 @@ const AllowNoNamed = ({enabled, onChange}) => {
           paddingVertical: 5,
         }}>
         <Text style={{fontFamily: 'Nunito-Bold', fontSize: 18}}>
-          No named devices
+          Allow no-named devices
         </Text>
       </View>
       <View
@@ -182,7 +182,11 @@ export default function FilterMenu({
             borderTopRightRadius: 15,
           }}>
           <ListItem>
-            <View />
+            <View style={{justifyContent: 'center', alignItems: 'center'}}>
+              <Text style={{fontFamily: 'Nunito-Black', fontSize: 20}}>
+                Filters
+              </Text>
+            </View>
             <TouchableDebounce
               debounceTime={0}
               onPress={() => {
