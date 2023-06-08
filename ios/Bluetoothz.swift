@@ -17,6 +17,7 @@ let BLE_ADAPTER_STATUS_UNKNOW                       : String  = "BLE_ADAPTER_STA
 let BLE_ADAPTER_SCAN_START                          : String  = "BLE_ADAPTER_SCAN_START"
 let BLE_ADAPTER_SCAN_END                            : String  = "BLE_ADAPTER_SCAN_END"
 let BLE_PERIPHERAL_FOUND                            : String  = "BLE_PERIPHERAL_FOUND"
+let BLE_PERIPHERAL_UPDATES                          : String  = "BLE_PERIPHERAL_UPDATES"
 let BLE_PERIPHERAL_UPDATED_RSSI                     : String  = "BLE_PERIPHERAL_UPDATED_RSSI"
 let BLE_PERIPHERAL_READY                            : String  = "BLE_PERIPHERAL_READY"
 let BLE_PERIPHERAL_READ_RSSI                        : String  = "BLE_PERIPHERAL_READ_RSSI"
@@ -112,15 +113,13 @@ class Peripheral {
         gattServer.delegate = delegate
     }
     
-//    func updateLastSeen(time: TimeInterval) -> Bool {
-//        if self.lastSeen <= 0 {
-//            self.lastSeen = time
-//            return true
-//        }
-//        let result = fabs(self.lastSeen - time) >= 1000
-//        self.lastSeen = time
-//        return result
-//    }
+    func uuid() -> String {
+        return self.gattServer.identifier.uuidString
+    }
+    
+    func name() -> String {
+        return self.gattServer.name ?? ""
+    }
     
     func getLastRSSI() -> NSNumber {
         return self.lastRSSI
@@ -128,6 +127,14 @@ class Peripheral {
     
     func setLastRSSI(rssi: NSNumber) -> Void {
         self.lastRSSI = rssi
+    }
+    
+    func getLastSeen() -> TimeInterval {
+        return self.lastSeen
+    }
+    
+    func setLastSeen(time: TimeInterval) -> Void {
+        self.lastSeen = time
     }
     
     func setDfuCompliant(compliant: Bool) {
@@ -251,7 +258,8 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     var centralManager        : CBCentralManager? = nil
     var peripherals           : [String:Peripheral] = [:]
     var scanFilter            : String? = nil
-    var allowDuplicates       : Bool?
+    var allowDuplicates       : Bool = false
+    var allowNoNamedDevices   : Bool = false
     var dfuHelper             : DFUHelper!
     var syncHelper            : SyncHelper = SyncHelper()
     var peripheralWatchdog    : Timer?
@@ -280,6 +288,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             BLE_ADAPTER_SCAN_START,
             BLE_ADAPTER_SCAN_END,
             BLE_PERIPHERAL_FOUND,
+            BLE_PERIPHERAL_UPDATES,
             BLE_PERIPHERAL_UPDATED_RSSI,
             BLE_PERIPHERAL_READY,
             BLE_PERIPHERAL_READ_RSSI,
@@ -337,6 +346,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             BLE_ADAPTER_SCAN_START:BLE_ADAPTER_SCAN_START,
             BLE_ADAPTER_SCAN_END:BLE_ADAPTER_SCAN_END,
             BLE_PERIPHERAL_FOUND:BLE_PERIPHERAL_FOUND,
+            BLE_PERIPHERAL_UPDATES:BLE_PERIPHERAL_UPDATES,
             BLE_PERIPHERAL_UPDATED_RSSI:BLE_PERIPHERAL_UPDATED_RSSI,
             BLE_PERIPHERAL_READY:BLE_PERIPHERAL_READY,
             BLE_PERIPHERAL_READ_RSSI:BLE_PERIPHERAL_READ_RSSI,
@@ -443,11 +453,16 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             self.scanFilter = pattern
         }
         self.allowDuplicates = false
+        self.allowNoNamedDevices = false
         if let opt = options as? [String: Any]{
             // print("SOOOOOOOKA - options 1 - ", opt)
             if let duplicates = opt["allowDuplicates"] as? Bool {
                 // print("SOOOOOOOKA - options 2 - ", duplicates)
                 self.allowDuplicates = duplicates
+            }
+            if let noNamedDevices = opt["allowNoNamed"] as? Bool {
+                // print("SOOOOOOOKA - options 2 - ", duplicates)
+                self.allowNoNamedDevices = noNamedDevices
             }
         }
         self.peripherals.removeAll()
@@ -455,13 +470,21 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
         self.peripheralWatchdog?.invalidate()
         DispatchQueue.main.async(execute: {
             self.peripheralWatchdog = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-                print("OK")
-                // This closure will be executed every second
                 if let peripherals = self?.peripherals{
-                    print("imo")
+                    var devs : [[String:Any]] = []
+                    let currentTimeMillis = Date().timeIntervalSince1970 * 1000
                     for peripheral in peripherals.values {
-                        print("popa")
-                        self?.sendEvent(withName: BLE_PERIPHERAL_UPDATED_RSSI, body: ["uuid":  peripheral.getGATTServer().identifier.uuidString, "rssi": peripheral.getLastRSSI()])
+                        if fabs(peripheral.getLastSeen() - currentTimeMillis) >= 5000 {
+                            self?.peripherals.removeValue(forKey: peripheral.uuid())
+                            continue
+                        }
+                        devs.append(["uuid":  peripheral.uuid() ,
+                                     "name":  peripheral.name(),
+                                     "rssi": peripheral.getLastRSSI(),
+                                     "dfuCompliant":peripheral.isDfuCompliant()])
+                    }
+                    if self?.syncHelper.scanResolve == nil && !devs.isEmpty {
+                        self?.sendEvent(withName: BLE_PERIPHERAL_UPDATES, body: ["devices":  devs])
                     }
                 }
             }
@@ -854,25 +877,30 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber)
     {
-        guard let name = peripheral.name else {
-            return
+        var name = ""
+        if !self.allowNoNamedDevices {
+            if peripheral.name == nil {
+                return
+            }
+            name = peripheral.name!
         }
         var niceFind = true
-        if let pattern = self.scanFilter
-        {
-            //        print("SOOOOOOOKA - niceFind 0 - ",peripheral.identifier.uuidString , pattern, peripheral.identifier.uuidString.range(of: pattern, options: .caseInsensitive))
+        let currentTimeMillis = Date().timeIntervalSince1970 * 1000
+        if let pattern = self.scanFilter {
             niceFind = name.range(of: pattern, options: .caseInsensitive) != nil
         }
-        if niceFind, let allow = self.allowDuplicates, allow == false  {
+        if niceFind, self.allowDuplicates == false  {
             niceFind = !self.peripherals.keys.contains(peripheral.identifier.uuidString)
             if(!niceFind) {
                 if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
                     p.setLastRSSI(rssi: RSSI)
+                    p.setLastSeen(time: currentTimeMillis)
                 }
             }
         }
         if niceFind {
             let p : Peripheral = Peripheral(peripheral, rssi: RSSI, delegate:self)
+            p.setLastSeen(time: currentTimeMillis)
             if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
                 for serviceUUID in serviceUUIDs {
                     if serviceUUID.uuidString.compare(DFU_SERVICE_UUID, options: .caseInsensitive) == .orderedSame {
@@ -881,10 +909,6 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
                 }
             }
             self.peripherals[peripheral.identifier.uuidString] = p
-            if self.syncHelper.scanResolve == nil {
-                self.sendEvent(withName: BLE_PERIPHERAL_FOUND, body: ["uuid":  peripheral.identifier.uuidString ,
-                "name":  peripheral.name!, "rssi": RSSI, "dfuCompliant":p.isDfuCompliant()])
-            }
         }
     }
     

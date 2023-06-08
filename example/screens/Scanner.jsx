@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Platform,
+  FlatList,
 } from 'react-native';
 import * as BluetoothZ from 'react-native-bluetoothz';
 import Header from '../components/Header';
@@ -66,6 +67,157 @@ function DeviceSignal({rssi}) {
 }
 
 function Devices({status, devices, onCheckedDevice, isScanning}) {
+  return (
+    <FlatList
+      style={{opacity: isScanning ? 0.5 : 1}}
+      data={devices.sort(function (a, b) {
+        return a.uuid.localeCompare(b.uuid);
+        // return b.rssi - a.rssi;
+      })}
+      renderItem={({item, index}) => {
+        const device = item;
+        return (
+          <View key={device.uuid}>
+            <View
+              style={{
+                marginHorizontal: 5,
+                marginBottom: 5,
+                minHeight: 110,
+                flexDirection: 'row',
+                paddingVertical: 15,
+                paddingHorizontal: 10,
+                gap: 15,
+                borderBottomColor: '#555',
+                borderBottomWidth: 2,
+              }}>
+              <View
+                style={{
+                  backgroundColor: 'transparent',
+                  justifyContent: 'center',
+                }}>
+                <TouchableDebounce
+                  disabled={isScanning}
+                  onPress={() => {
+                    if (!device.connected) {
+                      BluetoothZ.connect({uuid: device.uuid});
+                    } else {
+                      BluetoothZ.disconnect({uuid: device.uuid});
+                    }
+                  }}
+                  style={{
+                    height: 46,
+                    width: 46,
+                    borderRadius: 2232,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: '#333',
+                  }}>
+                  <Image
+                    resizeMode="contain"
+                    style={{height: 32, width: 32}}
+                    source={
+                      device.connected
+                        ? require('../assets/icon/device-connected-100.png')
+                        : require('../assets/icon/device-100.png')
+                    }
+                  />
+                </TouchableDebounce>
+              </View>
+              <View
+                style={{
+                  // backgroundColor: 'silver',
+                  flex: 1,
+                }}>
+                <View
+                  style={{
+                    flex: 1,
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexDirection: 'row',
+                  }}>
+                  <Text
+                    style={{
+                      fontFamily:
+                        device.name?.length > 0
+                          ? 'Nunito-Bold'
+                          : 'Nunito-Italic',
+                      color: device.name?.length > 0 ? 'black' : '#444',
+                      fontSize: 18,
+                    }}>
+                    {device.name?.length > 0 ? device.name : '<null>'}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    // backgroundColor: 'pink',
+                    justifyContent: 'center',
+                  }}>
+                  <Text
+                    style={{
+                      fontFamily: 'Nunito-Regular',
+                      color: 'black',
+                      fontSize: 11,
+                    }}>
+                    {device.uuid}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    alignItems: 'center',
+                    flexDirection: 'row',
+                    gap: 2,
+                  }}>
+                  {device.dfuCompliant && (
+                    <View
+                      style={{
+                        backgroundColor: 'black',
+                        borderRadius: 12,
+                      }}>
+                      <Image
+                        style={{height: 24, width: 24}}
+                        source={require('../assets/icon/dfu-100.png')}
+                      />
+                    </View>
+                  )}
+                  <DeviceSignal rssi={device.rssi} />
+                  <Text
+                    style={{
+                      fontFamily: 'Nunito-Bold',
+                      color: device.connected ? 'green' : 'black',
+                    }}>
+                    {device.connected && device.ready && 'Ready'}
+                    {device.connected && !device.ready && 'Connected'}
+                    {!device.connected && 'Disconnected'}
+                  </Text>
+                </View>
+              </View>
+              <TouchableDebounce
+                debounceTime={100}
+                disabled={isScanning}
+                onPress={() => onCheckedDevice(device.uuid)}
+                style={{backgroundColor: 'transparent'}}>
+                <Image
+                  resizeMode="contain"
+                  style={{height: 32, width: 32}}
+                  source={
+                    !device.checked
+                      ? require('../assets/icon/uncheck-100.png')
+                      : require('../assets/icon/check-100.png')
+                  }
+                />
+              </TouchableDebounce>
+            </View>
+            {index >= devices.length - 1 && (
+              <View key={Date.now()} style={{minHeight: 170}}></View>
+            )}
+          </View>
+        );
+      }}
+      keyExtractor={item => item.uuid}
+    />
+  );
   return (
     <ScrollView style={{opacity: isScanning ? 0.5 : 1}}>
       {devices
@@ -212,14 +364,13 @@ function Devices({status, devices, onCheckedDevice, isScanning}) {
   );
 }
 
-function ScanButton({isScanning}) {
-  console.log('scan');
+function ScanButton({status, isScanning, filter}) {
   return (
     <View
       style={{
         flexDirection: 'row',
         zIndex: 1999,
-        // backgroundColor: 'green',
+        opacity: status ? 1 : 0.5,
         alignItems: 'center',
         justifyContent: 'flex-start',
         position: 'absolute',
@@ -231,10 +382,15 @@ function ScanButton({isScanning}) {
         gap: 10,
       }}>
       <RoundButton
+        disabled={!status}
         onPress={() => {
-          console.log('PIGIAR');
           if (!isScanning) {
-            BluetoothZ.startScan({timeout: -1});
+            const {filterByName, ...options} = filter;
+            BluetoothZ.startScan({
+              filter: filterByName.enabled ? filterByName.text : undefined,
+              options,
+              timeout: -1,
+            });
           } else {
             BluetoothZ.stopScan();
           }
@@ -295,8 +451,8 @@ function AdvancedControls({devices, isScanning, onDfu}) {
 
 const DevicesList = ({status, navigation, isScanning}) => {
   const [devices, setDevices] = useState([]);
-  const [modalAlert, setModalAlert] = useState(undefined);
-
+  // const [modalAlert, setModalAlert] = useState(undefined);
+  console.log('lista dispo');
   useEffect(() => {
     if (isScanning === true) {
       setDevices([]);
@@ -306,26 +462,67 @@ const DevicesList = ({status, navigation, isScanning}) => {
 
   useEffect(() => {
     const peripheralFoundListener = BluetoothZ.emitter.addListener(
-      BluetoothZ.Defines.BLE_PERIPHERAL_FOUND,
-      ({uuid, name, dfuCompliant, rssi}) => {
-        console.log('FOUND');
-        setDevices(old => {
-          const dev = {
-            uuid,
-            name,
-            rssi,
-            dfuCompliant,
-            connected: false,
-            ready: false,
-            checked: false,
-          };
-          // console.log(dev);
-          const arr = [...old, dev];
-          console.log(arr);
-          return arr;
-        });
+      BluetoothZ.Defines.BLE_PERIPHERAL_UPDATES,
+      ({devices}) => {
+        setDevices(devices);
+        // console.log('FOUND', uuid, name, dfuCompliant, rssi);
+        // Check if the object with the specified property and value exists
+        // setDevices(prevDevices => {
+        //   // Check if the object with the specified property and value exists
+        //   const foundIndex = prevDevices.findIndex(d => d.uuid === uuid);
+        //   if (foundIndex !== -1) {
+        //     // If the object is found, update its properties
+        //     const updatedDevices = [...prevDevices];
+        //     updatedDevices[foundIndex] = {
+        //       ...updatedDevices[foundIndex],
+        //       rssi,
+        //       dfuCompliant,
+        //     };
+        //     return updatedDevices;
+        //   } else {
+        //     // If the object is not found, append a new object to the array
+        //     return [...prevDevices, {uuid, name, dfuCompliant, rssi}];
+        //   }
+        // });
+
+        // setDevices(old => {
+        //   const dev = {
+        //     uuid,
+        //     name,
+        //     rssi,
+        //     dfuCompliant,
+        //     connected: false,
+        //     ready: false,
+        //     checked: false,
+        //   };
+        //   // console.log(dev);
+        //   const arr = [...old, dev];
+        //   console.log(arr);
+        //   return arr;
+        // });
       },
     );
+    // const peripheralFoundListener = BluetoothZ.emitter.addListener(
+    //   BluetoothZ.Defines.BLE_PERIPHERAL_FOUND,
+    //   ({uuid, name, dfuCompliant, rssi}) => {
+    //     console.log('FOUND');
+    //     setDevices(old => {
+    //       const dev = {
+    //         uuid,
+    //         name,
+    //         rssi,
+    //         dfuCompliant,
+    //         connected: false,
+    //         ready: false,
+    //         checked: false,
+    //       };
+    //       // console.log(dev);
+    //       const arr = [...old, dev];
+    //       console.log(arr);
+    //       return arr;
+    //     });
+    //   },
+    // );
     const peripheralRSSIUpdatedListener = BluetoothZ.emitter.addListener(
       BluetoothZ.Defines.BLE_PERIPHERAL_UPDATED_RSSI,
       ({uuid, rssi}) => {
@@ -412,8 +609,9 @@ const DevicesList = ({status, navigation, isScanning}) => {
             height: '100%',
             width: '100%',
             position: 'absolute',
-            justifyContent: 'center',
+            // justifyContent: 'center',
             alignItems: 'center',
+            paddingTop: '50%',
           }}>
           <Image
             resizeMode="contain"
@@ -480,15 +678,15 @@ const DevicesList = ({status, navigation, isScanning}) => {
 };
 
 export default function Scanner({navigation}) {
-  const [bluetoothStatus, setBluetoothStatus] = useState(undefined);
+  const [isBluetoothPoweredOn, bluetoothPoweredOn] = useState(undefined);
   const [isScanning, setScanning] = useState(false);
-  console.log('mamma mia');
+
   useEffect(() => {
     const bleAdapterListener = BluetoothZ.emitter.addListener(
       BluetoothZ.Defines.BLE_ADAPTER_STATUS_DID_UPDATE,
       ({status}) => {
         console.log('oooooooooooo', status);
-        setBluetoothStatus(
+        bluetoothPoweredOn(
           status === BluetoothZ.Defines.BLE_ADAPTER_STATUS_POWERED_ON,
         );
       },
@@ -526,20 +724,69 @@ export default function Scanner({navigation}) {
   );
 
   return (
-    <View style={{flex: 1, backgroundColor: 'snow'}}>
-      <Header status={bluetoothStatus} onFilter={() => {}} />
-      <BackgroundShape bleStatus={bluetoothStatus} />
+    <View style={{flex: 1, backgroundColor: '#F7F7F7'}}>
+      <FirstPart
+        isBluetoothPoweredOn={isBluetoothPoweredOn}
+        isScanning={isScanning}
+      />
+      <BackgroundShape bleStatus={isBluetoothPoweredOn} />
       <DevicesList
-        status={bluetoothStatus}
+        status={isBluetoothPoweredOn}
         navigation={navigation}
         isScanning={isScanning}
       />
-      <Toast
-      // state={modalAlert}
-      />
-      <FilterMenu visible />
-      <ScanButton isScanning={isScanning} />
     </View>
+  );
+}
+
+function FirstPart({isBluetoothPoweredOn, isScanning}) {
+  const [filterMenu, setFilterMenu] = useState({
+    open: false,
+    allowDuplicates: false,
+    allowNoNamed: false,
+    filterByName: {enabled: false, text: undefined},
+  });
+  return (
+    <>
+      <Header
+        status={isBluetoothPoweredOn}
+        isScanning={isScanning}
+        filterMenu={filterMenu}
+        onFilter={() => {
+          setFilterMenu(o => {
+            return {...o, open: !o.open};
+          });
+        }}
+      />
+      <FilterMenu
+        state={filterMenu}
+        onClose={() =>
+          setFilterMenu(o => {
+            return {...o, open: false};
+          })
+        }
+        onEnabledDuplicatesChanged={enabled => {
+          setFilterMenu(o => {
+            return {...o, allowDuplicates: enabled};
+          });
+        }}
+        onEnabledNoNamedChange={enabled => {
+          setFilterMenu(o => {
+            return {...o, allowNoNamed: enabled};
+          });
+        }}
+        onNameFilterChange={filter => {
+          setFilterMenu(o => {
+            return {...o, filterByName: {...filter}};
+          });
+        }}
+      />
+      <ScanButton
+        status={isBluetoothPoweredOn}
+        isScanning={isScanning}
+        filter={filterMenu}
+      />
+    </>
   );
 }
 

@@ -60,10 +60,13 @@ import com.facebook.react.bridge.Promise;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class BluetoothzModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
   private static final String Characteristic_User_Description = "00002901-0000-1000-8000-00805f9b34fb";
@@ -76,6 +79,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   public static final String BLE_ADAPTER_SCAN_START = "BLE_ADAPTER_SCAN_START";
   public static final String BLE_ADAPTER_SCAN_END = "BLE_ADAPTER_SCAN_END";
   public static final String BLE_PERIPHERAL_FOUND = "BLE_PERIPHERAL_FOUND";
+  public static final String BLE_PERIPHERAL_UPDATES = "BLE_PERIPHERAL_UPDATES";
   public static final String BLE_PERIPHERAL_UPDATED_RSSI = "BLE_PERIPHERAL_UPDATED_RSSI";
   public static final String BLE_PERIPHERAL_READY = "BLE_PERIPHERAL_READY";
   public static final String BLE_PERIPHERAL_CONNECTED = "BLE_PERIPHERAL_CONNECTED";
@@ -129,16 +133,17 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   private BluetoothManager bluetoothManager;
   private String filter;
   private boolean allowDuplicates = false;
+  private boolean allowNoNamedDevices = false;
   private int listenerCount = 0;
   private ReactApplicationContext reactContext;
   private LocalBroadcastReceiver mLocalBroadcastReceiver;
   private LocalScanCallback mScanCallback;
   private LocalBluetoothGattCallback mBluetoothGATTCallback;
   private LocalDfuProgressListener mLocalDfuProgressListener;
-  private HashMap<String, Peripheral> mPeripherals;
+  private ConcurrentHashMap<String, Peripheral> mPeripherals;
   public static DfuHelper mDfuHelper;
   private SyncHelper mSyncHelper;
-  private CountDownTimer keepAliveTimer;
+  private PeripheralWatchdog mPeripheralWatchdog;
 
   static {
     // Static initializer block
@@ -150,9 +155,8 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   public BluetoothzModule(ReactApplicationContext context) {
     super(context);
     this.reactContext = context;
-    this.mPeripherals = new HashMap<>();
+    this.mPeripherals = new ConcurrentHashMap<>();
     this.mLocalBroadcastReceiver = new LocalBroadcastReceiver();
-    this.mScanCallback = new LocalScanCallback();
     this.mBluetoothGATTCallback = new LocalBluetoothGattCallback();
     this.mLocalDfuProgressListener = new LocalDfuProgressListener();
     this.reactContext.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
@@ -178,17 +182,6 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     return new String(hexChars, StandardCharsets.UTF_8);
   }
 
-  public class LocalBroadcastReceiver extends BroadcastReceiver {
-    @Override
-    public void onReceive(Context context, Intent intent) {
-      String action = intent.getAction();
-      // It means the user has changed his bluetooth state.
-      if (action.equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
-        BluetoothzModule.sendBleStatus(bluetoothAdapter.getState(), reactContext);
-      }
-    }
-  }
-
   private class SyncHelper {
     public Promise disconnectPromise;
     public Promise connectPromise;
@@ -205,51 +198,65 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     public DfuServiceController controller;
   }
 
+  public class LocalBroadcastReceiver extends BroadcastReceiver {
+    @Override
+    public void onReceive(Context context, Intent intent) {
+      String action = intent.getAction();
+      // It means the user has changed his bluetooth state.
+      if (action.equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
+        BluetoothzModule.sendBleStatus(bluetoothAdapter.getState(), reactContext);
+      }
+    }
+  }
 
   // Device scan callback.
   public class LocalScanCallback extends ScanCallback {
+    @Override
+    public void onScanFailed(int errorCode) {
+      super.onScanFailed(errorCode);
+      WritableMap params = Arguments.createMap();
+      params.putInt("errorCode", errorCode);
+      sendEvent(reactContext, BLE_ADAPTER_SCAN_END, params);
+    }
+
     @SuppressLint("MissingPermission")
     @Override
     public void onScanResult(int callbackType, ScanResult result) {
       BluetoothDevice device = result.getDevice();
-      if (device.getName() != null && !device.getName().isEmpty()) {
-        boolean niceFind = true;
-        if (filter != null) {
-          niceFind = device.getName().toLowerCase().contains(filter.toLowerCase());
-        }
-        if (niceFind && !allowDuplicates) {
-          niceFind = !mPeripherals.containsKey(device.getAddress());
-          if(!niceFind) {
-            int rssi = result.getRssi();
-            Peripheral peripheral = mPeripherals.get(device.getAddress());
-            peripheral.setLastRSSI(rssi);
-            WritableMap params = Arguments.createMap();
-            params.putString("uuid", device.getAddress());
-            params.putInt("rssi", rssi);
-            sendEvent(reactContext, BLE_PERIPHERAL_UPDATED_RSSI, params);
-          }
-        }
-        if (niceFind) {
+      String name = device.getName();
+      if( !allowNoNamedDevices  && (name == null || name.isEmpty())) {
+          return;
+      }
+      if(name == null) {
+        name = "";
+      }
+      boolean niceFind = true;
+      if (filter != null) {
+        niceFind = name.toLowerCase().contains(filter.toLowerCase());
+      }
+      long lastSeen = System.currentTimeMillis();
+      if (niceFind && !allowDuplicates) {
+        niceFind = !mPeripherals.containsKey(device.getAddress());
+        if(!niceFind) {
           int rssi = result.getRssi();
-          Peripheral peripheral = new Peripheral(device, rssi);
-          List<ParcelUuid> uuids = result.getScanRecord().getServiceUuids();
-          if (uuids != null) {
-              for (ParcelUuid uuid : uuids) {
-                  if (uuid.getUuid().toString().contains(DFU_SERVICE_UUID)) {
-                    peripheral.setDfuCompliant(true);
-                  }
-              }
-          }
-          mPeripherals.put(device.getAddress(), peripheral);
-          if (mSyncHelper.scanPromise == null) {
-            WritableMap params = Arguments.createMap();
-            params.putString("uuid", device.getAddress());
-            params.putString("name", device.getName());
-            params.putBoolean("dfuCompliant", peripheral.isDfuCompliant());
-            params.putInt("rssi", rssi);
-            sendEvent(reactContext, BLE_PERIPHERAL_FOUND, params);
-          }
+          Peripheral peripheral = mPeripherals.get(device.getAddress());
+          peripheral.setLastRSSI(rssi);
+          peripheral.setLastSeen(lastSeen);
         }
+      }
+      if (niceFind) {
+        int rssi = result.getRssi();
+        Peripheral peripheral = new Peripheral(device, rssi);
+        peripheral.setLastSeen(lastSeen);
+        List<ParcelUuid> uuids = result.getScanRecord().getServiceUuids();
+        if (uuids != null) {
+            for (ParcelUuid uuid : uuids) {
+                if (uuid.getUuid().toString().contains(DFU_SERVICE_UUID)) {
+                  peripheral.setDfuCompliant(true);
+                }
+            }
+        }
+        mPeripherals.put(device.getAddress(), peripheral);
       }
     }
   }
@@ -406,9 +413,9 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     }
   }
 
-  public class KeepAliveTimer extends CountDownTimer {
+  public class PeripheralWatchdog extends CountDownTimer {
 
-    public KeepAliveTimer(long millisInFuture, long countDownInterval) {
+    public PeripheralWatchdog(long millisInFuture, long countDownInterval) {
       super(millisInFuture, countDownInterval);
     }
 
@@ -420,15 +427,31 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
         Log.d("FORZA MILAN", "ERRORE");
         return;
       }
-      List<BluetoothDevice> connectedDevices = bluetoothManager.getConnectedDevices(GATT);
-      for (BluetoothDevice device : connectedDevices) {
-        Log.d("FORZA MILAN", "OK " + device.getAddress() + device.getName());
+      WritableArray array = Arguments.createArray();
+      long currentTimeMillis = System.currentTimeMillis();
+
+      for (String key : mPeripherals.keySet()) {
+          Peripheral p = mPeripherals.get(key);
+          if(currentTimeMillis - p.getLastSeen() >= 5000){
+            mPeripherals.remove(key);
+            continue;
+          }
+          WritableMap params = Arguments.createMap();
+          params.putString("uuid", p.uuid());
+          params.putString("name", p.name());
+          params.putBoolean("dfuCompliant", p.isDfuCompliant());
+          params.putInt("rssi", p.getLastRSSI());
+          array.pushMap(params);
       }
+      WritableMap payload = Arguments.createMap();
+      payload.putArray("devices",array);
+      sendEvent(reactContext, BLE_PERIPHERAL_UPDATES, payload);
     }
 
     @Override
     public void onFinish() {
-
+      /// il countdown è terminato, faccio ripartire il timer.
+      this.start();
     }
   }
 
@@ -438,7 +461,9 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     private HashMap<String, Pair<BluetoothGattCharacteristic, Boolean>> mCharacteristic;
     private boolean mConnected = false;
     private int mLastRSSI;
+    private long mLastSeen;
     private boolean mDfuCompliant = false;
+
 
     @SuppressLint("MissingPermission")
     public Peripheral(BluetoothDevice device, int lastRSSI) {
@@ -453,6 +478,14 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 
     public void setLastRSSI(int rssi) {
       this.mLastRSSI = rssi;
+    }
+
+    public long getLastSeen() {
+      return this.mLastSeen;
+    }
+
+    public void setLastSeen(long lastSeen) {
+      this.mLastSeen = lastSeen;
     }
 
     public void setDfuCompliant(boolean compliant) {
@@ -572,6 +605,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     constants.put(BLE_ADAPTER_SCAN_START, BLE_ADAPTER_SCAN_START);
     constants.put(BLE_ADAPTER_SCAN_END, BLE_ADAPTER_SCAN_END);
     constants.put(BLE_PERIPHERAL_FOUND, BLE_PERIPHERAL_FOUND);
+    constants.put(BLE_PERIPHERAL_UPDATES, BLE_PERIPHERAL_UPDATES);
     constants.put(BLE_PERIPHERAL_UPDATED_RSSI, BLE_PERIPHERAL_UPDATED_RSSI);
     constants.put(BLE_PERIPHERAL_READY, BLE_PERIPHERAL_READY);
     constants.put(BLE_PERIPHERAL_CONNECTED, BLE_PERIPHERAL_CONNECTED);
@@ -636,8 +670,6 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       sendEvent(reactContext, BLE_ADAPTER_STATUS_INVALID, null);
       return;
     }
-//      keepAliveTimer = new KeepAliveTimer(Long.MAX_VALUE, 3000);
-//      keepAliveTimer.start();
     sendBleStatus(bluetoothAdapter.getState(), reactContext);
   }
 
@@ -697,6 +729,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 
   @SuppressLint("MissingPermission")
   private void scan(@Nullable ReadableArray services, @Nullable String filter, @Nullable ReadableMap options) {
+    this.mScanCallback = new LocalScanCallback();
     BluetoothLeScanner bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
     ArrayList<ScanFilter> servicesFilter = null;
     if (services != null) {
@@ -712,14 +745,20 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       this.filter = filter;
     }
     this.allowDuplicates = false;
+    this.allowNoNamedDevices = false;
     if (options != null) {
       if (options.hasKey("allowDuplicates")) {
         this.allowDuplicates = options.getBoolean("allowDuplicates");
+      }
+      if (options.hasKey("allowNoNamed")) {
+        this.allowNoNamedDevices = options.getBoolean("allowNoNamed");
       }
     }
     this.mPeripherals.clear();
     ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
     bluetoothLeScanner.startScan(servicesFilter, settings, mScanCallback);
+    this.mPeripheralWatchdog = new PeripheralWatchdog(3600000,1000);
+    this.mPeripheralWatchdog.start();
   }
 
   @SuppressLint("MissingPermission")
@@ -742,6 +781,9 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   @ReactMethod
   public void stopScan() {
     bluetoothAdapter.getBluetoothLeScanner().stopScan(mScanCallback);
+    this.mScanCallback = null;
+    if(this.mPeripheralWatchdog != null)
+      this.mPeripheralWatchdog.cancel();
     if (mSyncHelper.scanPromise != null) {
       WritableArray devicesFound = Arguments.createArray();
       for (Peripheral p : mPeripherals.values()) {

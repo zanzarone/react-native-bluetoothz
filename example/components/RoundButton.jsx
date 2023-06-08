@@ -11,6 +11,7 @@ export default function RoundButton({
 }) {
   return (
     <TouchableDebounce
+      debounceTime={100}
       disabled={disabled}
       style={[
         {

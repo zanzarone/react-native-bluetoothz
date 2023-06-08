@@ -12,13 +12,18 @@ export default function TouchableDebounce(props) {
       onPress={() => {
         if (!lockRef.current) {
           lockRef.current = true;
-          setTimeout(
-            () => {
-              onPress();
-              lockRef.current = false;
-            },
-            props?.debounceTime ? props.debounceTime : 500,
-          );
+          // if (props?.debounceTime <= 0) {
+          onPress();
+          lockRef.current = false;
+          return;
+          // }
+          // setTimeout(
+          //   () => {
+          //     onPress();
+          //     lockRef.current = false;
+          //   },
+          //   props?.debounceTime ? props.debounceTime : 500,
+          // );
         }
       }}
       {...newProps}>

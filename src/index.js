@@ -31,6 +31,10 @@ const Defines = {
   SCAN_TIMEOUT_MSEC: 8000,
   DEFAULT_MAX_RETRY_COUNT: 5,
   DFU_ERROR_DEVICE_DISCONNECTED,
+  DFU_SCAN_FAILED: 'DFU_SCAN_FAILED',
+  BLE_PERIPHERAL_DFU_STATUS_DFU_INTERFACE_FOUND:
+    'BLE_PERIPHERAL_DFU_STATUS_DFU_INTERFACE_FOUND',
+  DFU_INTERFACE_CONNECT_FAILED: 'DFU_INTERFACE_CONNECT_FAILED',
   ...BLE.getConstants(),
 };
 module.exports.Defines = Defines;
@@ -143,6 +147,7 @@ bleEmitter.addListener(
             'DFU RETRY =======================> Android, riconnes. errore 3.',
             error
           );
+          bleEmitter.emit(Defines.DFU_SCAN_FAILED, { uuid });
           return;
         }
         devices = devices.filter(
@@ -152,6 +157,7 @@ bleEmitter.addListener(
           console.log(
             'DFU RETRY =======================> Android, riconnes. errore 4.'
           );
+          bleEmitter.emit(Defines.DFU_INTERFACE_NOT_FOUND, { uuid });
           return;
         }
         let device = devices.shift();
@@ -170,6 +176,7 @@ bleEmitter.addListener(
             'DFU RETRY =======================> Android, riconnes. errore 5.',
             error
           );
+          bleEmitter.emit(Defines.DFU_INTERFACE_CONNECT_FAILED, { uuid });
           return;
         }
       }

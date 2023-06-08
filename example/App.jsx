@@ -43,16 +43,7 @@ export default function MyTabs() {
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: false,
-          tabBarStyle: {
-            position: 'absolute',
-            bottom: Platform.OS === 'android' ? 25 : 30,
-            left: 20,
-            right: 20,
-            borderRadius: 15,
-            height: 70,
-            elevation: 0,
-            ...styles.shadow,
-          },
+          tabBarStyle: {...styles.tabBarStyle, ...styles.shadow},
         }}>
         <Tab.Screen
           name="Main"
@@ -82,41 +73,22 @@ export default function MyTabs() {
             ),
           }}
         />
-        {/* <Tab.Screen
-          name="Home"
-          component={Home}
-          options={{
-            tabBarIcon: ({focused}) => {
-              return (
-                <View style={{alignItems: 'center'}}>
-                  <Image
-                    resizeMode="contain"
-                    style={{height: 30, width: 30}}
-                    source={
-                      focused
-                        ? require('./assets/icon/scanner-selected-100.png')
-                        : require('./assets/icon/scanner-100.png')
-                    }
-                  />
-                  <Text
-                    style={{
-                      color: focused ? 'black' : 'silver',
-                      fontFamily: 'Nunito-Bold',
-                      fontSize: 12,
-                    }}>
-                    Scanner
-                  </Text>
-                </View>
-              );
-            },
-          }}
-        /> */}
       </Tab.Navigator>
     </NavigationContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  tabBarStyle: {
+    position: 'absolute',
+    backgroundColor: '#FAFAFA',
+    bottom: Platform.OS === 'android' ? 25 : 30,
+    left: 20,
+    right: 20,
+    borderRadius: 15,
+    height: 70,
+    elevation: 0,
+  },
   shadow:
     Platform.OS === 'ios'
       ? {
