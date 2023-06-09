@@ -341,7 +341,7 @@ export default function DFU({navigation, route}) {
 
     const blePeripheralDfuIntNotFoundListener = BluetoothZ.emitter.addListener(
       BluetoothZ.Defines.DFU_INTERFACE_NOT_FOUND,
-      ({uuid}) => {
+      () => {
         nextUpdate({error: 'Could not find DFU enabled interface!'});
       },
     );
@@ -369,6 +369,13 @@ export default function DFU({navigation, route}) {
         if (errorCode !== BluetoothZ.Defines.DFU_ERROR_DEVICE_DISCONNECTED) {
           nextUpdate({error});
         }
+      },
+    );
+
+    const PIPPO = BluetoothZ.emitter.addListener(
+      BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED,
+      event => {
+        console.log('+ DFU + BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED:', event);
       },
     );
 
@@ -467,7 +474,7 @@ export default function DFU({navigation, route}) {
       dfuStatusListener?.remove();
       dfuProgressListener?.remove();
       bleAdapterListener?.remove();
-      // blePeripheralDisconnectedListener?.remove();
+      PIPPO?.remove();
     };
   }, [dfu, setDfu]);
 
@@ -557,11 +564,12 @@ export default function DFU({navigation, route}) {
               });
             }}
             onStart={async () => {
-              const {uuid} = devices[dfu?.currentDeviceIndex];
-              initDFU({uuid});
-              setDfu(o => {
-                return {...o, currentDeviceUUID: uuid};
-              });
+              const size = devices.length < 2 ? devices.length : 2;
+              // const {uuid} = devices[dfu?.currentDeviceIndex];
+              // initDFU({uuid});
+              // setDfu(o => {
+              //   return {...o, currentDeviceUUID: uuid};
+              // });
             }}
             onPause={() => {
               console.log('-----------', dfu?.currentDeviceUUID);

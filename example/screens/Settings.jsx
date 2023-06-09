@@ -29,7 +29,7 @@ export default function Settings({navigation, route}) {
     <View style={{flex: 1, backgroundColor: '#F7F7F7'}}>
       <Header status={isBluetoothPoweredOn} />
       <BackgroundShape bleStatus={isBluetoothPoweredOn} />
-      <View style={{alignItems: 'center', flex: 1, gap: 10}}>
+      <View style={{alignItems: 'center', flex: 1, gap: 15}}>
         <SectionList title={'GENERAL'}>
           <SectionItem
             icon={require('../assets/icon/scanner-settings-100.png')}
@@ -63,6 +63,7 @@ export default function Settings({navigation, route}) {
             icon={require('../assets/icon/online-100.png')}
             title={'Online resources'}
             value={'Up to date'}
+            valueColor={'palegreen'}
             description={'Checked on ' + Date()}
             last
           />
@@ -74,7 +75,7 @@ export default function Settings({navigation, route}) {
 
 const SectionList = ({children, title}) => {
   return (
-    <View style={{width: '100%', alignItems: 'center', gap: 5}}>
+    <View style={[styles.sectionList]}>
       <Text
         style={{
           fontFamily: 'Nunito-Bold',
@@ -85,11 +86,14 @@ const SectionList = ({children, title}) => {
         {title?.toUpperCase()}
       </Text>
       <View
-        style={{
-          backgroundColor: 'black',
-          borderRadius: 15,
-          width: '90%',
-        }}>
+        style={[
+          {
+            backgroundColor: 'black',
+            borderRadius: 15,
+            width: '90%',
+          },
+          styles.shadow,
+        ]}>
         {children}
       </View>
     </View>
@@ -99,9 +103,11 @@ const SectionList = ({children, title}) => {
 const SectionItem = ({
   icon,
   title,
+  titleColor = undefined,
   onMore,
   onToggle,
   value = undefined,
+  valueColor = undefined,
   description = undefined,
   last = false,
 }) => {
@@ -149,7 +155,7 @@ const SectionItem = ({
             textAlign: 'right',
             fontFamily: 'Nunito-Regular',
             fontSize: 17,
-            color: 'silver',
+            color: valueColor ? valueColor : 'silver',
           }}>
           {value}
         </Text>
@@ -181,4 +187,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderBottomColor: 'dimgray',
   },
+  sectionList: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 5,
+  },
+  shadow:
+    Platform.OS === 'ios'
+      ? {
+          shadowColor: '#171717',
+          shadowOffset: {width: -2, height: 4},
+          shadowOpacity: 0.2,
+          shadowRadius: 3,
+        }
+      : {
+          elevation: 8,
+          shadowColor: '#000',
+        },
 });

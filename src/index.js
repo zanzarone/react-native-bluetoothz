@@ -34,6 +34,7 @@ const Defines = {
   DFU_SCAN_FAILED: 'DFU_SCAN_FAILED',
   DFU_INTERFACE_NOT_FOUND: 'DFU_INTERFACE_NOT_FOUND',
   DFU_INTERFACE_CONNECT_FAILED: 'DFU_INTERFACE_CONNECT_FAILED',
+  DFU_INTERFACE_FOUND: 'DFU_INTERFACE_FOUND',
   ...BLE.getConstants(),
 };
 module.exports.Defines = Defines;
@@ -128,7 +129,7 @@ bleEmitter.addListener(
     ) {
       const { uuid } = event;
       /// 1. incremento l'uuid(MAC addr + 1)
-      const newUUID = incrementMacAddress(uuid);
+      let newUUID = incrementMacAddress(uuid);
       console.log('DFU RETRY =======================> 1.', newUUID);
       /// 2. se la piattaforma e' Android devo connettermi
       if (Platform.OS === 'android') {
@@ -146,17 +147,19 @@ bleEmitter.addListener(
             'DFU RETRY =======================> Android, riconnes. errore 3.',
             error
           );
-          bleEmitter.emit(Defines.DFU_SCAN_FAILED, { uuid });
+          bleEmitter.emit(Defines.DFU_SCAN_FAILED, { uuid, newUUID });
           return;
         }
         devices = devices.filter(
-          (d) => d.uuid.toLowerCase() === newUUID.toLowerCase()
+          (d) =>
+            d.uuid.toLowerCase() === newUUID.toLowerCase() ||
+            d.uuid.toLowerCase() === uuid.toLowerCase()
         );
         if (devices.length <= 0) {
           console.log(
             'DFU RETRY =======================> Android, riconnes. errore 4.'
           );
-          bleEmitter.emit(Defines.DFU_INTERFACE_NOT_FOUND, { uuid });
+          bleEmitter.emit(Defines.DFU_INTERFACE_NOT_FOUND, { uuid, newUUID });
           return;
         }
         let device = devices.shift();
@@ -166,6 +169,7 @@ bleEmitter.addListener(
         );
         bleEmitter.emit(Defines.BLE_PERIPHERAL_DFU_STATUS_DFU_INTERFACE_FOUND, {
           uuid,
+          newUUID,
         });
         try {
           await connectSync({ uuid: device.uuid });
@@ -175,10 +179,14 @@ bleEmitter.addListener(
             'DFU RETRY =======================> Android, riconnes. errore 5.',
             error
           );
-          bleEmitter.emit(Defines.DFU_INTERFACE_CONNECT_FAILED, { uuid });
+          bleEmitter.emit(Defines.DFU_INTERFACE_CONNECT_FAILED, {
+            uuid,
+            newUUID,
+          });
           return;
         }
       }
+      bleEmitter.emit(Defines.DFU_INTERFACE_FOUND, { uuid, newUUID });
       /// 3. provo ad effettuare nuovamente la proc DFU
       startDFU({
         uuid: newUUID,

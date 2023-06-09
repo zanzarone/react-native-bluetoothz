@@ -141,14 +141,14 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   private LocalBluetoothGattCallback mBluetoothGATTCallback;
   private LocalDfuProgressListener mLocalDfuProgressListener;
   private ConcurrentHashMap<String, Peripheral> mPeripherals;
-  public static DfuHelper mDfuHelper;
+//  public static DfuHelper mDfuHelper;
   private SyncHelper mSyncHelper;
   private PeripheralWatchdog mPeripheralWatchdog;
 
-  static {
-    // Static initializer block
-    mDfuHelper = new DfuHelper();
-  }
+//  static {
+//    // Static initializer block
+//    mDfuHelper = new DfuHelper();
+//  }
 
   private static final byte[] HEX_ARRAY = "0123456789ABCDEF".getBytes(StandardCharsets.US_ASCII);
 
@@ -197,7 +197,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     public DfuServiceInitiator serviceInitiator;
     public DfuServiceController controller;
   }
-
+  // Adatpter status callback.
   public class LocalBroadcastReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -209,7 +209,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     }
   }
 
-  // Device scan callback.
+  // Adapter scan callback.
   public class LocalScanCallback extends ScanCallback {
     @Override
     public void onScanFailed(int errorCode) {
@@ -260,7 +260,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       }
     }
   }
-
+  // Device results callback.
   private class LocalBluetoothGattCallback extends BluetoothGattCallback {
     @SuppressLint("MissingPermission")
     @Override
@@ -463,7 +463,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     private int mLastRSSI;
     private long mLastSeen;
     private boolean mDfuCompliant = false;
-
+    public DfuHelper mDfuHelper;
 
     @SuppressLint("MissingPermission")
     public Peripheral(BluetoothDevice device, int lastRSSI) {
@@ -965,46 +965,45 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     }
   }
 
-  private boolean prepareDFU(String uuid, ReadableMap options) {
-    if (!isConnected(uuid)) {
-      return false;
-    }
-    mDfuHelper.currentPeripheralId = uuid;
-    mDfuHelper.serviceInitiator = new DfuServiceInitiator(uuid).setKeepBond(false);
-    mDfuHelper.serviceInitiator.setPacketsReceiptNotificationsValue(1);
-    mDfuHelper.enableDebug = false;
+  private void prepareDFU(String uuid, ReadableMap options, Peripheral p) {
+    p.mDfuHelper = new DfuHelper();
+    p.mDfuHelper.currentPeripheralId = uuid;
+    p.mDfuHelper.serviceInitiator = new DfuServiceInitiator(uuid).setKeepBond(false);
+    p.mDfuHelper.serviceInitiator.setPacketsReceiptNotificationsValue(1);
+    p.mDfuHelper.enableDebug = false;
     if (options.hasKey(DFU_OPTION_ENABLE_DEBUG)) {
-      mDfuHelper.enableDebug = options.getBoolean(DFU_OPTION_ENABLE_DEBUG);
+      p.mDfuHelper.enableDebug = options.getBoolean(DFU_OPTION_ENABLE_DEBUG);
     }
-    mDfuHelper.serviceInitiator.setPrepareDataObjectDelay(300L);
+    p.mDfuHelper.serviceInitiator.setPrepareDataObjectDelay(300L);
     if (options.hasKey(DFU_OPTION_PACKET_DELAY)) {
-      mDfuHelper.serviceInitiator.setPrepareDataObjectDelay(options.getInt(DFU_OPTION_PACKET_DELAY));
+      p.mDfuHelper.serviceInitiator.setPrepareDataObjectDelay(options.getInt(DFU_OPTION_PACKET_DELAY));
     }
-    mDfuHelper.serviceInitiator.setUnsafeExperimentalButtonlessServiceInSecureDfuEnabled(true);
-    return true;
+    p.mDfuHelper.serviceInitiator.setUnsafeExperimentalButtonlessServiceInSecureDfuEnabled(true);
   }
 
   @ReactMethod
   public void startDFU(String uuid, String filePath, String pathType, ReadableMap options) {
-    if (!prepareDFU(uuid, options)) {
+    if (!isConnected(uuid)) {
       WritableMap params = Arguments.createMap();
       params.putString("uuid", uuid);
       params.putString("error", "Device already disconnected:" + uuid);
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_FAILED, params);
       return;
     }
+    Peripheral p = mPeripherals.get(uuid);
+    prepareDFU(uuid, options, p);
     mSyncHelper.dfuPromise = null;
     switch (pathType) {
       case FILE_PATH_TYPE_STRING:
-        mDfuHelper.serviceInitiator.setZip(filePath);
+        p.mDfuHelper.serviceInitiator.setZip(filePath);
         break;
       case FILE_PATH_TYPE_URL:
         Log.d("PEPPER", "GODO?");
         Uri uri = Uri.parse(filePath);
-        mDfuHelper.serviceInitiator.setZip(uri);
+        p.mDfuHelper.serviceInitiator.setZip(uri);
         break;
     }
-    mDfuHelper.controller = mDfuHelper.serviceInitiator.start(this.reactContext, LocalDfuService.class);
+    p.mDfuHelper.controller = p.mDfuHelper.serviceInitiator.start(this.reactContext, LocalDfuService.class);
   }
 
   @ReactMethod
@@ -1014,16 +1013,20 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       params.putString("uuid", uuid);
       params.putString("error", "Device already disconnected:" + uuid);
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED, params);
+      Log.d("------>","aaaaaa");
       return;
     }
     WritableMap params = Arguments.createMap();
     params.putString("uuid", uuid);
     params.putString("status", BLE_PERIPHERAL_DFU_PROCESS_PAUSED);
     sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, params);
-    if (mDfuHelper.controller == null || mDfuHelper.controller.isPaused()) {
+    Peripheral p = mPeripherals.get(uuid);
+    if (p.mDfuHelper.controller == null || p.mDfuHelper.controller.isPaused()) {
+      Log.d("------>","bbbbbb");
       return;
     }
-    mDfuHelper.controller.pause();
+    Log.d("------>","ccccccc ");
+    p.mDfuHelper.controller.pause();
   }
 
   @ReactMethod
@@ -1039,10 +1042,11 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     params.putString("uuid", uuid);
     params.putString("status", BLE_PERIPHERAL_DFU_PROCESS_RESUMED);
     sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, params);
-    if (mDfuHelper.controller == null || !mDfuHelper.controller.isPaused()) {
+    Peripheral p = mPeripherals.get(uuid);
+    if (p.mDfuHelper.controller == null || !p.mDfuHelper.controller.isPaused()) {
       return;
     }
-    mDfuHelper.controller.resume();
+    p.mDfuHelper.controller.resume();
   }
 
   @ReactMethod
@@ -1054,13 +1058,14 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED, params);
       return;
     }
-    if (mDfuHelper.controller == null || mDfuHelper.controller.isAborted()) {
+    Peripheral p = mPeripherals.get(uuid);
+    if (p.mDfuHelper.controller == null || p.mDfuHelper.controller.isAborted()) {
       // WritableMap params = Arguments.createMap();
       // params.putString("uuid", uuid);
       // sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED, params);
       return;
     }
-    mDfuHelper.controller.abort();
+    p.mDfuHelper.controller.abort();
   }
 
   /**

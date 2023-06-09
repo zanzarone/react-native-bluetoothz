@@ -452,7 +452,7 @@ function AdvancedControls({devices, isScanning, onDfu}) {
 const DevicesList = ({status, navigation, isScanning}) => {
   const [devices, setDevices] = useState([]);
   // const [modalAlert, setModalAlert] = useState(undefined);
-  console.log('lista dispo');
+  // console.log('lista dispo');
   useEffect(() => {
     if (isScanning === true) {
       setDevices([]);
