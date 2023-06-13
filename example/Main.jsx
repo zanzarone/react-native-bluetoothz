@@ -1,9 +1,7 @@
-import React, {useEffect, useState} from 'react';
+import React from 'react';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 const Stack = createNativeStackNavigator();
-// import {requestPermissions, Permission} from './utils/androidPermissions';
-// import DocumentPicker from 'react-native-document-picker';
-import DFU from './screens/DFU';
+import DFU from './screens/DFU.jsx';
 import Scanner from './screens/Scanner';
 
 export default function Main({navigation}) {

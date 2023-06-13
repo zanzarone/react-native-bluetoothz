@@ -42,7 +42,7 @@ let BLE_PERIPHERAL_DFU_PROCESS_RESUMED              : String  = "BLE_PERIPHERAL_
 let BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED         : String  = "BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED";
 let BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED        : String  = "BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED";
 let BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED         : String  = "BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED";
-let BLE_PERIPHERAL_DFU_PROGRESS                     : String  = "BLE_PERIPHERAL_DFU_PROGRESS";
+// let BLE_PERIPHERAL_DFU_PROGRESS                     : String  = "BLE_PERIPHERAL_DFU_PROGRESS";
 let BLE_PERIPHERAL_DFU_DEBUG                        : String  = "BLE_PERIPHERAL_DFU_DEBUG";
 let BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE            : String  = "BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE";
 let BLE_PERIPHERAL_DFU_STATUS_ABORTED               : String  = "BLE_PERIPHERAL_DFU_STATUS_ABORTED";
@@ -98,19 +98,174 @@ public extension String {
     }
 }
 
-class Peripheral {
+class DFUHelper {
+    var enableDebug         : Bool = false
+    var currentPeripheralId : String!
+    var firmware            : DFUFirmware!
+    //    var serviceInitiator    : DFUServiceInitiator!
+    var controller          : DFUServiceController!
+    /// DFU PROPS
+    var processResolve     : RCTPromiseResolveBlock?
+    var processReject      : RCTPromiseRejectBlock?
+}
+
+class Peripheral : DFUServiceDelegate, DFUProgressDelegate, LoggerDelegate{
+    private var sendEventCallback   : ((String, Any) -> Void)!
     private var gattServer          : CBPeripheral!
     private var services            : [String:CBService] = [:]
     private var characteristics     : [String:CBCharacteristic] = [:]
     private var connected           : Bool = false
     private var lastRSSI            : NSNumber!
     private var dfuCompliant        : Bool = false
+    private var dfuHelper           : DFUHelper!
     private var lastSeen            : TimeInterval = 0
+    
+    /// =======================================================================================================================================
+    /// =======================================================================================================================================
+    /// =======================================================================================================================================
+    /// ===============  DFU DELEGATE
+    /// =======================================================================================================================================
+    /// =======================================================================================================================================
+    /// =======================================================================================================================================
+    func dfuStateDidChange(to state: iOSDFULibrary.DFUState) {
+        switch (state)
+        {
+        case .completed:
+            let body = ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_COMPLETED, "description": "DFU Procedure successfully completed."]
+            if let success = self.dfuHelper.processResolve {
+                success(body)
+            }else{
+                self.sendEventCallback(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body )
+            }
+            break
+        case .aborted:
+            self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_ABORTED, "description": "DFU Procedure aborted by the user."])
+            break
+        case .starting:
+            self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_STARTING, "description": "DFU Procedure started."])
+            break
+        case .uploading:
+            self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_UPLOADING, "description": "Uploading firmware onto remote device."])
+            break
+        case .connecting:
+            self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_CONNECTING, "description": "Connecting to the remote device."])
+            break
+        case .validating:
+            self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_VALIDATING, "description": "Validating firmware."])
+            break
+        case .disconnecting:
+            self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING, "description": "Disconnecting from remote device."])
+            break
+        case .enablingDfuMode:
+            self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU, "description": "Enabling DFU interface on remote device."])
+            break
+        }
+    }
+    
+    func dfuError(_ error: iOSDFULibrary.DFUError, didOccurWithMessage message: String) {
+        if let failure = self.dfuHelper.processReject {
+            failure(BLE_PERIPHERAL_DFU_PROCESS_FAILED, "Error: \(message)(\(error.rawValue))", nil)
+        }else{
+            self.sendEventCallback( BLE_PERIPHERAL_DFU_PROCESS_FAILED,  ["uuid": self.dfuHelper.currentPeripheralId!, "error":"Error: \(message)(\(error.rawValue))", "errorCode": error.rawValue])
+        }
+    }
+    
+    func dfuProgressDidChange(for part: Int, outOf totalParts: Int, to progress: Int, currentSpeedBytesPerSecond: Double, avgSpeedBytesPerSecond: Double){
+        self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": self.dfuHelper.currentPeripheralId!,
+                                                                        "status":BLE_PERIPHERAL_DFU_STATUS_UPLOADING,
+                                                                        "description": "Uploading firmware onto remote device.",
+                                                                        "part": part,
+                                                                        "totalParts": totalParts,
+                                                                        "progress": progress,
+                                                                        "currentSpeedBytesPerSecond": currentSpeedBytesPerSecond,
+                                                                        "avgSpeedBytesPerSecond": avgSpeedBytesPerSecond
+                                                                       ])
+    }
+    
+    func logWith(_ level: iOSDFULibrary.LogLevel, message: String) {
+        if self.dfuHelper.enableDebug {
+            self.sendEventCallback( BLE_PERIPHERAL_DFU_DEBUG,  ["uuid": self.dfuHelper.currentPeripheralId!,
+                                                                "message": "\(level.rawValue) - \(message)"])
+        }
+    }
     
     init(_ p:CBPeripheral, rssi: NSNumber, delegate: BluetoothZ) {
         gattServer = p
         lastRSSI = rssi
         gattServer.delegate = delegate
+    }
+    
+    func initiateDFU(uuid:String, filePath:String, pathType:String, withOptions options:NSDictionary, callback: @escaping (String, Any) -> Void)
+    {
+        self.dfuHelper = DFUHelper()
+        self.sendEventCallback = callback
+        var baseURL:URL? = nil
+        switch pathType {
+        case FILE_PATH_TYPE_STRING:
+            baseURL = URL(string: "file://\(filePath)")
+        case FILE_PATH_TYPE_URL:
+            baseURL = URL(string:  filePath)
+        default: ()
+        }
+        
+        guard let url = baseURL else {
+            self.sendEventCallback(BLE_PERIPHERAL_DFU_PROCESS_FAILED, ["uuid": uuid, "error": "Invalid(\(filePath) filePath"])
+            return
+        }
+        guard let fw = try? DFUFirmware(urlToZipFile: url) else {
+            self.sendEventCallback(BLE_PERIPHERAL_DFU_PROCESS_FAILED, ["uuid": uuid, "error": "Invalid firmware"])
+            return
+        }
+        
+        // Change for iOS 13
+        Thread.sleep(forTimeInterval: 1) //Work around for not finding the peripheral in iOS 13
+        // Change for iOS 13
+        self.dfuHelper.currentPeripheralId = uuid
+        self.dfuHelper.firmware = fw
+        let queueName = "BluetoothZ-\(String.randomString(length: 10))"
+        var serviceInitiator = DFUServiceInitiator(queue: DispatchQueue(label: queueName))
+        serviceInitiator.delegate = self
+        serviceInitiator.progressDelegate = self
+        serviceInitiator.logger = self
+        self.dfuHelper.enableDebug = false
+        serviceInitiator.dataObjectPreparationDelay = 0.4 // sec
+        serviceInitiator.alternativeAdvertisingNameEnabled = false
+        if let opt = options as? [String: Any]{
+            if let packetDelay = opt[DFU_OPTION_PACKET_DELAY] as? NSNumber {
+                serviceInitiator.dataObjectPreparationDelay = TimeInterval(packetDelay.floatValue / 1000.0) // sec
+            }
+            if let enableDebug = opt[DFU_OPTION_ENABLE_DEBUG] as? Bool {
+                self.dfuHelper.enableDebug = enableDebug
+            }
+        }
+        if #available(iOS 11.0, macOS 10.13, *) {
+            serviceInitiator.packetReceiptNotificationParameter = 0
+        }
+        // Change for iOS 13
+        Thread.sleep(forTimeInterval: 2) //Work around for not finding the peripheral in iOS 13
+        // End change for iOS 13
+        self.dfuHelper.controller = serviceInitiator.with(firmware: fw).start(target: self.getGATTServer())
+    }
+    
+    func pauseDFU() {
+        if self.dfuHelper?.controller == nil || self.dfuHelper.controller.paused {
+            return
+        }
+        self.dfuHelper.controller.pause()
+    }
+    
+    func resumeDFU() {
+        if self.dfuHelper?.controller == nil || !self.dfuHelper.controller.paused {
+            return
+        }
+        self.dfuHelper.controller.resume()
+    }
+    
+    func abortDFU() -> Bool {
+        if self.dfuHelper?.controller == nil || self.dfuHelper.controller.aborted {
+            return false
+        }
+        return self.dfuHelper.controller.abort()
     }
     
     func uuid() -> String {
@@ -231,14 +386,6 @@ class Peripheral {
     }
 }
 
-class DFUHelper {
-    var enableDebug         : Bool = false
-    var currentPeripheralId : UUID!
-    var firmware            : DFUFirmware!
-    var serviceInitiator    : DFUServiceInitiator!
-    var controller          : DFUServiceController!
-}
-
 class SyncHelper {
     var connectResolve     : RCTPromiseResolveBlock?
     var connectReject      : RCTPromiseRejectBlock?
@@ -246,13 +393,11 @@ class SyncHelper {
     var disconnectReject      : RCTPromiseRejectBlock?
     var scanResolve     : RCTPromiseResolveBlock?
     var scanReject      : RCTPromiseRejectBlock?
-    /// DFU PROPS
-    var processResolve     : RCTPromiseResolveBlock?
-    var processReject      : RCTPromiseRejectBlock?
 }
 
 @objc(BluetoothZ)
-class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegate,  DFUServiceDelegate, DFUProgressDelegate, LoggerDelegate
+class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegate
+//,  DFUServiceDelegate, DFUProgressDelegate, LoggerDelegate
 {
     /// PROPS
     var centralManager        : CBCentralManager? = nil
@@ -260,9 +405,9 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     var scanFilter            : String? = nil
     var allowDuplicates       : Bool = false
     var allowNoNamedDevices   : Bool = false
-    var dfuHelper             : DFUHelper!
     var syncHelper            : SyncHelper = SyncHelper()
     var peripheralWatchdog    : Timer?
+    
     
     private func isConnected(uuidString:String) -> Bool {
         return self.peripherals.contains(where: { (key: String, value: Peripheral) -> Bool in
@@ -313,7 +458,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED,
             BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED,
             BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED,
-            BLE_PERIPHERAL_DFU_PROGRESS,
+            // BLE_PERIPHERAL_DFU_PROGRESS,
             BLE_PERIPHERAL_DFU_DEBUG,
             BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,
             BLE_PERIPHERAL_DFU_STATUS_ABORTED,
@@ -371,7 +516,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED:BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED,
             BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED:BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED,
             BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED:BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED,
-            BLE_PERIPHERAL_DFU_PROGRESS:BLE_PERIPHERAL_DFU_PROGRESS,
+            // BLE_PERIPHERAL_DFU_PROGRESS:BLE_PERIPHERAL_DFU_PROGRESS,
             BLE_PERIPHERAL_DFU_DEBUG:BLE_PERIPHERAL_DFU_DEBUG,
             BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE:BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,
             BLE_PERIPHERAL_DFU_STATUS_ABORTED:BLE_PERIPHERAL_DFU_STATUS_ABORTED,
@@ -659,71 +804,20 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
     
-    private func initiateDFU(forPeripheral p:Peripheral, andFirmware fw:DFUFirmware, withOptions options:NSDictionary)
-    {
-        let uuid = p.getGATTServer().identifier
-        // Change for iOS 13
-        Thread.sleep(forTimeInterval: 1) //Work around for not finding the peripheral in iOS 13
-        // Change for iOS 13
-        self.dfuHelper.currentPeripheralId = uuid
-        self.dfuHelper.firmware = fw
-        let queueName = "BluetoothZ-\(String.randomString(length: 10))"
-        self.dfuHelper.serviceInitiator = DFUServiceInitiator(queue: DispatchQueue(label: queueName))
-        self.dfuHelper.serviceInitiator.delegate = self
-        self.dfuHelper.serviceInitiator.progressDelegate = self
-        self.dfuHelper.serviceInitiator.logger = self
-        self.dfuHelper.enableDebug = false
-        self.dfuHelper.serviceInitiator.dataObjectPreparationDelay = 0.4 // sec
-        self.dfuHelper.serviceInitiator.alternativeAdvertisingNameEnabled = false
-        if let opt = options as? [String: Any]{
-            if let packetDelay = opt[DFU_OPTION_PACKET_DELAY] as? NSNumber {
-                self.dfuHelper.serviceInitiator.dataObjectPreparationDelay = TimeInterval(packetDelay.floatValue / 1000.0) // sec
-            }
-            if let enableDebug = opt[DFU_OPTION_ENABLE_DEBUG] as? Bool {
-                self.dfuHelper.enableDebug = enableDebug
-            }
-        }
-        if #available(iOS 11.0, macOS 10.13, *) {
-            self.dfuHelper.serviceInitiator.packetReceiptNotificationParameter = 0
-        }
-        // Change for iOS 13
-        Thread.sleep(forTimeInterval: 2) //Work around for not finding the peripheral in iOS 13
-        // End change for iOS 13
-        self.dfuHelper.controller = self.dfuHelper.serviceInitiator.with(firmware: fw).start(target: p.getGATTServer())
-    }
-    
     @objc
-    func startDFU(_ uuid: String , filePath:String , pathType:String , options:NSDictionary)
+    func startDFU(_ uuid: String , alternateUUID: String? , filePath:String , pathType:String , options:NSDictionary)
     {
-        guard let p = self.peripherals[uuid] else{
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
-            return
-        }
-        if self.isConnected(uuidString: uuid) {
+        if self.isConnected(uuidString: uuid) && alternateUUID == nil{
             /// i need to disconnect the current device before attempting a new connection
             self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": uuid, "error": "peripheral with uuid:\(uuid) still connected!"])
             return
         }
-        
-        var baseURL:URL? = nil
-        switch pathType {
-        case FILE_PATH_TYPE_STRING:
-            baseURL = URL(string: "file://\(filePath)")
-        case FILE_PATH_TYPE_URL:
-            baseURL = URL(string:  filePath)
-        default: ()
+        let p : Peripheral = self.peripherals[uuid]!
+        if alternateUUID != nil {
+            p.initiateDFU(uuid: alternateUUID!, filePath: filePath, pathType: pathType, withOptions: options, callback: self.sendEvent(withName:body:))
+        }else{
+            p.initiateDFU(uuid: uuid, filePath: filePath, pathType: pathType, withOptions: options, callback: self.sendEvent(withName:body:))
         }
-        
-        guard let url = baseURL else {
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": uuid, "error": "Attempted to start DFU with invalid(\(filePath) filePath"])
-            return
-        }
-        guard let fw = try? DFUFirmware(urlToZipFile: url) else {
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": uuid, "error": "Invalid firmware"])
-            return
-        }
-        self.dfuHelper = DFUHelper()
-        initiateDFU(forPeripheral: p, andFirmware: fw, withOptions: options)
     }
     
     @objc
@@ -739,10 +833,8 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             return
         }
         self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_PAUSED, body: ["uuid": uuid])
-        if self.dfuHelper?.controller == nil || self.dfuHelper.controller.paused {
-            return
-        }
-        self.dfuHelper.controller.pause()
+        let p : Peripheral = self.peripherals[uuid]!
+        p.pauseDFU()
     }
     
     @objc
@@ -758,10 +850,8 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             return
         }
         self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_RESUMED, body: ["uuid": uuid])
-        if self.dfuHelper?.controller == nil || !self.dfuHelper.controller.paused {
-            return
-        }
-        self.dfuHelper.controller.resume()
+        let p : Peripheral = self.peripherals[uuid]!
+        p.resumeDFU()
     }
     
     @objc
@@ -776,84 +866,81 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED, body: ["uuid": uuid, "error": "Device with uuid:\(uuid) already disconnected!"])
             return
         }
-        if self.dfuHelper?.controller == nil || self.dfuHelper.controller.aborted {
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_ABORTED, body: ["uuid": uuid])
-            return
-        }
-        if self.dfuHelper.controller.abort() {
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_ABORTED, body: ["uuid": uuid])
-        }else{
+        let p : Peripheral = self.peripherals[uuid]!
+        if !p.abortDFU() {
             self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED, body: ["uuid": uuid])
-        }
-    }
-    
-    /// =======================================================================================================================================
-    /// =======================================================================================================================================
-    /// =======================================================================================================================================
-    /// ===============  DFU DELEGATE
-    /// =======================================================================================================================================
-    /// =======================================================================================================================================
-    /// =======================================================================================================================================
-    func dfuStateDidChange(to state: iOSDFULibrary.DFUState) {
-        switch (state)
-        {
-        case .completed:
-            let body = ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_COMPLETED, "description": "DFU Procedure successfully completed."]
-            if let success = self.syncHelper.processResolve {
-                success(body)
-            }else{
-                self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: body )
-            }
-            break
-        case .aborted:
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_ABORTED, "description": "DFU Procedure aborted by the user."])
-            break
-        case .starting:
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_STARTING, "description": "DFU Procedure started."])
-            break
-        case .uploading:
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_UPLOADING, "description": "Uploading firmware onto remote device."])
-            break
-        case .connecting:
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_CONNECTING, "description": "Connecting to the remote device."])
-            break
-        case .validating:
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_VALIDATING, "description": "Validating firmware."])
-            break
-        case .disconnecting:
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING, "description": "Disconnecting from remote device."])
-            break
-        case .enablingDfuMode:
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU, "description": "Enabling DFU interface on remote device."])
-            break
-        }
-    }
-    
-    func dfuError(_ error: iOSDFULibrary.DFUError, didOccurWithMessage message: String) {
-        if let failure = self.syncHelper.processReject {
-            failure(BLE_PERIPHERAL_DFU_PROCESS_FAILED, "Error: \(message)(\(error.rawValue))", nil)
         }else{
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "error":"Error: \(message)(\(error.rawValue))", "errorCode": error.rawValue])
+            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_ABORTED, body: ["uuid": uuid])
         }
     }
-    
-    func dfuProgressDidChange(for part: Int, outOf totalParts: Int, to progress: Int, currentSpeedBytesPerSecond: Double, avgSpeedBytesPerSecond: Double){
-        self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_UPLOADING, "description": "Uploading firmware onto remote device.",
-                                                                     "part": part,
-                                                                     "totalParts": totalParts,
-                                                                     "progress": progress,
-                                                                     "currentSpeedBytesPerSecond": currentSpeedBytesPerSecond,
-                                                                     "avgSpeedBytesPerSecond": avgSpeedBytesPerSecond
-                                                                    ])
-    }
-    
-    func logWith(_ level: iOSDFULibrary.LogLevel, message: String) {
-        if self.dfuHelper.enableDebug {
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_DEBUG, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString,
-                                                                      "message": "\(level.rawValue) - \(message)"
-                                                                     ])
-        }
-    }
+    //
+    //    /// =======================================================================================================================================
+    //    /// =======================================================================================================================================
+    //    /// =======================================================================================================================================
+    //    /// ===============  DFU DELEGATE
+    //    /// =======================================================================================================================================
+    //    /// =======================================================================================================================================
+    //    /// =======================================================================================================================================
+    //    func dfuStateDidChange(to state: iOSDFULibrary.DFUState) {
+    //        switch (state)
+    //        {
+    //        case .completed:
+    //            let body = ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_COMPLETED, "description": "DFU Procedure successfully completed."]
+    //            if let success = self.syncHelper.processResolve {
+    //                success(body)
+    //            }else{
+    //                self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: body )
+    //            }
+    //            break
+    //        case .aborted:
+    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_ABORTED, "description": "DFU Procedure aborted by the user."])
+    //            break
+    //        case .starting:
+    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_STARTING, "description": "DFU Procedure started."])
+    //            break
+    //        case .uploading:
+    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_UPLOADING, "description": "Uploading firmware onto remote device."])
+    //            break
+    //        case .connecting:
+    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_CONNECTING, "description": "Connecting to the remote device."])
+    //            break
+    //        case .validating:
+    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_VALIDATING, "description": "Validating firmware."])
+    //            break
+    //        case .disconnecting:
+    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING, "description": "Disconnecting from remote device."])
+    //            break
+    //        case .enablingDfuMode:
+    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU, "description": "Enabling DFU interface on remote device."])
+    //            break
+    //        }
+    //    }
+    //
+    //    func dfuError(_ error: iOSDFULibrary.DFUError, didOccurWithMessage message: String) {
+    //        if let failure = self.syncHelper.processReject {
+    //            failure(BLE_PERIPHERAL_DFU_PROCESS_FAILED, "Error: \(message)(\(error.rawValue))", nil)
+    //        }else{
+    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "error":"Error: \(message)(\(error.rawValue))", "errorCode": error.rawValue])
+    //        }
+    //    }
+    //
+    //    func dfuProgressDidChange(for part: Int, outOf totalParts: Int, to progress: Int, currentSpeedBytesPerSecond: Double, avgSpeedBytesPerSecond: Double){
+    //        self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_UPLOADING, "description": "Uploading firmware onto remote device.",
+    //                                                                     "part": part,
+    //                                                                     "totalParts": totalParts,
+    //                                                                     "progress": progress,
+    //                                                                     "currentSpeedBytesPerSecond": currentSpeedBytesPerSecond,
+    //                                                                     "avgSpeedBytesPerSecond": avgSpeedBytesPerSecond
+    //                                                                    ])
+    //    }
+    //
+    //    func logWith(_ level: iOSDFULibrary.LogLevel, message: String) {
+    //        if self.dfuHelper.enableDebug {
+    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_DEBUG, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString,
+    //                                                                      "message": "\(level.rawValue) - \(message)"
+    //                                                                     ])
+    //        }
+    //    }
     /// =======================================================================================================================================
     /// =======================================================================================================================================
     /// =======================================================================================================================================

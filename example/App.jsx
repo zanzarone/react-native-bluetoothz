@@ -3,12 +3,13 @@ import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 
-import Home from './Home copy.jsx';
+// import Home from './Home copy.jsx';
 import Main from './Main.jsx';
 import {Image, Platform, StyleSheet, Text, View} from 'react-native';
 import Settings from './screens/Settings.jsx';
+// import TestDFU from './screens/DFU.jsx';
 
-const Stack = createNativeStackNavigator();
+// const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const TabBarButton = ({focused, tabName, icon, iconFocused}) => {
@@ -74,6 +75,11 @@ export default function MyTabs() {
             ),
           }}
         />
+        {/* <Tab.Screen
+          name="Test DFU"
+          component={TestDFU}
+          
+        /> */}
       </Tab.Navigator>
     </NavigationContainer>
   );

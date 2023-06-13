@@ -1,6 +1,6 @@
 {
   "name": "react-native-bluetoothz",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "test",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",

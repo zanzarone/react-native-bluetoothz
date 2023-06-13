@@ -37,7 +37,6 @@ import no.nordicsemi.android.dfu.DfuProgressListenerAdapter;
 import no.nordicsemi.android.dfu.DfuServiceController;
 import no.nordicsemi.android.dfu.DfuServiceInitiator;
 import no.nordicsemi.android.dfu.DfuServiceListenerHelper;
-//import no.nordicsemi.android.dfu.Lif;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -68,7 +67,7 @@ import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class BluetoothzModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
+public class BluetoothzModule extends ReactContextBaseJavaModule  {
   private static final String Characteristic_User_Description = "00002901-0000-1000-8000-00805f9b34fb";
   private static final String Client_Characteristic_Configuration = "00002902-0000-1000-8000-00805f9b34fb";
   public static final String BLE_ADAPTER_STATUS_DID_UPDATE = "BLE_ADAPTER_STATUS_DID_UPDATE";
@@ -96,7 +95,6 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   public static final String BLE_PERIPHERAL_NOTIFICATION_UPDATES = "BLE_PERIPHERAL_NOTIFICATION_UPDATES";
   public static final String BLE_PERIPHERAL_NOTIFICATION_CHANGED = "BLE_PERIPHERAL_NOTIFICATION_CHANGED";
   public static final String BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED = "BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED";
-
   public static final String BLE_PERIPHERAL_DFU_COMPLIANT = "BLE_PERIPHERAL_DFU_COMPLIANT";
   public static final String BLE_PERIPHERAL_DFU_PROCESS_FAILED = "BLE_PERIPHERAL_DFU_PROCESS_FAILED";
   public static final String BLE_PERIPHERAL_DFU_PROCESS_STARTED = "BLE_PERIPHERAL_DFU_PROCESS_STARTED";
@@ -105,7 +103,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   public static final String BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED = "BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED";
   public static final String BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED = "BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED";
   public static final String BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED = "BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED";
-  public static final String BLE_PERIPHERAL_DFU_PROGRESS = "BLE_PERIPHERAL_DFU_PROGRESS";
+  // public static final String BLE_PERIPHERAL_DFU_PROGRESS = "BLE_PERIPHERAL_DFU_PROGRESS";
   public static final String BLE_PERIPHERAL_DFU_DEBUG = "BLE_PERIPHERAL_DFU_DEBUG";
   public static final String BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE = "BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE";
   public static final String BLE_PERIPHERAL_DFU_STATUS_ABORTED = "BLE_PERIPHERAL_DFU_STATUS_ABORTED";
@@ -121,7 +119,11 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   public static final String BLE_PERIPHERAL_DFU_STATUS_VALIDATING = "BLE_PERIPHERAL_DFU_STATUS_VALIDATING";
   public static final String BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING = "BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING";
   public static final String BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU = "BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU";
-  //
+// =====================================================================================================================
+// =====================================================================================================================
+//                                                  DEFINES
+// =====================================================================================================================
+// =====================================================================================================================
   public static final String DFU_OPTION_ENABLE_DEBUG = "DFU_OPTION_ENABLE_DEBUG";
   public static final String DFU_OPTION_PACKET_DELAY = "DFU_OPTION_PACKET_DELAY";
   public static final String FILE_PATH_TYPE_STRING = "FILE_PATH_TYPE_STRING";
@@ -139,15 +141,15 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   private LocalBroadcastReceiver mLocalBroadcastReceiver;
   private LocalScanCallback mScanCallback;
   private LocalBluetoothGattCallback mBluetoothGATTCallback;
-  private LocalDfuProgressListener mLocalDfuProgressListener;
+//  private LocalDfuProgressListener mLocalDfuProgressListener;
   private ConcurrentHashMap<String, Peripheral> mPeripherals;
-//  public static DfuHelper mDfuHelper;
+  public DFU mDfuHelper;
   private SyncHelper mSyncHelper;
   private PeripheralWatchdog mPeripheralWatchdog;
 
 //  static {
 //    // Static initializer block
-//    mDfuHelper = new DfuHelper();
+//    mDfuHelper = new DFU(react);
 //  }
 
   private static final byte[] HEX_ARRAY = "0123456789ABCDEF".getBytes(StandardCharsets.US_ASCII);
@@ -158,7 +160,6 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     this.mPeripherals = new ConcurrentHashMap<>();
     this.mLocalBroadcastReceiver = new LocalBroadcastReceiver();
     this.mBluetoothGATTCallback = new LocalBluetoothGattCallback();
-    this.mLocalDfuProgressListener = new LocalDfuProgressListener();
     this.reactContext.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
     this.mSyncHelper = new SyncHelper();
     /**
@@ -166,10 +167,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
      =============================================== DFU ============================================================
      ================================================================================================================
      */
-    this.reactContext.addLifecycleEventListener(this);
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      DfuServiceInitiator.createDfuNotificationChannel(reactContext);
-    }
+    this.mDfuHelper = new DFU(context);
   }
 
   private static String bytesToHex(byte[] bytes) {
@@ -463,7 +461,6 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     private int mLastRSSI;
     private long mLastSeen;
     private boolean mDfuCompliant = false;
-    public DfuHelper mDfuHelper;
 
     @SuppressLint("MissingPermission")
     public Peripheral(BluetoothDevice device, int lastRSSI) {
@@ -630,7 +627,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     constants.put(BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED, BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED);
     constants.put(BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED, BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED);
     constants.put(BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED, BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED);
-    constants.put(BLE_PERIPHERAL_DFU_PROGRESS, BLE_PERIPHERAL_DFU_PROGRESS);
+    // constants.put(BLE_PERIPHERAL_DFU_PROGRESS, BLE_PERIPHERAL_DFU_PROGRESS);
     constants.put(BLE_PERIPHERAL_DFU_DEBUG, BLE_PERIPHERAL_DFU_DEBUG);
     constants.put(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE);
     constants.put(BLE_PERIPHERAL_DFU_STATUS_ABORTED, BLE_PERIPHERAL_DFU_STATUS_ABORTED);
@@ -965,45 +962,37 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     }
   }
 
-  private void prepareDFU(String uuid, ReadableMap options, Peripheral p) {
-    p.mDfuHelper = new DfuHelper();
-    p.mDfuHelper.currentPeripheralId = uuid;
-    p.mDfuHelper.serviceInitiator = new DfuServiceInitiator(uuid).setKeepBond(false);
-    p.mDfuHelper.serviceInitiator.setPacketsReceiptNotificationsValue(1);
-    p.mDfuHelper.enableDebug = false;
-    if (options.hasKey(DFU_OPTION_ENABLE_DEBUG)) {
-      p.mDfuHelper.enableDebug = options.getBoolean(DFU_OPTION_ENABLE_DEBUG);
-    }
-    p.mDfuHelper.serviceInitiator.setPrepareDataObjectDelay(300L);
-    if (options.hasKey(DFU_OPTION_PACKET_DELAY)) {
-      p.mDfuHelper.serviceInitiator.setPrepareDataObjectDelay(options.getInt(DFU_OPTION_PACKET_DELAY));
-    }
-    p.mDfuHelper.serviceInitiator.setUnsafeExperimentalButtonlessServiceInSecureDfuEnabled(true);
-  }
+//  private void prepareDFU(String uuid, ReadableMap options, Peripheral p) {
+//    p.mDfuHelper = new DfuHelper();
+//    p.mDfuHelper.currentPeripheralId = uuid;
+//    p.mDfuHelper.serviceInitiator = new DfuServiceInitiator(uuid).setKeepBond(false);
+//    p.mDfuHelper.serviceInitiator.setPacketsReceiptNotificationsValue(1);
+//    p.mDfuHelper.enableDebug = false;
+//    if (options.hasKey(DFU_OPTION_ENABLE_DEBUG)) {
+//      p.mDfuHelper.enableDebug = options.getBoolean(DFU_OPTION_ENABLE_DEBUG);
+//    }
+//    p.mDfuHelper.serviceInitiator.setPrepareDataObjectDelay(300L);
+//    if (options.hasKey(DFU_OPTION_PACKET_DELAY)) {
+//      p.mDfuHelper.serviceInitiator.setPrepareDataObjectDelay(options.getInt(DFU_OPTION_PACKET_DELAY));
+//    }
+//    p.mDfuHelper.serviceInitiator.setUnsafeExperimentalButtonlessServiceInSecureDfuEnabled(true);
+//  }
 
   @ReactMethod
-  public void startDFU(String uuid, String filePath, String pathType, ReadableMap options) {
-    if (!isConnected(uuid)) {
+  public void startDFU(String uuid,String alternateUUID, String filePath, String pathType, ReadableMap options) {
+    if (!isConnected(uuid) && alternateUUID == null) {
       WritableMap params = Arguments.createMap();
       params.putString("uuid", uuid);
       params.putString("error", "Device already disconnected:" + uuid);
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_FAILED, params);
       return;
     }
-    Peripheral p = mPeripherals.get(uuid);
-    prepareDFU(uuid, options, p);
     mSyncHelper.dfuPromise = null;
-    switch (pathType) {
-      case FILE_PATH_TYPE_STRING:
-        p.mDfuHelper.serviceInitiator.setZip(filePath);
-        break;
-      case FILE_PATH_TYPE_URL:
-        Log.d("PEPPER", "GODO?");
-        Uri uri = Uri.parse(filePath);
-        p.mDfuHelper.serviceInitiator.setZip(uri);
-        break;
-    }
-    p.mDfuHelper.controller = p.mDfuHelper.serviceInitiator.start(this.reactContext, LocalDfuService.class);
+    this.mDfuHelper.submit(uuid, alternateUUID, filePath, pathType, options);
+//    if(alternateUUID != null)
+//      p.initDFU(alternateUUID, filePath, pathType,options);
+//    else
+//      p.initDFU(uuid, filePath, pathType,options);
   }
 
   @ReactMethod
@@ -1016,17 +1005,12 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       Log.d("------>","aaaaaa");
       return;
     }
-    WritableMap params = Arguments.createMap();
-    params.putString("uuid", uuid);
-    params.putString("status", BLE_PERIPHERAL_DFU_PROCESS_PAUSED);
-    sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, params);
-    Peripheral p = mPeripherals.get(uuid);
-    if (p.mDfuHelper.controller == null || p.mDfuHelper.controller.isPaused()) {
-      Log.d("------>","bbbbbb");
-      return;
-    }
-    Log.d("------>","ccccccc ");
-    p.mDfuHelper.controller.pause();
+//    WritableMap params = Arguments.createMap();
+//    params.putString("uuid", uuid);
+//    params.putString("status", BLE_PERIPHERAL_DFU_PROCESS_PAUSED);
+//    sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, params);
+//    Peripheral p = mPeripherals.get(uuid);
+//    p.pauseDFU();
   }
 
   @ReactMethod
@@ -1038,174 +1022,25 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED, params);
       return;
     }
-    WritableMap params = Arguments.createMap();
-    params.putString("uuid", uuid);
-    params.putString("status", BLE_PERIPHERAL_DFU_PROCESS_RESUMED);
-    sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, params);
-    Peripheral p = mPeripherals.get(uuid);
-    if (p.mDfuHelper.controller == null || !p.mDfuHelper.controller.isPaused()) {
-      return;
-    }
-    p.mDfuHelper.controller.resume();
+//    WritableMap params = Arguments.createMap();
+//    params.putString("uuid", uuid);
+//    params.putString("status", BLE_PERIPHERAL_DFU_PROCESS_RESUMED);
+//    sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, params);
+//    Peripheral p = mPeripherals.get(uuid);
+//    p.resumeDFU();
   }
 
   @ReactMethod
   public void abortDFU(String uuid) {
-    if (!isConnected(uuid)) {
+    if (!isConnected(uuid) ) {
       WritableMap params = Arguments.createMap();
       params.putString("uuid", uuid);
       params.putString("error", "Device already disconnected:" + uuid);
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED, params);
       return;
     }
-    Peripheral p = mPeripherals.get(uuid);
-    if (p.mDfuHelper.controller == null || p.mDfuHelper.controller.isAborted()) {
-      // WritableMap params = Arguments.createMap();
-      // params.putString("uuid", uuid);
-      // sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED, params);
-      return;
-    }
-    p.mDfuHelper.controller.abort();
-  }
-
-  /**
-   * =============================================== DFU ============================================================
-   * ================================================================================================================
-   * ================================================================================================================
-   * ================================================================================================================
-   */
-
-  @Override
-  public void onHostResume() {
-    DfuServiceListenerHelper.registerProgressListener(this.reactContext, this.mLocalDfuProgressListener);
-  }
-
-  @Override
-  public void onHostPause() {
-  }
-
-  @Override
-  public void onHostDestroy() {
-    DfuServiceListenerHelper.unregisterProgressListener(this.reactContext, this.mLocalDfuProgressListener);
-  }
-
-  private class LocalDfuProgressListener extends DfuProgressListenerAdapter {
-
-    @Override
-    public void onDeviceConnecting(@NonNull final String deviceAddress) {
-      WritableMap map = Arguments.createMap();
-      map.putString("uuid", deviceAddress);
-      map.putString("status", BLE_PERIPHERAL_DFU_STATUS_CONNECTING);
-      map.putString("description", "Connecting to the remote device.");
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
-    }
-
-    @Override
-    public void onDeviceConnected(@NonNull final String deviceAddress) {
-      WritableMap map = Arguments.createMap();
-      map.putString("uuid", deviceAddress);
-      map.putString("status", BLE_PERIPHERAL_DFU_STATUS_CONNECTED);
-      map.putString("description", "Remote device connected.");
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
-    }
-
-    @Override
-    public void onDfuProcessStarting(@NonNull final String deviceAddress) {
-      WritableMap map = Arguments.createMap();
-      map.putString("uuid", deviceAddress);
-      map.putString("status", BLE_PERIPHERAL_DFU_STATUS_STARTING);
-      map.putString("description", "Initializing DFU procedure.");
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
-    }
-
-    @Override
-    public void onDfuProcessStarted(@NonNull final String deviceAddress) {
-      WritableMap map = Arguments.createMap();
-      map.putString("uuid", deviceAddress);
-      map.putString("status", BLE_PERIPHERAL_DFU_STATUS_STARTED);
-      map.putString("description", "DFU Procedure started.");
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
-    }
-
-    @Override
-    public void onEnablingDfuMode(@NonNull final String deviceAddress) {
-      WritableMap map = Arguments.createMap();
-      map.putString("uuid", deviceAddress);
-      map.putString("status", BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU);
-      map.putString("description", "Enabling DFU interface on remote device.");
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
-    }
-
-    @Override
-    public void onProgressChanged(@NonNull final String deviceAddress, final int percent,
-                                  final float speed, final float avgSpeed,
-                                  final int currentPart, final int partsTotal) {
-      WritableMap map = Arguments.createMap();
-      map.putString("uuid", deviceAddress);
-      map.putString("status", BLE_PERIPHERAL_DFU_STATUS_UPLOADING);
-      map.putInt("progress", percent);
-      map.putDouble("currentSpeedBytesPerSecond", speed);
-      map.putDouble("avgSpeedBytesPerSecond", avgSpeed);
-      map.putInt("part", currentPart);
-      map.putInt("totalParts", partsTotal);
-      map.putString("description", "Uploading firmware onto remote device.");
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
-    }
-
-    @Override
-    public void onFirmwareValidating(@NonNull final String deviceAddress) {
-      WritableMap map = Arguments.createMap();
-      map.putString("uuid", deviceAddress);
-      map.putString("status", BLE_PERIPHERAL_DFU_STATUS_VALIDATING);
-      map.putString("description", "Validating firmware.");
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
-    }
-
-    @Override
-    public void onDeviceDisconnecting(final String deviceAddress) {
-      WritableMap map = Arguments.createMap();
-      map.putString("uuid", deviceAddress);
-      map.putString("status", BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING);
-      map.putString("description", "Disconnecting from remote device.");
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
-    }
-
-    @Override
-    public void onDeviceDisconnected(@NonNull final String deviceAddress) {
-      WritableMap map = Arguments.createMap();
-      map.putString("uuid", deviceAddress);
-      map.putString("status", BLE_PERIPHERAL_DFU_STATUS_DISCONNECTED);
-      map.putString("description", "Remote device disconnected.");
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
-    }
-
-    @Override
-    public void onDfuCompleted(@NonNull final String deviceAddress) {
-      WritableMap map = Arguments.createMap();
-      map.putString("uuid", deviceAddress);
-      map.putString("status", BLE_PERIPHERAL_DFU_STATUS_COMPLETED);
-      map.putString("description", "DFU Procedure successfully completed.");
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
-    }
-
-    @Override
-    public void onDfuAborted(@NonNull final String deviceAddress) {
-      WritableMap map = Arguments.createMap();
-      map.putString("uuid", deviceAddress);
-      map.putString("status", BLE_PERIPHERAL_DFU_STATUS_ABORTED);
-      map.putString("description", "DFU Procedure aborted by the user.");
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, map);
-    }
-
-    @Override
-    public void onError(@NonNull final String deviceAddress,
-                        final int error, final int errorType, final String message) {
-      WritableMap map = Arguments.createMap();
-      map.putString("uuid", deviceAddress);
-      map.putString("error", message);
-      map.putInt("errorCode", error);
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_FAILED, map);
-    }
+//    Peripheral p = mPeripherals.get(uuid);
+//    p.abortDFU();
   }
 
   /**

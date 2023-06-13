@@ -189,7 +189,8 @@ bleEmitter.addListener(
       bleEmitter.emit(Defines.DFU_INTERFACE_FOUND, { uuid, newUUID });
       /// 3. provo ad effettuare nuovamente la proc DFU
       startDFU({
-        uuid: newUUID,
+        uuid,
+        alternateUUID: newUUID,
         filePath: dfuRetryOptions.filePath,
         pathType: dfuRetryOptions.pathType,
         retryOnDisconnectionError: false,
@@ -332,12 +333,13 @@ function cancel({ uuid }) {
 /// funzione per interrompere la scansione bluetooth
 async function startDFU({
   uuid,
+  alternateUUID,
   filePath,
   pathType = Defines.FILE_PATH_TYPE_STRING,
   retryOnDisconnectionError = true,
   options = dfuOptions,
 }) {
-  if (!uuid) {
+  if (!uuid && !alternateUUID) {
     throw new Error('Parameter UUID is mandatory');
   }
   if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
@@ -356,7 +358,7 @@ async function startDFU({
   } else {
     dfuRetryOptions = null;
   }
-  BLE.startDFU(uuid, filePath, pathType, options);
+  BLE.startDFU(uuid, alternateUUID, filePath, pathType, options);
 }
 
 function connect({ uuid, maxRetryCount = Defines.DEFAULT_MAX_RETRY_COUNT }) {
