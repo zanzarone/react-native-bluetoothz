@@ -9,138 +9,6 @@ import * as BluetoothZ from 'react-native-bluetoothz';
 const Element = ({device, onDeviceFailed}) => {
   console.log(device);
   const currentDevice = device;
-  // const [currentDevice, updateDevice] = useState({
-  //   ...device,
-  //   alternateUUID: undefined,
-  //   status: undefined, // BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_UPLOADING,
-  //   description: undefined,
-  //   progress: undefined,
-  //   dfuStarting: undefined,
-  //   dfuPaused: false,
-  // });
-
-  // useEffect(() => {
-  //   console.log('=================>>>>>>>>>>>> ON');
-  //   // const blePeripheralDfuScanFailedListener = BluetoothZ.emitter.addListener(
-  //   //   BluetoothZ.Defines.DFU_SCAN_FAILED,
-  //   //   ({uuid}) => {
-  //   //     nextUpdate({error: 'Could not start scan process!'});
-  //   //   },
-  //   // );
-
-  //   // const blePeripheralDfuIntNotFoundListener = BluetoothZ.emitter.addListener(
-  //   //   BluetoothZ.Defines.DFU_INTERFACE_NOT_FOUND,
-  //   //   () => {
-  //   //     nextUpdate({error: 'Could not find DFU enabled interface!'});
-  //   //   },
-  //   // );
-
-  //   // const blePeripheralDfuResumedListener = BluetoothZ.emitter.addListener(
-  //   //   BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_RESUMED,
-  //   //   ({uuid}) => {
-  //   //     if (
-  //   //       currentDevice.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ||
-  //   //       currentDevice.alternateUUID?.toLowerCase().localeCompare(uuid.toLowerCase())
-  //   //     ) {
-  //   //       updateDevice({...prevD, dfuPaused: false});
-  //   //     }
-  //   //   },
-  //   // );
-
-  //   // const blePeripheralDfuPausedListener = BluetoothZ.emitter.addListener(
-  //   //   BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_PAUSED,
-  //   //   ({uuid}) => {
-  //   //     if (
-  //   //       currentDevice.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ||
-  //   //       currentDevice.alternateUUID?.toLowerCase().localeCompare(uuid.toLowerCase())
-  //   //     ) {
-  //   //       updateDevice({...prevD, dfuPaused: true});
-  //   //     }
-  //   //   },
-  //   // );
-
-  //   const dfuFailedListener = BluetoothZ.emitter.addListener(
-  //     BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED,
-  //     ({uuid, alternateUUID, error, errorCode}) => {
-  //       if (
-  //         currentDevice.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ||
-  //         currentDevice.alternateUUID
-  //           ?.toLowerCase()
-  //           .localeCompare(alternateUUID?.toLowerCase())
-  //       ) {
-  //         console.log(
-  //           '+ DFU + BLE_PERIPHERAL_DFU_PROCESS_FAILED:',
-  //           uuid,
-  //           'error:',
-  //           error,
-  //         );
-  //         updateDevice({
-  //           progress: undefined,
-  //           dfuStarting: undefined,
-  //           dfuPaused: false,
-  //           alternateUUID: undefined,
-  //         });
-  //       }
-  //       /// Mandare alert poi proseguo con il dispo seguente
-  //     },
-  //   );
-
-  //   const dfuStartingListener = BluetoothZ.emitter.addListener(
-  //     BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_STARTING,
-  //     ({uuid, alternateUUID}) => {
-  //       if (
-  //         currentDevice.uuid.toLowerCase().localeCompare(uuid.toLowerCase())
-  //       ) {
-  //         console.log('+ DFU + BLE_PERIPHERAL_DFU_STATUS_STARTING:', event);
-  //         let dev = {...currentDevice, dfuStarting: true};
-  //         updateDevice({
-  //           ...dev,
-  //           alternateUUID: currentDevice.uuid
-  //             .toLowerCase()
-  //             .localeCompare(alternateUUID.toLowerCase())
-  //             ? alternateUUID
-  //             : undefined,
-  //         });
-  //       }
-  //     },
-  //   );
-
-  //   const dfuStatusListener = BluetoothZ.emitter.addListener(
-  //     BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,
-  //     ({uuid, alternateUUID, status, description, progress}) => {
-  //       if (
-  //         currentDevice.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ||
-  //         currentDevice.alternateUUID
-  //           ?.toLowerCase()
-  //           .localeCompare(alternateUUID?.toLowerCase())
-  //       ) {
-  //         console.log(
-  //           '+ DFU + BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE:',
-  //           uuid,
-  //           'status:',
-  //           status,
-  //         );
-  //         updateDevice(d => {
-  //           return {
-  //             ...d,
-  //             progress: progress !== undefined ? progress : d.progress,
-  //             description:
-  //               description !== undefined ? description : d.description,
-  //             status: status !== undefined ? status : d.status,
-  //           };
-  //         });
-  //       }
-  //     },
-  //   );
-
-  //   return function cleanUp() {
-  //     console.log('=================>>>>>>>>>>>> OFF');
-  //     dfuFailedListener?.remove();
-  //     dfuStartingListener?.remove();
-  //     dfuStatusListener?.remove();
-  //   };
-  // }, []);
-
   return (
     <View
       style={{
@@ -426,6 +294,55 @@ const CommandHeader = ({
   );
 };
 
+const State = {idle: 0, started: 1, aborted: 2, file_selected: 3};
+
+const pickFirmwareFile = async () => {
+  let res;
+  try {
+    res = await DocumentPicker.pickSingle({
+      type: [DocumentPicker.types.allFiles],
+      copyTo: 'cachesDirectory',
+    });
+    console.log('URI:', res.uri);
+    console.log('Type:', res.type);
+    console.log('Name:', res.name);
+    console.log('Size:', res.size);
+  } catch (err) {
+    if (DocumentPicker.isCancel(err)) {
+      console.log('User cancelled the picker');
+    } else {
+      console.log('Error:', err);
+    }
+  }
+  return res;
+};
+
+async function startDFU({uuid, alternateUUID = undefined, firmware}) {
+  // const {uuid} = devices[dfu?.currentDeviceIndex];
+  console.log('1 ==============>', uuid);
+  if (Platform.OS === 'android') {
+    try {
+      console.log('2 ==============>', uuid);
+
+      await BluetoothZ.connectSync({uuid});
+
+      console.log('3 ==============>', uuid);
+    } catch (error) {
+      console.log(error);
+      return;
+    }
+  }
+  BluetoothZ.startDFU({
+    uuid,
+    alternateUUID,
+    filePath: firmware.fileCopyUri,
+    pathType:
+      Platform.OS === 'ios'
+        ? BluetoothZ.Defines.FILE_PATH_TYPE_STRING
+        : BluetoothZ.Defines.FILE_PATH_TYPE_URL,
+  });
+}
+
 export default function TestDFU({navigation, route}) {
   const [firmwareSelected, setFirmwareSelected] = useState(undefined);
   const [dfuProcess, setDfuProcess] = useState(State.idle);
@@ -485,43 +402,42 @@ export default function TestDFU({navigation, route}) {
     //   },
     // );
 
-    const dfuFailedListener = BluetoothZ.emitter.addListener(
-      BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED,
-      ({uuid, alternateUUID, error, errorCode}) => {
-        console.log(
-          '+ DFU + BLE_PERIPHERAL_DFU_PROCESS_FAILED:',
-          uuid,
-          alternateUUID,
-          'error:',
-          error,
-        );
-        updateDevices(prevDevs =>
-          prevDevs.map(prevD => {
-            if (
-              prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) === 0
-            ) {
-              return {
-                ...prevD,
-                error,
-                errorCode,
-                progress: undefined,
-                dfuStarting: undefined,
-                dfuPaused: false,
-                alternateUUID: undefined,
-              };
-            }
-            return prevD;
-          }),
-        );
-      },
-    );
+    // const dfuFailedListener = BluetoothZ.emitter.addListener(
+    //   BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED,
+    //   ({uuid, alternateUUID, error, errorCode}) => {
+    //     console.log(
+    //       '+ DFU + BLE_PERIPHERAL_DFU_PROCESS_FAILED:',
+    //       uuid,
+    //       alternateUUID,
+    //       'error:',
+    //       error,
+    //     );
+    // updateDevices(prevDevs =>
+    //   prevDevs.map(prevD => {
+    //     if (
+    //       prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) === 0
+    //     ) {
+    //       return {
+    //         ...prevD,
+    //         error,
+    //         errorCode,
+    //         progress: undefined,
+    //         dfuStarting: undefined,
+    //         dfuPaused: false,
+    //         alternateUUID: undefined,
+    //       };
+    //     }
+    //     return prevD;
+    //   }),
+    // );
+    //   },
+    // );
 
     const dfuStatusListener = BluetoothZ.emitter.addListener(
       BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,
       ({uuid, alternateUUID, status, description, progress}) => {
         switch (status) {
-          case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_STARTING: {
-            console.log('+ DFU + BLE_PERIPHERAL_DFU_STATUS_STARTING:', uuid);
+          case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED: {
             updateDevices(prevDevs =>
               prevDevs.map(prevD => {
                 if (
@@ -530,21 +446,62 @@ export default function TestDFU({navigation, route}) {
                 ) {
                   return {
                     ...prevD,
-                    alternateUUID:
-                      prevD.uuid
-                        .toLowerCase()
-                        .localeCompare(alternateUUID.toLowerCase()) === 0
-                        ? undefined
-                        : alternateUUID,
+                    error,
+                    errorCode,
+                    progress: undefined,
+                    dfuStarting: undefined,
+                    dfuPaused: false,
+                    alternateUUID: undefined,
                   };
                 }
                 return prevD;
+              }),
+            );
+
+            break;
+          }
+          case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_STARTING: {
+            console.log(
+              'BLE_PERIPHERAL_DFU_STATUS_STARTING 1',
+              uuid,
+              alternateUUID,
+            );
+            updateDevices(prevDevs =>
+              prevDevs.map(prevD => {
+                /// is the device i'm looking for?
+                if (
+                  prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) !==
+                  0
+                ) {
+                  return prevD;
+                }
+                /// it is advertising an alternate uuid
+                if (!alternateUUID) {
+                  return prevD;
+                }
+                /// the advertising uuid is equal to the old one uuid
+                if (
+                  prevD.uuid
+                    .toLowerCase()
+                    .localeCompare(alternateUUID.toLowerCase()) === 0
+                ) {
+                  return prevD;
+                }
+                return {
+                  ...prevD,
+                  alternateUUID,
+                };
               }),
             );
             break;
           }
 
           case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_UPLOADING: {
+            console.log(
+              'BLE_PERIPHERAL_DFU_STATUS_UPLOADING 1',
+              uuid,
+              alternateUUID,
+            );
             updateDevices(prevDevs =>
               prevDevs.map(prevD => {
                 console.log(
@@ -626,17 +583,50 @@ export default function TestDFU({navigation, route}) {
             setFirmwareSelected(zip);
             setDfuProcess(State.file_selected);
           }}
-          onUploadPressed={() => {
+          onUploadPressed={async () => {
             const size = devices.length <= 2 ? devices.length : 2;
-            for (let i = 0; i < size; i++) {
-              console.log('COMINCIO CON ', devices[i]?.uuid);
-              startDFU({uuid: devices[i]?.uuid, firmware: firmwareSelected});
+            let success = true;
+            // for (let i = 0; i < size; i++) {
+            //   console.log('COMINCIO CON ', devices[i]?.uuid, devices[i]?.name);
+            //   // startDFU({uuid: devices[i]?.uuid, firmware: firmwareSelected});
+            //   try {
+            //     console.log('2 ==============>', devices[i]?.uuid);
+
+            //     await BluetoothZ.connectSync({
+            //       uuid: devices[i]?.uuid,
+            //       enableDiscover: false,
+            //     });
+
+            //     console.log('3 ==============>', devices[i]?.uuid);
+            //   } catch (error) {
+            //     console.log(error);
+            //     success = false;
+            //     // return;
+            //   }
+            // }
+            if (success) {
+              for (let i = 0; i < size; i++) {
+                console.log('SFU CON ', devices[i]?.uuid, devices[i]?.name);
+                BluetoothZ.startDFU({
+                  uuid: devices[i]?.uuid,
+                  filePath: firmwareSelected.fileCopyUri,
+                  pathType:
+                    Platform.OS === 'ios'
+                      ? BluetoothZ.Defines.FILE_PATH_TYPE_STRING
+                      : BluetoothZ.Defines.FILE_PATH_TYPE_URL,
+                });
+              }
             }
             setDfuProcess(State.started);
             setDfuIndex(prevIndex => prevIndex + 1);
           }}
           onAbortAllPressed={() => {
             setDfuProcess(State.aborted);
+            const size = devices.length <= 2 ? devices.length : 2;
+            for (let i = 0; i < size; i++) {
+              console.log('DISCONNECTO ', devices[i]?.uuid, devices[i]?.name);
+              BluetoothZ.disconnect({uuid: devices[i]?.uuid});
+            }
           }}
         />
         <FlatList
@@ -650,49 +640,4 @@ export default function TestDFU({navigation, route}) {
       </View>
     </View>
   );
-}
-
-const State = {idle: 0, started: 1, aborted: 2, file_selected: 3};
-
-const pickFirmwareFile = async () => {
-  let res;
-  try {
-    res = await DocumentPicker.pickSingle({
-      type: [DocumentPicker.types.allFiles],
-      copyTo: 'cachesDirectory',
-    });
-    console.log('URI:', res.uri);
-    console.log('Type:', res.type);
-    console.log('Name:', res.name);
-    console.log('Size:', res.size);
-  } catch (err) {
-    if (DocumentPicker.isCancel(err)) {
-      console.log('User cancelled the picker');
-    } else {
-      console.log('Error:', err);
-    }
-  }
-  return res;
-};
-
-async function startDFU({uuid, alternateUUID = undefined, firmware}) {
-  // const {uuid} = devices[dfu?.currentDeviceIndex];
-  console.log('1 ==============>', uuid);
-  if (Platform.OS === 'android') {
-    try {
-      await BluetoothZ.connectSync({uuid});
-    } catch (error) {
-      console.log(error, BluetoothZ);
-      return;
-    }
-  }
-  BluetoothZ.startDFU({
-    uuid,
-    alternateUUID,
-    filePath: firmware.fileCopyUri,
-    pathType:
-      Platform.OS === 'ios'
-        ? BluetoothZ.Defines.FILE_PATH_TYPE_STRING
-        : BluetoothZ.Defines.FILE_PATH_TYPE_URL,
-  });
 }

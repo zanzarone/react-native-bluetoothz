@@ -2,6 +2,7 @@
           package="com.bluetoothz">
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <application>
-        <service android:name=".LocalDfuService"/>
+      <service android:name=".LocalDfuService"/>
+      <service android:name=".DFUServiceMain"/>
     </application>
 </manifest>

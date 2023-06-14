@@ -40,7 +40,7 @@ const Defines = {
 module.exports.Defines = Defines;
 
 /// Inizializzo le variabili di stato
-let reconnectCount = null;
+let reconnect = null;
 let scanWatchDog = null;
 let connectionWatchDog = new Map();
 let isScanning = false;
@@ -172,7 +172,7 @@ bleEmitter.addListener(
           newUUID,
         });
         try {
-          await connectSync({ uuid: device.uuid });
+          await connectSync({ uuid: device.uuid, enableDiscover: false });
           console.log('DFU RETRY =======================> PROVO DI NUOVO! 6.');
         } catch (error) {
           console.log(
@@ -203,7 +203,7 @@ bleEmitter.addListener(
 /// aggancio ascoltatore periferica connessa
 bleEmitter.addListener(Defines.BLE_PERIPHERAL_CONNECTED, (event) => {
   console.log('!! BLE_PERIPHERAL_CONNECTED ', event);
-  reconnectCount = null;
+  reconnect = null;
   const { uuid } = event;
   stopConnWatchdog(uuid);
   startConnWatchdog(uuid);
@@ -225,12 +225,16 @@ bleEmitter.addListener(Defines.BLE_PERIPHERAL_FOUND, (event) => {
 bleEmitter.addListener(Defines.BLE_PERIPHERAL_DISCONNECTED, (event) => {
   console.log('x BLE_PERIPHERAL_DISCONNECTED ', event);
   const { uuid } = event;
-  if (reconnectCount > 0) {
-    console.log('====> REDO CONNECT', uuid, reconnectCount - 1);
-    connect({ uuid, maxRetryCount: reconnectCount - 1 });
+  if (reconnect?.count > 0) {
+    console.log('====> REDO CONNECT', uuid, reconnect?.count - 1);
+    connect({
+      uuid,
+      enableDiscover: reconnect?.enableDiscover,
+      maxRetryCount: reconnect?.count - 1,
+    });
     return;
   }
-  reconnectCount = null;
+  reconnect = null;
   stopConnWatchdog(uuid);
   /// devo chiamare la invalidate, perche se il dispositivo che si è disconnesso aveva delle operazioni
   /// pendenti, le devo rimuovere
@@ -239,7 +243,7 @@ bleEmitter.addListener(Defines.BLE_PERIPHERAL_DISCONNECTED, (event) => {
 
 /// aggancio ascoltatore connessione alla periferica fallita
 bleEmitter.addListener(Defines.BLE_PERIPHERAL_CONNECT_FAILED, (event) => {
-  reconnectCount = null;
+  reconnect = null;
   const { uuid } = event;
   stopConnWatchdog(uuid);
   console.log('x BLE_PERIPHERAL_CONNECT_FAILED ', event);
@@ -282,7 +286,7 @@ function startConnWatchdog(uuid) {
     uuid,
     setTimeout(() => {
       console.log('====> 1 TIMEOUT CONNECTION', uuid);
-      reconnectCount = null;
+      reconnect = null;
       cancel({ uuid });
     }, Defines.CONNECTION_TIMEOUT_MSEC)
   );
@@ -361,7 +365,11 @@ async function startDFU({
   BLE.startDFU(uuid, alternateUUID, filePath, pathType, options);
 }
 
-function connect({ uuid, maxRetryCount = Defines.DEFAULT_MAX_RETRY_COUNT }) {
+function connect({
+  uuid,
+  enableDiscover = true,
+  maxRetryCount = Defines.DEFAULT_MAX_RETRY_COUNT,
+}) {
   if (!uuid) {
     throw new Error('Parameters UUID is mandatory');
   }
@@ -371,11 +379,14 @@ function connect({ uuid, maxRetryCount = Defines.DEFAULT_MAX_RETRY_COUNT }) {
   }
   console.log('====> CONNECT', uuid);
   startConnWatchdog(uuid);
-  BLE.connect(uuid);
-  reconnectCount = maxRetryCount > 0 ? maxRetryCount : null;
+  BLE.connect(uuid, enableDiscover);
+  reconnect = {
+    count: maxRetryCount > 0 ? maxRetryCount : null,
+    enableDiscover,
+  };
 }
 
-async function connectSync({ uuid }) {
+async function connectSync({ uuid, enableDiscover = true }) {
   if (!uuid) {
     throw new Error('Parameters UUID is mandatory');
   }
@@ -386,7 +397,7 @@ async function connectSync({ uuid }) {
       Defines.CONNECTION_TIMEOUT_MSEC
     );
   });
-  return Promise.race([BLE.connectSync(newUuid), cancelSignal]);
+  return Promise.race([BLE.connectSync(newUuid, enableDiscover), cancelSignal]);
 }
 
 async function startScanSync({
@@ -470,10 +481,12 @@ module.exports.stopScan = () => stopScan();
 /// funzione per interrompere la scansione bluetooth
 module.exports.connect = ({
   uuid,
+  enableDiscover,
   maxRetryCount = Defines.DEFAULT_MAX_RETRY_COUNT,
-}) => connect({ uuid, maxRetryCount });
+}) => connect({ uuid, enableDiscover, maxRetryCount });
 
-module.exports.connectSync = async ({ uuid }) => connectSync({ uuid });
+module.exports.connectSync = async ({ uuid, enableDiscover }) =>
+  connectSync({ uuid, enableDiscover });
 
 /// funzione per interrompere la scansione bluetooth
 module.exports.cancel = ({ uuid }) => cancel({ uuid });
