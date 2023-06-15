@@ -9,7 +9,7 @@ import androidx.annotation.Nullable;
 import com.facebook.react.ReactApplication;
 import com.facebook.react.bridge.ReactContext;
 
-public class DFUNotificationActivity extends Activity {
+public class DfuNotificationActivity extends Activity {
 
   private Class getMainActivityClass(ReactContext reactContext) {
     String packageName = reactContext.getPackageName();
