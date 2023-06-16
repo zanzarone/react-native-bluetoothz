@@ -123,80 +123,79 @@ bleEmitter.addListener(
   Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED,
   async (event) => {
     console.log('DFU RETRY =======================> 0.', event);
-    if (
-      event?.errorCode === DFU_ERROR_DEVICE_DISCONNECTED &&
-      dfuRetryOptions !== null
-    ) {
-      const { uuid } = event;
-      /// 1. incremento l'uuid(MAC addr + 1)
-      let newUUID = incrementMacAddress(uuid);
-      console.log('DFU RETRY =======================> 1.', newUUID);
-      /// 2. se la piattaforma e' Android devo connettermi
-      if (Platform.OS === 'android') {
-        console.log(
-          'DFU RETRY =======================> Android, provo a riconnettere 2.',
-          newUUID
-        );
-        /// 3. prima scansiono e cerco newUuid
-        let devices = [];
-        bleEmitter.emit(Defines.BLE_PERIPHERAL_DFU_STATUS_SCANNING, { uuid });
-        try {
-          devices = await startScanSync({});
-        } catch (error) {
-          console.log(
-            'DFU RETRY =======================> Android, riconnes. errore 3.',
-            error
-          );
-          bleEmitter.emit(Defines.DFU_SCAN_FAILED, { uuid, newUUID });
-          return;
-        }
-        devices = devices.filter(
-          (d) =>
-            d.uuid.toLowerCase() === newUUID.toLowerCase() ||
-            d.uuid.toLowerCase() === uuid.toLowerCase()
-        );
-        if (devices.length <= 0) {
-          console.log(
-            'DFU RETRY =======================> Android, riconnes. errore 4.'
-          );
-          bleEmitter.emit(Defines.DFU_INTERFACE_NOT_FOUND, { uuid, newUUID });
-          return;
-        }
-        let device = devices.shift();
-        console.log(
-          'DFU RETRY =======================> PROVO DI NUOVO! 4.5',
-          device
-        );
-        bleEmitter.emit(Defines.BLE_PERIPHERAL_DFU_STATUS_DFU_INTERFACE_FOUND, {
-          uuid,
-          newUUID,
-        });
-        try {
-          await connectSync({ uuid: device.uuid, enableDiscover: false });
-          console.log('DFU RETRY =======================> PROVO DI NUOVO! 6.');
-        } catch (error) {
-          console.log(
-            'DFU RETRY =======================> Android, riconnes. errore 5.',
-            error
-          );
-          bleEmitter.emit(Defines.DFU_INTERFACE_CONNECT_FAILED, {
-            uuid,
-            newUUID,
-          });
-          return;
-        }
-      }
-      bleEmitter.emit(Defines.DFU_INTERFACE_FOUND, { uuid, newUUID });
-      /// 3. provo ad effettuare nuovamente la proc DFU
-      startDFU({
-        uuid,
-        alternateUUID: newUUID,
-        filePath: dfuRetryOptions.filePath,
-        pathType: dfuRetryOptions.pathType,
-        retryOnDisconnectionError: false,
-        options: dfuRetryOptions.options,
-      });
-    }
+    // if (
+    //   event?.errorCode === DFU_ERROR_DEVICE_DISCONNECTED &&
+    //   dfuRetryOptions !== null
+    // ) {
+    //   const { uuid } = event;
+    //   /// 1. incremento l'uuid(MAC addr + 1)
+    //   let newUUID = incrementMacAddress(uuid);
+    //   console.log('DFU RETRY =======================> 1.', newUUID);
+    //   /// 2. se la piattaforma e' Android devo connettermi
+    //   if (Platform.OS === 'android') {
+    //     console.log(
+    //       'DFU RETRY =======================> Android, provo a riconnettere 2.',
+    //       newUUID
+    //     );
+    //     /// 3. prima scansiono e cerco newUuid
+    //     let devices = [];
+    //     bleEmitter.emit(Defines.BLE_PERIPHERAL_DFU_STATUS_SCANNING, { uuid });
+    //     try {
+    //       devices = await startScanSync({});
+    //     } catch (error) {
+    //       console.log(
+    //         'DFU RETRY =======================> Android, riconnes. errore 3.',
+    //         error
+    //       );
+    //       bleEmitter.emit(Defines.DFU_SCAN_FAILED, { uuid, newUUID });
+    //       return;
+    //     }
+    //     devices = devices.filter(
+    //       (d) =>
+    //         d.uuid.toLowerCase() === newUUID.toLowerCase() ||
+    //         d.uuid.toLowerCase() === uuid.toLowerCase()
+    //     );
+    //     if (devices.length <= 0) {
+    //       console.log(
+    //         'DFU RETRY =======================> Android, riconnes. errore 4.'
+    //       );
+    //       bleEmitter.emit(Defines.DFU_INTERFACE_NOT_FOUND, { uuid, newUUID });
+    //       return;
+    //     }
+    //     let device = devices.shift();
+    //     console.log(
+    //       'DFU RETRY =======================> PROVO DI NUOVO! 4.5',
+    //       device
+    //     );
+    //     bleEmitter.emit(Defines.BLE_PERIPHERAL_DFU_STATUS_DFU_INTERFACE_FOUND, {
+    //       uuid,
+    //       newUUID,
+    //     });
+    //     try {
+    //       await connectSync({ uuid: device.uuid, enableDiscover: false });
+    //       console.log('DFU RETRY =======================> PROVO DI NUOVO! 6.');
+    //     } catch (error) {
+    //       console.log(
+    //         'DFU RETRY =======================> Android, riconnes. errore 5.',
+    //         error
+    //       );
+    //       bleEmitter.emit(Defines.DFU_INTERFACE_CONNECT_FAILED, {
+    //         uuid,
+    //         newUUID,
+    //       });
+    //       return;
+    //     }
+    //   }
+    //   bleEmitter.emit(Defines.DFU_INTERFACE_FOUND, { uuid, newUUID });
+    /// 3. provo ad effettuare nuovamente la proc DFU
+    // startDFU({
+    //   uuid,
+    //   filePath: dfuRetryOptions.filePath,
+    //   pathType: dfuRetryOptions.pathType,
+    //   retryOnDisconnectionError: false,
+    //   options: dfuRetryOptions.options,
+    // });
+    // }
   }
 );
 
@@ -337,13 +336,12 @@ function cancel({ uuid }) {
 /// funzione per interrompere la scansione bluetooth
 async function startDFU({
   uuid,
-  alternateUUID,
   filePath,
   pathType = Defines.FILE_PATH_TYPE_STRING,
   retryOnDisconnectionError = true,
   options = dfuOptions,
 }) {
-  if (!uuid && !alternateUUID) {
+  if (!uuid) {
     throw new Error('Parameter UUID is mandatory');
   }
   if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
@@ -362,7 +360,7 @@ async function startDFU({
   } else {
     dfuRetryOptions = null;
   }
-  BLE.startDFU(uuid, alternateUUID, filePath, pathType, options);
+  BLE.startDFU(uuid, filePath, pathType, options);
 }
 
 function connect({

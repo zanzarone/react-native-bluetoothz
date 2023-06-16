@@ -7,7 +7,7 @@ import {useEffect, useState} from 'react';
 import * as BluetoothZ from 'react-native-bluetoothz';
 
 const Element = ({device, onDeviceFailed}) => {
-  console.log(device);
+  // console.log(device);
   const currentDevice = device;
   return (
     <View
@@ -75,11 +75,11 @@ const Element = ({device, onDeviceFailed}) => {
         </Text>
         <Text
           style={{
-            fontFamily: 'Nunito-Regular',
-            color: currentDevice.alternateUUID ? 'coral' : 'black',
+            fontFamily: 'Nunito-Bold',
+            color: currentDevice.alternativeUUID ? 'coral' : 'black',
           }}>
-          {currentDevice.alternateUUID
-            ? currentDevice.alternateUUID
+          {currentDevice.alternativeUUID
+            ? currentDevice.alternativeUUID
             : currentDevice.uuid}
         </Text>
         <Text
@@ -317,7 +317,7 @@ const pickFirmwareFile = async () => {
   return res;
 };
 
-async function startDFU({uuid, alternateUUID = undefined, firmware}) {
+async function startDFU({uuid, alternativeUUID = undefined, firmware}) {
   // const {uuid} = devices[dfu?.currentDeviceIndex];
   console.log('1 ==============>', uuid);
   if (Platform.OS === 'android') {
@@ -334,7 +334,7 @@ async function startDFU({uuid, alternateUUID = undefined, firmware}) {
   }
   BluetoothZ.startDFU({
     uuid,
-    alternateUUID,
+    alternativeUUID,
     filePath: firmware.fileCopyUri,
     pathType:
       Platform.OS === 'ios'
@@ -352,7 +352,7 @@ export default function TestDFU({navigation, route}) {
     route.params.devices.map(device => {
       return {
         ...device,
-        alternateUUID: undefined,
+        alternativeUUID: undefined,
         status: undefined, // BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_UPLOADING,
         description: undefined,
         progress: undefined,
@@ -364,80 +364,16 @@ export default function TestDFU({navigation, route}) {
 
   useEffect(() => {
     console.log('=================>>>>>>>>>>>> ON');
-    // const blePeripheralDfuScanFailedListener = BluetoothZ.emitter.addListener(
-    //   BluetoothZ.Defines.DFU_SCAN_FAILED,
-    //   ({uuid}) => {
-    //     nextUpdate({error: 'Could not start scan process!'});
-    //   },
-    // );
-
-    // const blePeripheralDfuIntNotFoundListener = BluetoothZ.emitter.addListener(
-    //   BluetoothZ.Defines.DFU_INTERFACE_NOT_FOUND,
-    //   () => {
-    //     nextUpdate({error: 'Could not find DFU enabled interface!'});
-    //   },
-    // );
-
-    // const blePeripheralDfuResumedListener = BluetoothZ.emitter.addListener(
-    //   BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_RESUMED,
-    //   ({uuid}) => {
-    //     if (
-    //       currentDevice.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ||
-    //       currentDevice.alternateUUID?.toLowerCase().localeCompare(uuid.toLowerCase())
-    //     ) {
-    //       updateDevice({...prevD, dfuPaused: false});
-    //     }
-    //   },
-    // );
-
-    // const blePeripheralDfuPausedListener = BluetoothZ.emitter.addListener(
-    //   BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_PAUSED,
-    //   ({uuid}) => {
-    //     if (
-    //       currentDevice.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ||
-    //       currentDevice.alternateUUID?.toLowerCase().localeCompare(uuid.toLowerCase())
-    //     ) {
-    //       updateDevice({...prevD, dfuPaused: true});
-    //     }
-    //   },
-    // );
-
-    // const dfuFailedListener = BluetoothZ.emitter.addListener(
-    //   BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED,
-    //   ({uuid, alternateUUID, error, errorCode}) => {
-    //     console.log(
-    //       '+ DFU + BLE_PERIPHERAL_DFU_PROCESS_FAILED:',
-    //       uuid,
-    //       alternateUUID,
-    //       'error:',
-    //       error,
-    //     );
-    // updateDevices(prevDevs =>
-    //   prevDevs.map(prevD => {
-    //     if (
-    //       prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) === 0
-    //     ) {
-    //       return {
-    //         ...prevD,
-    //         error,
-    //         errorCode,
-    //         progress: undefined,
-    //         dfuStarting: undefined,
-    //         dfuPaused: false,
-    //         alternateUUID: undefined,
-    //       };
-    //     }
-    //     return prevD;
-    //   }),
-    // );
-    //   },
-    // );
-
     const dfuStatusListener = BluetoothZ.emitter.addListener(
       BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,
-      ({uuid, alternateUUID, status, description, progress}) => {
+      event => {
+        const {status, uuid} = event;
+        console.log('Dfu status=', status, uuid);
         switch (status) {
+          ///
           case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED: {
+            const {error, errorCode} = event;
+            console.log('Dfu FAILED', error, errorCode);
             updateDevices(prevDevs =>
               prevDevs.map(prevD => {
                 if (
@@ -451,7 +387,7 @@ export default function TestDFU({navigation, route}) {
                     progress: undefined,
                     dfuStarting: undefined,
                     dfuPaused: false,
-                    alternateUUID: undefined,
+                    alternativeUUID: undefined,
                   };
                 }
                 return prevD;
@@ -460,12 +396,10 @@ export default function TestDFU({navigation, route}) {
 
             break;
           }
+          ///
           case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_STARTING: {
-            console.log(
-              'BLE_PERIPHERAL_DFU_STATUS_STARTING 1',
-              uuid,
-              alternateUUID,
-            );
+            const alternativeUUID = event.alternativeUUID;
+            console.log('Dfu STARTING', uuid, alternativeUUID);
             updateDevices(prevDevs =>
               prevDevs.map(prevD => {
                 /// is the device i'm looking for?
@@ -476,50 +410,49 @@ export default function TestDFU({navigation, route}) {
                   return prevD;
                 }
                 /// it is advertising an alternate uuid
-                if (!alternateUUID) {
+                if (!alternativeUUID) {
                   return prevD;
                 }
                 /// the advertising uuid is equal to the old one uuid
                 if (
                   prevD.uuid
                     .toLowerCase()
-                    .localeCompare(alternateUUID.toLowerCase()) === 0
+                    .localeCompare(alternativeUUID.toLowerCase()) === 0
                 ) {
                   return prevD;
                 }
                 return {
                   ...prevD,
-                  alternateUUID,
+                  alternativeUUID,
                 };
               }),
             );
             break;
           }
-
+          ///
           case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_UPLOADING: {
-            console.log(
-              'BLE_PERIPHERAL_DFU_STATUS_UPLOADING 1',
-              uuid,
-              alternateUUID,
-            );
+            const alternativeUUID = event.alternativeUUID;
             updateDevices(prevDevs =>
               prevDevs.map(prevD => {
-                console.log(
-                  '+ DFU + BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE:',
-                  uuid,
-                  prevD.uuid,
-                  prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()),
-                );
                 if (
                   prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ===
-                  0
+                    0 ||
+                  prevD.uuid
+                    .toLowerCase()
+                    .localeCompare(alternativeUUID.toLowerCase()) === 0
                 ) {
                   return {
                     ...prevD,
-                    progress: progress !== undefined ? progress : d.progress,
+                    progress:
+                      event?.progress !== undefined
+                        ? event.progress
+                        : d.progress,
                     description:
-                      description !== undefined ? description : d.description,
-                    status: status !== undefined ? status : d.status,
+                      event?.description !== undefined
+                        ? event.description
+                        : d.description,
+                    status:
+                      event?.status !== undefined ? event.status : d.status,
                   };
                 }
                 return prevD;
@@ -543,7 +476,6 @@ export default function TestDFU({navigation, route}) {
 
     return function cleanUp() {
       console.log('=================>>>>>>>>>>>> OFF');
-      dfuFailedListener?.remove();
       dfuStatusListener?.remove();
       bleAdapterListener?.remove();
     };

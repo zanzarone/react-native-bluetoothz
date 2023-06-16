@@ -127,6 +127,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 //  private LocalDfuProgressListener mLocalDfuProgressListener;
   private ConcurrentHashMap<String, Peripheral> mPeripherals;
   public Dfu mDfuHelper;
+  public Thread pippo;
   private SyncHelper mSyncHelper;
   private PeripheralWatchdog mPeripheralWatchdog;
 
@@ -146,6 +147,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     this.reactContext.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
     this.mSyncHelper = new SyncHelper();
     this.mDfuHelper = new Dfu(context);
+    this.pippo = new Thread(this.mDfuHelper);
   }
 
   @Override
@@ -840,6 +842,11 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     return (mPeripherals.containsKey(uuid) && mPeripherals.get(uuid).isConnected());
   }
 
+  private boolean isDiscovered(String uuid) {
+    // Log.d("CERVOFIA", "contains:" + mPeripherals.containsKey(uuid) + ", connected:" + mPeripherals.get(uuid).isConnected());
+    return (mPeripherals.containsKey(uuid));
+  }
+
   @ReactMethod
   public void isConnectedSync(String uuid, Promise promise) {
     promise.resolve(isConnected(uuid));
@@ -962,6 +969,9 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 
   @ReactMethod
   public void startDFU(String uuid, String filePath, String pathType, ReadableMap options) {
+    if(!this.pippo.isAlive()) { // Check if the Dfu daemon is alive, otherwise starts it
+      this.pippo.start();
+    }
     this.mDfuHelper.submit(uuid, filePath, pathType, options);
   }
 
