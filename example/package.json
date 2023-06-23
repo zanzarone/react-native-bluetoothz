@@ -14,7 +14,6 @@
     "@react-navigation/bottom-tabs": "^6.5.7",
     "@react-navigation/native": "^6.1.6",
     "@react-navigation/native-stack": "^6.9.12",
-    "eventemitter3": "^5.0.1",
     "lodash.debounce": "^4.0.8",
     "react": "18.2.0",
     "react-native": "0.71.7",

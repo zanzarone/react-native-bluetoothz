@@ -39,7 +39,7 @@ RCT_EXTERN_METHOD(writeCharacteristicValue:(NSString*)uuid charUUID:(NSString*)c
 
 RCT_EXTERN_METHOD(changeCharacteristicNotification:(NSString*)uuid charUUID:(NSString*)charUUID enable:(BOOL)enable)
 
-RCT_EXTERN_METHOD(startDFU:(NSString*)uuid alternateUUID:(NSString*)altUUID filePath:(NSString*)path pathType:(NSString*)type options:(NSDictionary*)opt)
+RCT_EXTERN_METHOD(startDFU:(NSString*)uuid filePath:(NSString*)path pathType:(NSString*)type options:(NSDictionary*)opt)
 
 RCT_EXTERN_METHOD(pauseDFU:(NSString*)uuid)
 

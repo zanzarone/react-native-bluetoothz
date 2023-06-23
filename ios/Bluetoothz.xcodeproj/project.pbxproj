@@ -24,7 +24,7 @@
 
 /* Begin PBXFileReference section */
 		134814201AA4EA6300B7C361 /* libBluetoothz.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; name = libBluetoothz.a; path = libBluetoothZ.a; sourceTree = BUILT_PRODUCTS_DIR; };
-		7FA956B42A1667AF003EA0F3 /* DFUHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DFUHandler.swift; sourceTree = "<group>"; };
+		7FADD3892A42F17800435BDE /* Dfu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dfu.swift; sourceTree = "<group>"; };
 		B3E7B5891CC2AC0600A0062D /* BluetoothZ.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BluetoothZ.m; sourceTree = "<group>"; };
 		F4FF95D5245B92E700C19C63 /* BluetoothZ-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "BluetoothZ-Bridging-Header.h"; sourceTree = "<group>"; };
 		F4FF95D6245B92E800C19C63 /* BluetoothZ.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothZ.swift; sourceTree = "<group>"; };
@@ -52,7 +52,7 @@
 		58B511D21A9E6C8500147676 = {
 			isa = PBXGroup;
 			children = (
-				7FA956B42A1667AF003EA0F3 /* DFUHandler.swift */,
+				7FADD3892A42F17800435BDE /* Dfu.swift */,
 				F4FF95D6245B92E800C19C63 /* BluetoothZ.swift */,
 				B3E7B5891CC2AC0600A0062D /* BluetoothZ.m */,
 				F4FF95D5245B92E700C19C63 /* BluetoothZ-Bridging-Header.h */,

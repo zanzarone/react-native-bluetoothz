@@ -18,7 +18,6 @@ let BLE_ADAPTER_SCAN_START                          : String  = "BLE_ADAPTER_SCA
 let BLE_ADAPTER_SCAN_END                            : String  = "BLE_ADAPTER_SCAN_END"
 let BLE_PERIPHERAL_FOUND                            : String  = "BLE_PERIPHERAL_FOUND"
 let BLE_PERIPHERAL_UPDATES                          : String  = "BLE_PERIPHERAL_UPDATES"
-let BLE_PERIPHERAL_UPDATED_RSSI                     : String  = "BLE_PERIPHERAL_UPDATED_RSSI"
 let BLE_PERIPHERAL_READY                            : String  = "BLE_PERIPHERAL_READY"
 let BLE_PERIPHERAL_READ_RSSI                        : String  = "BLE_PERIPHERAL_READ_RSSI"
 let BLE_PERIPHERAL_CONNECTED                        : String  = "BLE_PERIPHERAL_CONNECTED"
@@ -42,7 +41,7 @@ let BLE_PERIPHERAL_DFU_PROCESS_RESUMED              : String  = "BLE_PERIPHERAL_
 let BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED         : String  = "BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED";
 let BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED        : String  = "BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED";
 let BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED         : String  = "BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED";
-// let BLE_PERIPHERAL_DFU_PROGRESS                     : String  = "BLE_PERIPHERAL_DFU_PROGRESS";
+let BLE_PERIPHERAL_DFU_PROGRESS                     : String  = "BLE_PERIPHERAL_DFU_PROGRESS";
 let BLE_PERIPHERAL_DFU_DEBUG                        : String  = "BLE_PERIPHERAL_DFU_DEBUG";
 let BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE            : String  = "BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE";
 let BLE_PERIPHERAL_DFU_STATUS_ABORTED               : String  = "BLE_PERIPHERAL_DFU_STATUS_ABORTED";
@@ -53,8 +52,6 @@ let BLE_PERIPHERAL_DFU_STATUS_UPLOADING             : String  = "BLE_PERIPHERAL_
 let BLE_PERIPHERAL_DFU_STATUS_CONNECTING            : String  = "BLE_PERIPHERAL_DFU_STATUS_CONNECTING";
 let BLE_PERIPHERAL_DFU_STATUS_CONNECTED             : String  = "BLE_PERIPHERAL_DFU_STATUS_CONNECTED";
 let BLE_PERIPHERAL_DFU_STATUS_DISCONNECTED          : String  = "BLE_PERIPHERAL_DFU_STATUS_DISCONNECTED";
-let BLE_PERIPHERAL_DFU_STATUS_SCANNING              : String  = "BLE_PERIPHERAL_DFU_STATUS_SCANNING";
-let BLE_PERIPHERAL_DFU_STATUS_DFU_INTERFACE_FOUND   : String  = "BLE_PERIPHERAL_DFU_STATUS_DFU_INTERFACE_FOUND";
 let BLE_PERIPHERAL_DFU_STATUS_VALIDATING            : String  = "BLE_PERIPHERAL_DFU_STATUS_VALIDATING";
 let BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING         : String  = "BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING";
 let BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU          : String  = "BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU";
@@ -98,198 +95,28 @@ public extension String {
     }
 }
 
-class DFUHelper {
-    var enableDebug         : Bool = false
-    var currentPeripheralId : String!
-    var firmware            : DFUFirmware!
-    //    var serviceInitiator    : DFUServiceInitiator!
-    var controller          : DFUServiceController!
-    /// DFU PROPS
-    var processResolve     : RCTPromiseResolveBlock?
-    var processReject      : RCTPromiseRejectBlock?
-}
-
-class Peripheral : DFUServiceDelegate, DFUProgressDelegate, LoggerDelegate{
-    private var sendEventCallback   : ((String, Any) -> Void)!
+class Peripheral {
     private var gattServer          : CBPeripheral!
     private var services            : [String:CBService] = [:]
     private var characteristics     : [String:CBCharacteristic] = [:]
     private var connected           : Bool = false
     private var lastRSSI            : NSNumber!
     private var dfuCompliant        : Bool = false
-    private var dfuHelper           : DFUHelper!
-    private var lastSeen            : TimeInterval = 0
-    
-    /// =======================================================================================================================================
-    /// =======================================================================================================================================
-    /// =======================================================================================================================================
-    /// ===============  DFU DELEGATE
-    /// =======================================================================================================================================
-    /// =======================================================================================================================================
-    /// =======================================================================================================================================
-    func dfuStateDidChange(to state: iOSDFULibrary.DFUState) {
-        switch (state)
-        {
-        case .completed:
-            let body = ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_COMPLETED, "description": "DFU Procedure successfully completed."]
-            if let success = self.dfuHelper.processResolve {
-                success(body)
-            }else{
-                self.sendEventCallback(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body )
-            }
-            break
-        case .aborted:
-            self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_ABORTED, "description": "DFU Procedure aborted by the user."])
-            break
-        case .starting:
-            self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_STARTING, "description": "DFU Procedure started."])
-            break
-        case .uploading:
-            self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_UPLOADING, "description": "Uploading firmware onto remote device."])
-            break
-        case .connecting:
-            self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_CONNECTING, "description": "Connecting to the remote device."])
-            break
-        case .validating:
-            self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_VALIDATING, "description": "Validating firmware."])
-            break
-        case .disconnecting:
-            self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING, "description": "Disconnecting from remote device."])
-            break
-        case .enablingDfuMode:
-            self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": self.dfuHelper.currentPeripheralId, "status":BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU, "description": "Enabling DFU interface on remote device."])
-            break
-        }
-    }
-    
-    func dfuError(_ error: iOSDFULibrary.DFUError, didOccurWithMessage message: String) {
-        if let failure = self.dfuHelper.processReject {
-            failure(BLE_PERIPHERAL_DFU_PROCESS_FAILED, "Error: \(message)(\(error.rawValue))", nil)
-        }else{
-            self.sendEventCallback( BLE_PERIPHERAL_DFU_PROCESS_FAILED,  ["uuid": self.dfuHelper.currentPeripheralId!, "error":"Error: \(message)(\(error.rawValue))", "errorCode": error.rawValue])
-        }
-    }
-    
-    func dfuProgressDidChange(for part: Int, outOf totalParts: Int, to progress: Int, currentSpeedBytesPerSecond: Double, avgSpeedBytesPerSecond: Double){
-        self.sendEventCallback( BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": self.dfuHelper.currentPeripheralId!,
-                                                                        "status":BLE_PERIPHERAL_DFU_STATUS_UPLOADING,
-                                                                        "description": "Uploading firmware onto remote device.",
-                                                                        "part": part,
-                                                                        "totalParts": totalParts,
-                                                                        "progress": progress,
-                                                                        "currentSpeedBytesPerSecond": currentSpeedBytesPerSecond,
-                                                                        "avgSpeedBytesPerSecond": avgSpeedBytesPerSecond
-                                                                       ])
-    }
-    
-    func logWith(_ level: iOSDFULibrary.LogLevel, message: String) {
-        if self.dfuHelper.enableDebug {
-            self.sendEventCallback( BLE_PERIPHERAL_DFU_DEBUG,  ["uuid": self.dfuHelper.currentPeripheralId!,
-                                                                "message": "\(level.rawValue) - \(message)"])
-        }
-    }
+    private var lastSeen            : TimeInterval
     
     init(_ p:CBPeripheral, rssi: NSNumber, delegate: BluetoothZ) {
         gattServer = p
         lastRSSI = rssi
         gattServer.delegate = delegate
-    }
-    
-    func initiateDFU(uuid:String, filePath:String, pathType:String, withOptions options:NSDictionary, callback: @escaping (String, Any) -> Void)
-    {
-        self.dfuHelper = DFUHelper()
-        self.sendEventCallback = callback
-        var baseURL:URL? = nil
-        switch pathType {
-        case FILE_PATH_TYPE_STRING:
-            baseURL = URL(string: "file://\(filePath)")
-        case FILE_PATH_TYPE_URL:
-            baseURL = URL(string:  filePath)
-        default: ()
-        }
-        
-        guard let url = baseURL else {
-            self.sendEventCallback(BLE_PERIPHERAL_DFU_PROCESS_FAILED, ["uuid": uuid, "error": "Invalid(\(filePath) filePath"])
-            return
-        }
-        guard let fw = try? DFUFirmware(urlToZipFile: url) else {
-            self.sendEventCallback(BLE_PERIPHERAL_DFU_PROCESS_FAILED, ["uuid": uuid, "error": "Invalid firmware"])
-            return
-        }
-        
-        // Change for iOS 13
-        Thread.sleep(forTimeInterval: 1) //Work around for not finding the peripheral in iOS 13
-        // Change for iOS 13
-        self.dfuHelper.currentPeripheralId = uuid
-        self.dfuHelper.firmware = fw
-        let queueName = "BluetoothZ-\(String.randomString(length: 10))"
-        var serviceInitiator = DFUServiceInitiator(queue: DispatchQueue(label: queueName))
-        serviceInitiator.delegate = self
-        serviceInitiator.progressDelegate = self
-        serviceInitiator.logger = self
-        self.dfuHelper.enableDebug = false
-        serviceInitiator.dataObjectPreparationDelay = 0.4 // sec
-        serviceInitiator.alternativeAdvertisingNameEnabled = false
-        if let opt = options as? [String: Any]{
-            if let packetDelay = opt[DFU_OPTION_PACKET_DELAY] as? NSNumber {
-                serviceInitiator.dataObjectPreparationDelay = TimeInterval(packetDelay.floatValue / 1000.0) // sec
-            }
-            if let enableDebug = opt[DFU_OPTION_ENABLE_DEBUG] as? Bool {
-                self.dfuHelper.enableDebug = enableDebug
-            }
-        }
-        if #available(iOS 11.0, macOS 10.13, *) {
-            serviceInitiator.packetReceiptNotificationParameter = 0
-        }
-        // Change for iOS 13
-        Thread.sleep(forTimeInterval: 2) //Work around for not finding the peripheral in iOS 13
-        // End change for iOS 13
-        self.dfuHelper.controller = serviceInitiator.with(firmware: fw).start(target: self.getGATTServer())
-    }
-    
-    func pauseDFU() {
-        if self.dfuHelper?.controller == nil || self.dfuHelper.controller.paused {
-            return
-        }
-        self.dfuHelper.controller.pause()
-    }
-    
-    func resumeDFU() {
-        if self.dfuHelper?.controller == nil || !self.dfuHelper.controller.paused {
-            return
-        }
-        self.dfuHelper.controller.resume()
-    }
-    
-    func abortDFU() -> Bool {
-        if self.dfuHelper?.controller == nil || self.dfuHelper.controller.aborted {
-            return false
-        }
-        return self.dfuHelper.controller.abort()
-    }
-    
-    func uuid() -> String {
-        return self.gattServer.identifier.uuidString
-    }
-    
-    func name() -> String {
-        return self.gattServer.name ?? ""
+        lastSeen = 0
     }
     
     func getLastRSSI() -> NSNumber {
         return self.lastRSSI
     }
     
-    func setLastRSSI(rssi: NSNumber) -> Void {
-        self.lastRSSI = rssi
-    }
-    
     func getLastSeen() -> TimeInterval {
         return self.lastSeen
-    }
-    
-    func setLastSeen(time: TimeInterval) -> Void {
-        self.lastSeen = time
     }
     
     func setDfuCompliant(compliant: Bool) {
@@ -328,7 +155,7 @@ class Peripheral : DFUServiceDelegate, DFUProgressDelegate, LoggerDelegate{
         for i in 0..<s.count {
             let service = s[i]
             self.services[service.uuid.uuidString] = service
-            // print("@@@@@@@@@@@@@@@@@@@@@@@   \(service.uuid.uuidString) = \(DFU_SERVICE_UUID)" )
+            print("@@@@@@@@@@@@@@@@@@@@@@@   \(service.uuid.uuidString) = \(DFU_SERVICE_UUID)" )
             if service.uuid.uuidString.compare(DFU_SERVICE_UUID, options: .caseInsensitive) == .orderedSame {
                 self.setDfuCompliant(compliant: true)
             }
@@ -393,25 +220,33 @@ class SyncHelper {
     var disconnectReject      : RCTPromiseRejectBlock?
     var scanResolve     : RCTPromiseResolveBlock?
     var scanReject      : RCTPromiseRejectBlock?
+    /// DFU PROPS
+    var processResolve     : RCTPromiseResolveBlock?
+    var processReject      : RCTPromiseRejectBlock?
 }
 
 @objc(BluetoothZ)
 class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegate
-//,  DFUServiceDelegate, DFUProgressDelegate, LoggerDelegate
 {
     /// PROPS
     var centralManager        : CBCentralManager? = nil
     var peripherals           : [String:Peripheral] = [:]
     var scanFilter            : String? = nil
-    var allowDuplicates       : Bool = false
-    var allowNoNamedDevices   : Bool = false
+    var scanWatchdog          : Timer?
+    var allowDuplicates       : Bool?
+    var dfu                   : Dfu!
     var syncHelper            : SyncHelper = SyncHelper()
-    var peripheralWatchdog    : Timer?
     
     
     private func isConnected(uuidString:String) -> Bool {
         return self.peripherals.contains(where: { (key: String, value: Peripheral) -> Bool in
             return key.compare(uuidString) == .orderedSame && value.isConnected()
+        })
+    }
+    
+    private func isDiscovered(uuidString:String) -> Bool {
+        return self.peripherals.contains(where: { (key: String, value: Peripheral) -> Bool in
+            return key.compare(uuidString) == .orderedSame
         })
     }
     
@@ -434,7 +269,6 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             BLE_ADAPTER_SCAN_END,
             BLE_PERIPHERAL_FOUND,
             BLE_PERIPHERAL_UPDATES,
-            BLE_PERIPHERAL_UPDATED_RSSI,
             BLE_PERIPHERAL_READY,
             BLE_PERIPHERAL_READ_RSSI,
             BLE_PERIPHERAL_CONNECTED,
@@ -458,7 +292,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED,
             BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED,
             BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED,
-            // BLE_PERIPHERAL_DFU_PROGRESS,
+            BLE_PERIPHERAL_DFU_PROGRESS,
             BLE_PERIPHERAL_DFU_DEBUG,
             BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,
             BLE_PERIPHERAL_DFU_STATUS_ABORTED,
@@ -492,7 +326,6 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             BLE_ADAPTER_SCAN_END:BLE_ADAPTER_SCAN_END,
             BLE_PERIPHERAL_FOUND:BLE_PERIPHERAL_FOUND,
             BLE_PERIPHERAL_UPDATES:BLE_PERIPHERAL_UPDATES,
-            BLE_PERIPHERAL_UPDATED_RSSI:BLE_PERIPHERAL_UPDATED_RSSI,
             BLE_PERIPHERAL_READY:BLE_PERIPHERAL_READY,
             BLE_PERIPHERAL_READ_RSSI:BLE_PERIPHERAL_READ_RSSI,
             BLE_PERIPHERAL_CONNECTED:BLE_PERIPHERAL_CONNECTED,
@@ -516,7 +349,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED:BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED,
             BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED:BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED,
             BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED:BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED,
-            // BLE_PERIPHERAL_DFU_PROGRESS:BLE_PERIPHERAL_DFU_PROGRESS,
+            BLE_PERIPHERAL_DFU_PROGRESS:BLE_PERIPHERAL_DFU_PROGRESS,
             BLE_PERIPHERAL_DFU_DEBUG:BLE_PERIPHERAL_DFU_DEBUG,
             BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE:BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,
             BLE_PERIPHERAL_DFU_STATUS_ABORTED:BLE_PERIPHERAL_DFU_STATUS_ABORTED,
@@ -527,8 +360,6 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             BLE_PERIPHERAL_DFU_STATUS_CONNECTING:BLE_PERIPHERAL_DFU_STATUS_CONNECTING,
             BLE_PERIPHERAL_DFU_STATUS_CONNECTED:BLE_PERIPHERAL_DFU_STATUS_CONNECTED,
             BLE_PERIPHERAL_DFU_STATUS_DISCONNECTED:BLE_PERIPHERAL_DFU_STATUS_DISCONNECTED,
-            BLE_PERIPHERAL_DFU_STATUS_SCANNING : BLE_PERIPHERAL_DFU_STATUS_SCANNING,
-            BLE_PERIPHERAL_DFU_STATUS_DFU_INTERFACE_FOUND: BLE_PERIPHERAL_DFU_STATUS_DFU_INTERFACE_FOUND,
             BLE_PERIPHERAL_DFU_STATUS_VALIDATING:BLE_PERIPHERAL_DFU_STATUS_VALIDATING,
             BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING:BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING,
             BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU:BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU,
@@ -546,6 +377,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
         if(centralManager == nil) {
             self.centralManager =  CBCentralManager(delegate: self, queue: nil)
         }
+        dfu = Dfu(queueCount: 3, callback: self.sendEvent(withName:body:))
     }
     
     @objc
@@ -598,46 +430,33 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             self.scanFilter = pattern
         }
         self.allowDuplicates = false
-        self.allowNoNamedDevices = false
         if let opt = options as? [String: Any]{
-            // print("SOOOOOOOKA - options 1 - ", opt)
+            print("SOOOOOOOKA - options 1 - ", opt)
             if let duplicates = opt["allowDuplicates"] as? Bool {
-                // print("SOOOOOOOKA - options 2 - ", duplicates)
+                print("SOOOOOOOKA - options 2 - ", duplicates)
                 self.allowDuplicates = duplicates
-            }
-            if let noNamedDevices = opt["allowNoNamed"] as? Bool {
-                // print("SOOOOOOOKA - options 2 - ", duplicates)
-                self.allowNoNamedDevices = noNamedDevices
             }
         }
         self.peripherals.removeAll()
-        self.centralManager?.scanForPeripherals(withServices: services, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
-        self.peripheralWatchdog?.invalidate()
-        DispatchQueue.main.async(execute: {
-            self.peripheralWatchdog = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-                if let peripherals = self?.peripherals{
-                    var devs : [[String:Any]] = []
-                    let currentTimeMillis = Date().timeIntervalSince1970 * 1000
-                    for peripheral in peripherals.values {
-                        if fabs(peripheral.getLastSeen() - currentTimeMillis) >= 5000 {
-                            self?.peripherals.removeValue(forKey: peripheral.uuid())
-                            continue
-                        }
-                        devs.append(["uuid":  peripheral.uuid() ,
-                                     "name":  peripheral.name(),
-                                     "rssi": peripheral.getLastRSSI(),
-                                     "dfuCompliant":peripheral.isDfuCompliant()])
-                    }
-                    if self?.syncHelper.scanResolve == nil && !devs.isEmpty {
-                        self?.sendEvent(withName: BLE_PERIPHERAL_UPDATES, body: ["devices":  devs])
-                    }
-                }
-            }
-        })
+        self.centralManager?.scanForPeripherals(withServices: services, options: nil)
+        self.scanWatchdog = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(runTimedCode), userInfo: nil, repeats: true)
     }
     
-    @objc func fireTimer() {
-        print("Timer fired!")
+    @objc
+    func runTimedCode() {
+        let currentTimeInSeconds = Date().timeIntervalSince1970
+        let result = self.peripherals.filter { currentTimeInSeconds - $0.value.getLastSeen() < 5 }
+        var devices : [[String:Any]] = []
+        for p in result.values {
+            var el : [String:Any] = [:]
+            el["uuid"] = p.getGATTServer().identifier.uuidString
+            el["name"] = p.getGATTServer().name
+            el["dfuCompliant"] = p.isDfuCompliant()
+            el["rssi"] = p.getLastRSSI()
+            devices.append(el)
+        }
+        var body : [String:Any] = ["devices":devices]
+        self.sendEvent(withName: BLE_PERIPHERAL_UPDATES, body: body)
     }
     
     @objc
@@ -661,8 +480,8 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     func stopScan()
     {
         /// ("========================>>>> stopScan")
+        self.scanWatchdog?.invalidate()
         self.centralManager?.stopScan()
-        self.peripheralWatchdog?.invalidate()
         if let resolve = self.syncHelper.scanResolve {
             var devices : [[String:Any]] = []
             for peripheral in self.peripherals.values {
@@ -682,12 +501,12 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     @objc
     func connect(_ uuidString: String)
     {
-        // print ("SAMU - ========================>>>> connect")
+        print ("SAMU - ========================>>>> connect")
         self.syncHelper.connectReject = nil
         self.syncHelper.connectResolve = nil
         /// i'm already connected to a device
         if self.isConnected(uuidString: uuidString) {
-            // print ("SAMU - ========================>>>> connect - isConnected")
+            print ("SAMU - ========================>>>> connect - isConnected")
             return
         }
         let p = self.peripherals[uuidString]!.getGATTServer()
@@ -697,12 +516,12 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     @objc
     func connectSync(_ uuidString: String, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
     {
-        // print ("SAMU - ========================>>>> connect")
+        print ("SAMU - ========================>>>> connect")
         self.syncHelper.connectReject = rejecter
         self.syncHelper.connectResolve = resolve
         /// i'm already connected to a device
         if self.isConnected(uuidString: uuidString) {
-            // print ("SAMU - ========================>>>> connect - isConnected")
+            print ("SAMU - ========================>>>> connect - isConnected")
             rejecter(BLE_PERIPHERAL_CONNECT_FAILED, "Device already connected: \(uuidString)", nil)
             return
         }
@@ -728,9 +547,9 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     @objc
     func cancel(_ uuidString: String)
     {
-        // print("SAMU - 1")
+        print("SAMU - 1")
         if !self.isConnected(uuidString: uuidString) {
-            // print ("SAMU - ========================>>>> connect - !isConnected")
+            print ("SAMU - ========================>>>> connect - !isConnected")
             return
         }
         let p = self.peripherals[uuidString]!.getGATTServer()
@@ -740,7 +559,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     @objc
     func disconnect(_ uuidString: String)
     {
-        // print("SAMU 14 ========================>>>> disconnect")
+        print("SAMU 14 ========================>>>> disconnect")
         if !self.isConnected(uuidString: uuidString) {
             /// i need to disconnect the current device before attempting a new connection
             return
@@ -803,144 +622,52 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             self.sendEvent(withName: BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "charUUID": charUUID, "error": "characteristic not found with uuid:\(uuid)"])
         }
     }
-    
+        
     @objc
-    func startDFU(_ uuid: String , alternateUUID: String? , filePath:String , pathType:String , options:NSDictionary)
+    func startDFU(_ uuid: String , filePath:String , pathType:String , options:NSDictionary)
     {
-        if self.isConnected(uuidString: uuid) && alternateUUID == nil{
+        if !self.isDiscovered(uuidString: uuid) {
             /// i need to disconnect the current device before attempting a new connection
             self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": uuid, "error": "peripheral with uuid:\(uuid) still connected!"])
             return
         }
         let p : Peripheral = self.peripherals[uuid]!
-        if alternateUUID != nil {
-            p.initiateDFU(uuid: alternateUUID!, filePath: filePath, pathType: pathType, withOptions: options, callback: self.sendEvent(withName:body:))
-        }else{
-            p.initiateDFU(uuid: uuid, filePath: filePath, pathType: pathType, withOptions: options, callback: self.sendEvent(withName:body:))
-        }
+        dfu.startDfu(peripheral: p.getGATTServer(), filePath: filePath, pathType: pathType, options: options)
     }
     
     @objc
     func pauseDFU(_ uuid: String )
     {
-        if self.peripherals[uuid] == nil{
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
-            return
-        }
-        if self.isConnected(uuidString: uuid) {
+        if !self.isDiscovered(uuidString: uuid) {
             /// i need to disconnect the current device before attempting a new connection
             self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED, body: ["uuid": uuid, "error": "Device with uuid:\(uuid) already disconnected!"])
             return
         }
-        self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_PAUSED, body: ["uuid": uuid])
-        let p : Peripheral = self.peripherals[uuid]!
-        p.pauseDFU()
+        dfu.pauseDfu(uuid: uuid)
     }
     
     @objc
     func resumeDFU(_ uuid: String )
     {
-        if self.peripherals[uuid] == nil{
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
-            return
-        }
-        if self.isConnected(uuidString: uuid) {
+        if !self.isDiscovered(uuidString: uuid) {
             /// i need to disconnect the current device before attempting a new connection
             self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED, body: ["uuid": uuid, "error": "Device with uuid:\(uuid) already disconnected!"])
             return
         }
-        self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_RESUMED, body: ["uuid": uuid])
-        let p : Peripheral = self.peripherals[uuid]!
-        p.resumeDFU()
+        dfu.resumeDfu(uuid: uuid)
     }
     
     @objc
     func abortDFU(_ uuid: String )
     {
-        if self.peripherals[uuid] == nil{
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
-            return
-        }
-        if self.isConnected(uuidString: uuid) {
+        if !self.isDiscovered(uuidString: uuid) {
             /// i need to disconnect the current device before attempting a new connection
             self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED, body: ["uuid": uuid, "error": "Device with uuid:\(uuid) already disconnected!"])
             return
         }
-        let p : Peripheral = self.peripherals[uuid]!
-        if !p.abortDFU() {
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED, body: ["uuid": uuid])
-        }else{
-            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_ABORTED, body: ["uuid": uuid])
-        }
+        dfu.abortDfu(uuid: uuid)
     }
-    //
-    //    /// =======================================================================================================================================
-    //    /// =======================================================================================================================================
-    //    /// =======================================================================================================================================
-    //    /// ===============  DFU DELEGATE
-    //    /// =======================================================================================================================================
-    //    /// =======================================================================================================================================
-    //    /// =======================================================================================================================================
-    //    func dfuStateDidChange(to state: iOSDFULibrary.DFUState) {
-    //        switch (state)
-    //        {
-    //        case .completed:
-    //            let body = ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_COMPLETED, "description": "DFU Procedure successfully completed."]
-    //            if let success = self.syncHelper.processResolve {
-    //                success(body)
-    //            }else{
-    //                self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: body )
-    //            }
-    //            break
-    //        case .aborted:
-    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_ABORTED, "description": "DFU Procedure aborted by the user."])
-    //            break
-    //        case .starting:
-    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_STARTING, "description": "DFU Procedure started."])
-    //            break
-    //        case .uploading:
-    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_UPLOADING, "description": "Uploading firmware onto remote device."])
-    //            break
-    //        case .connecting:
-    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_CONNECTING, "description": "Connecting to the remote device."])
-    //            break
-    //        case .validating:
-    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_VALIDATING, "description": "Validating firmware."])
-    //            break
-    //        case .disconnecting:
-    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING, "description": "Disconnecting from remote device."])
-    //            break
-    //        case .enablingDfuMode:
-    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU, "description": "Enabling DFU interface on remote device."])
-    //            break
-    //        }
-    //    }
-    //
-    //    func dfuError(_ error: iOSDFULibrary.DFUError, didOccurWithMessage message: String) {
-    //        if let failure = self.syncHelper.processReject {
-    //            failure(BLE_PERIPHERAL_DFU_PROCESS_FAILED, "Error: \(message)(\(error.rawValue))", nil)
-    //        }else{
-    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_PROCESS_FAILED, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "error":"Error: \(message)(\(error.rawValue))", "errorCode": error.rawValue])
-    //        }
-    //    }
-    //
-    //    func dfuProgressDidChange(for part: Int, outOf totalParts: Int, to progress: Int, currentSpeedBytesPerSecond: Double, avgSpeedBytesPerSecond: Double){
-    //        self.sendEvent(withName: BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString, "status":BLE_PERIPHERAL_DFU_STATUS_UPLOADING, "description": "Uploading firmware onto remote device.",
-    //                                                                     "part": part,
-    //                                                                     "totalParts": totalParts,
-    //                                                                     "progress": progress,
-    //                                                                     "currentSpeedBytesPerSecond": currentSpeedBytesPerSecond,
-    //                                                                     "avgSpeedBytesPerSecond": avgSpeedBytesPerSecond
-    //                                                                    ])
-    //    }
-    //
-    //    func logWith(_ level: iOSDFULibrary.LogLevel, message: String) {
-    //        if self.dfuHelper.enableDebug {
-    //            self.sendEvent(withName: BLE_PERIPHERAL_DFU_DEBUG, body: ["uuid": self.dfuHelper.currentPeripheralId.uuidString,
-    //                                                                      "message": "\(level.rawValue) - \(message)"
-    //                                                                     ])
-    //        }
-    //    }
+    
     /// =======================================================================================================================================
     /// =======================================================================================================================================
     /// =======================================================================================================================================
@@ -964,44 +691,32 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber)
     {
-        var name = ""
-        if !self.allowNoNamedDevices {
-            if peripheral.name == nil {
-                return
-            }
-            name = peripheral.name!
+        guard let name = peripheral.name else {
+            return
         }
         var niceFind = true
-        let currentTimeMillis = Date().timeIntervalSince1970 * 1000
-        if let pattern = self.scanFilter {
+        if let pattern = self.scanFilter
+        {
+            //        print("SOOOOOOOKA - niceFind 0 - ",peripheral.identifier.uuidString , pattern, peripheral.identifier.uuidString.range(of: pattern, options: .caseInsensitive))
             niceFind = name.range(of: pattern, options: .caseInsensitive) != nil
         }
-        if niceFind, self.allowDuplicates == false  {
+        print("SOOOOOOOKA - niceFind 1 - ", niceFind)
+        if niceFind, let allow = self.allowDuplicates, allow == false  {
             niceFind = !self.peripherals.keys.contains(peripheral.identifier.uuidString)
-            if(!niceFind) {
-                if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
-                    p.setLastRSSI(rssi: RSSI)
-                    p.setLastSeen(time: currentTimeMillis)
-                }
-            }
         }
+        print("SOOOOOOOKA - niceFind 2 - ", niceFind)
         if niceFind {
             let p : Peripheral = Peripheral(peripheral, rssi: RSSI, delegate:self)
-            p.setLastSeen(time: currentTimeMillis)
-            if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
-                for serviceUUID in serviceUUIDs {
-                    if serviceUUID.uuidString.compare(DFU_SERVICE_UUID, options: .caseInsensitive) == .orderedSame {
-                        p.setDfuCompliant(compliant: true)
-                    }
-                }
-            }
             self.peripherals[peripheral.identifier.uuidString] = p
+            if self.syncHelper.scanResolve == nil {
+                self.sendEvent(withName: BLE_PERIPHERAL_FOUND, body: ["uuid":  peripheral.identifier.uuidString , "name":  peripheral.name!, "rssi": RSSI])
+            }
         }
     }
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral)
     {
-        // print("SAMU ----- didConnect \(peripheral.identifier.uuidString)")
+        print("SAMU ----- didConnect \(peripheral.identifier.uuidString)")
         let body = ["uuid": peripheral.identifier.uuidString]
         if let resolve = self.syncHelper.connectResolve {
             resolve(body)
@@ -1059,9 +774,9 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             return
         }
         if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
-            // print("SAMU - trovati servizi ")
+            print("SAMU - trovati servizi ")
             if let services = peripheral.services {
-                // print("\n\n\n \(services)\n\n\n")
+                print("\n\n\n \(services)\n\n\n")
                 p.setServicesAndDiscoverCharacteristics(services)
                 sendEvent(withName: BLE_PERIPHERAL_DFU_COMPLIANT, body: ["compliant" : p.isDfuCompliant()])
             }
@@ -1080,9 +795,9 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
                     p.setCharacteristic(characteristic, forServiceUUID: service.uuid.uuidString)
                     self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED, body: ["uuid": _peripheral.identifier.uuidString, "charUUID": characteristic.uuid.uuidString])
                 }
-                // print("\n\n\n COUNT \(p.servicesDiscovered())\n\n\n")
+                print("\n\n\n COUNT \(p.servicesDiscovered())\n\n\n")
                 if p.servicesDiscovered() <= 0 {
-                    self.sendEvent(withName: BLE_PERIPHERAL_READY, body: ["uuid": _peripheral.identifier.uuidString, "dfuCompliant" : p.isDfuCompliant()])
+                    self.sendEvent(withName: BLE_PERIPHERAL_READY, body: ["uuid": _peripheral.identifier.uuidString])
                 }
             }
         }

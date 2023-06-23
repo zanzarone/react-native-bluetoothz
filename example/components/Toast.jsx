@@ -1,5 +1,6 @@
 import {Image, Modal, StyleSheet, Text, View} from 'react-native';
 import TouchableDebounce from './TouchableDebounce';
+import {useState} from 'react';
 
 function toastColor({state}) {
   let color;
@@ -58,7 +59,8 @@ function toastTitle({state}) {
   return color;
 }
 
-export default function Toast({state}) {
+export default function Toast() {
+  const [state, updateState] = useState({visible: false});
   return (
     <Modal transparent animationType="fade" visible={state !== undefined}>
       <View style={styles.modalAlert.parent}>

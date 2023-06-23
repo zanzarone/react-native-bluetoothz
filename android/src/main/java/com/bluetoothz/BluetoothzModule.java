@@ -109,6 +109,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 // =====================================================================================================================
   public static final String DFU_OPTION_ENABLE_DEBUG = "DFU_OPTION_ENABLE_DEBUG";
   public static final String DFU_OPTION_PACKET_DELAY = "DFU_OPTION_PACKET_DELAY";
+  public static final String DFU_OPTION_RETRIES_NUMBER = "DFU_OPTION_RETRIES_NUMBER";
   public static final String FILE_PATH_TYPE_STRING = "FILE_PATH_TYPE_STRING";
   public static final String FILE_PATH_TYPE_URL = "FILE_PATH_TYPE_URL";
   private static final String DFU_SERVICE_UUID = "0000fe59";
@@ -127,7 +128,6 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 //  private LocalDfuProgressListener mLocalDfuProgressListener;
   private ConcurrentHashMap<String, Peripheral> mPeripherals;
   public Dfu mDfuHelper;
-  public Thread pippo;
   private SyncHelper mSyncHelper;
   private PeripheralWatchdog mPeripheralWatchdog;
 
@@ -147,7 +147,6 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     this.reactContext.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
     this.mSyncHelper = new SyncHelper();
     this.mDfuHelper = new Dfu(context);
-    this.pippo = new Thread(this.mDfuHelper);
   }
 
   @Override
@@ -641,6 +640,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     ///
     constants.put(DFU_OPTION_ENABLE_DEBUG, DFU_OPTION_ENABLE_DEBUG);
     constants.put(DFU_OPTION_PACKET_DELAY, DFU_OPTION_PACKET_DELAY);
+    constants.put(DFU_OPTION_RETRIES_NUMBER, DFU_OPTION_RETRIES_NUMBER);
     constants.put(FILE_PATH_TYPE_STRING, FILE_PATH_TYPE_STRING);
     constants.put(FILE_PATH_TYPE_URL, FILE_PATH_TYPE_URL);
     return constants;
@@ -969,15 +969,15 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 
   @ReactMethod
   public void startDFU(String uuid, String filePath, String pathType, ReadableMap options) {
-    if(!this.pippo.isAlive()) { // Check if the Dfu daemon is alive, otherwise starts it
-      this.pippo.start();
+    if(!this.mDfuHelper.isAlive()) { // Check if the Dfu daemon is alive, otherwise starts it
+      this.mDfuHelper.start();
     }
     this.mDfuHelper.submit(uuid, filePath, pathType, options);
   }
 
   @ReactMethod
   public void pauseDFU(String uuid) {
-    if (!isConnected(uuid)) {
+    if (!isDiscovered(uuid)) {
       WritableMap params = Arguments.createMap();
       params.putString("uuid", uuid);
       params.putString("error", "Device already disconnected:" + uuid);
@@ -990,7 +990,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 
   @ReactMethod
   public void resumeDFU(String uuid) {
-    if (!isConnected(uuid)) {
+    if (!isDiscovered(uuid)) {
       WritableMap params = Arguments.createMap();
       params.putString("uuid", uuid);
       params.putString("error", "Device already disconnected:" + uuid);
@@ -1002,7 +1002,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 
   @ReactMethod
   public void abortDFU(String uuid) {
-    if (!isConnected(uuid) ) {
+    if (!isDiscovered(uuid) ) {
       WritableMap params = Arguments.createMap();
       params.putString("uuid", uuid);
       params.putString("error", "Device already disconnected:" + uuid);

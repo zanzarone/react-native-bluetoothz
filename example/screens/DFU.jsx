@@ -5,6 +5,7 @@ import TouchableDebounce from '../components/TouchableDebounce';
 import DocumentPicker from 'react-native-document-picker';
 import {useEffect, useState} from 'react';
 import * as BluetoothZ from 'react-native-bluetoothz';
+import RoundButton from '../components/RoundButton';
 
 const Element = ({device, onDeviceFailed}) => {
   // console.log(device);
@@ -28,40 +29,38 @@ const Element = ({device, onDeviceFailed}) => {
           style={{
             position: 'absolute',
             backgroundColor: 'springgreen',
-            height: 57,
+            height: 56,
             width:
               currentDevice?.progress !== undefined
-                ? (currentDevice.progress * 57) / 100
+                ? (currentDevice.progress * 55) / 100
                 : 0,
-            top: 6,
-            borderRadius: 10,
-            left: 6,
+            top: 7,
+            borderRadius: 5,
+            left: 9,
           }}
         />
         <Image
           source={require('../assets/icon/processor.png')}
           style={{width: 70, height: 70}}
         />
-        <Text
+        <View
           style={{
+            backgroundColor: 'transparent',
             position: 'absolute',
-            fontFamily: 'Nunito-Black',
-            color: 'black',
-            height: 57,
-            width: 57,
-            top: 6,
-            borderRadius: 10,
-            left: 6,
-            textAlign: 'center',
-            textAlignVertical: 'center',
-            // top: 25,
-            // left: 17,
-            fontSize: 13,
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            justifyContent: 'center',
+            alignItems: 'center',
           }}>
-          {currentDevice?.progress !== undefined
-            ? `${currentDevice.progress}%`
-            : '0%'}
-        </Text>
+          <Text
+            style={{fontFamily: 'Nunito-Black', fontSize: 13, color: 'black'}}>
+            {currentDevice?.progress !== undefined
+              ? `${currentDevice.progress}%`
+              : '0%'}
+          </Text>
+        </View>
       </View>
       <View style={{alignItems: 'center', flex: 1}}>
         <Text
@@ -69,6 +68,7 @@ const Element = ({device, onDeviceFailed}) => {
             fontFamily: 'Nunito-Bold',
             color: 'black',
             fontSize: 20,
+            // width: '100%',
             // backgroundColor: 'green',
           }}>
           {currentDevice.name}
@@ -76,9 +76,12 @@ const Element = ({device, onDeviceFailed}) => {
         <Text
           style={{
             fontFamily: 'Nunito-Bold',
-            color: currentDevice.alternativeUUID ? 'coral' : 'black',
+            // backgroundColor: 'green',
+            fontSize: 13,
+            // width: '100%',
+            color: currentDevice?.alternativeUUID ? 'coral' : 'black',
           }}>
-          {currentDevice.alternativeUUID
+          {currentDevice?.alternativeUUID
             ? currentDevice.alternativeUUID
             : currentDevice.uuid}
         </Text>
@@ -87,14 +90,15 @@ const Element = ({device, onDeviceFailed}) => {
             fontFamily: 'Nunito-Italic',
             flex: 1,
             color: 'black',
-            fontSize: 16,
+            fontSize: 14,
             textAlign: 'center',
+            width: '100%',
             // backgroundColor: 'pink',
           }}>
           {currentDevice.status ? currentDevice.description : 'Idle'}
         </Text>
       </View>
-      {currentDevice?.status === undefined && (
+      {/* {currentDevice?.status === undefined && (
         <View
           style={{
             flexDirection: 'row',
@@ -116,10 +120,9 @@ const Element = ({device, onDeviceFailed}) => {
               source={require('../assets/icon/upload-100.png')}
             />
           </TouchableDebounce>
-          {/* <PauseResumeButton status={currentDevice?.status} /> */}
         </View>
-      )}
-      {currentDevice?.dfuStarting && (
+      )} */}
+      {/* {currentDevice?.dfuStarting && (
         <View
           style={{
             flexDirection: 'row',
@@ -174,9 +177,8 @@ const Element = ({device, onDeviceFailed}) => {
               }
             />
           </TouchableDebounce>
-          {/* <PauseResumeButton status={currentDevice?.status} /> */}
         </View>
-      )}
+      )} */}
     </View>
   );
 };
@@ -211,68 +213,25 @@ const CommandHeader = ({
             source={require('../assets/icon/imported-files-100.png')}
             style={{width: 30, height: 30}}
           /> */}
-        <Text style={{fontFamily: 'Nunito-Bold', fontSize: 16}}>
+        <Text style={{fontFamily: 'Nunito-Bold', color: 'snow', fontSize: 16}}>
           Firmware file
         </Text>
         <Text
           style={{
             fontFamily: firmware?.name ? 'Nunito-Regular' : 'Nunito-Italic',
             fontSize: 14,
+            color: 'snow',
             // paddingLeft: 5,
           }}>
           {firmware?.name ? firmware.name : '<None>'}
         </Text>
       </View>
-      {dfuProcess === State.started && (
-        <TouchableDebounce
-          onPress={() => onAbortAllPressed()}
-          disabled={dfuProcess !== State.started}
-          style={{
-            height: 40,
-            width: 40,
-            borderRadius: 20,
-            backgroundColor: '#444',
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}>
-          <Image
-            style={{
-              width: 30,
-              height: 30,
-              opacity: dfuProcess !== State.started ? 0.5 : 1,
-            }}
-            source={require('../assets/icon/cancel-100.png')}
-          />
-        </TouchableDebounce>
-      )}
-      {dfuProcess === State.file_selected && (
-        <TouchableDebounce
-          onPress={() => onUploadPressed()}
-          disabled={dfuProcess !== State.file_selected}
-          style={{
-            height: 40,
-            width: 40,
-            borderRadius: 20,
-            backgroundColor: '#444',
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}>
-          <Image
-            style={{
-              width: 30,
-              height: 30,
-              opacity: dfuProcess !== State.file_selected ? 0.5 : 1,
-            }}
-            source={require('../assets/icon/upload-100.png')}
-          />
-        </TouchableDebounce>
-      )}
       <TouchableDebounce
         onPress={async () => {
           const zip = await pickFirmwareFile();
           onFirmwareSelected(zip);
         }}
-        disabled={dfuProcess === State.started}
+        disabled={dfuProcess !== State.idle}
         style={{
           height: 40,
           width: 40,
@@ -285,7 +244,7 @@ const CommandHeader = ({
           style={{
             width: 30,
             height: 30,
-            opacity: dfuProcess === State.started ? 0.5 : 1,
+            opacity: dfuProcess !== State.idle ? 0.5 : 1,
           }}
           source={require('../assets/icon/folder-100.png')}
         />
@@ -294,7 +253,13 @@ const CommandHeader = ({
   );
 };
 
-const State = {idle: 0, started: 1, aborted: 2, file_selected: 3};
+const State = {
+  idle: 0,
+  running: 1,
+  aborted: 2,
+  file_selected: 3,
+  paused: 4,
+};
 
 const pickFirmwareFile = async () => {
   let res;
@@ -317,31 +282,31 @@ const pickFirmwareFile = async () => {
   return res;
 };
 
-async function startDFU({uuid, alternativeUUID = undefined, firmware}) {
-  // const {uuid} = devices[dfu?.currentDeviceIndex];
-  console.log('1 ==============>', uuid);
-  if (Platform.OS === 'android') {
-    try {
-      console.log('2 ==============>', uuid);
+// async function startDFU({uuid, alternativeUUID = undefined, firmware}) {
+//   // const {uuid} = devices[dfu?.currentDeviceIndex];
+//   console.log('1 ==============>', uuid);
+//   if (Platform.OS === 'android') {
+//     try {
+//       console.log('2 ==============>', uuid);
 
-      await BluetoothZ.connectSync({uuid});
+//       await BluetoothZ.connectSync({uuid});
 
-      console.log('3 ==============>', uuid);
-    } catch (error) {
-      console.log(error);
-      return;
-    }
-  }
-  BluetoothZ.startDFU({
-    uuid,
-    alternativeUUID,
-    filePath: firmware.fileCopyUri,
-    pathType:
-      Platform.OS === 'ios'
-        ? BluetoothZ.Defines.FILE_PATH_TYPE_STRING
-        : BluetoothZ.Defines.FILE_PATH_TYPE_URL,
-  });
-}
+//       console.log('3 ==============>', uuid);
+//     } catch (error) {
+//       console.log(error);
+//       return;
+//     }
+//   }
+//   BluetoothZ.startDFU({
+//     uuid,
+//     alternativeUUID,
+//     filePath: firmware.fileCopyUri,
+//     pathType:
+//       Platform.OS === 'ios'
+//         ? BluetoothZ.Defines.FILE_PATH_TYPE_STRING
+//         : BluetoothZ.Defines.FILE_PATH_TYPE_URL,
+//   });
+// }
 
 export default function TestDFU({navigation, route}) {
   const [firmwareSelected, setFirmwareSelected] = useState(undefined);
@@ -362,6 +327,25 @@ export default function TestDFU({navigation, route}) {
     }),
   );
 
+  // console.log('aaaaaaaaaa', dfuProcess);
+
+  useEffect(() => {
+    console.log(currentDevices);
+    if (
+      currentDevices.every(d => {
+        // console.log('o mamma ', d);
+        return (
+          d.status === BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_COMPLETED ||
+          d.status === BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_ABORTED ||
+          d.status === BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED
+        );
+      })
+    ) {
+      console.log('SOKETTONE');
+      setDfuProcess(State.file_selected);
+    }
+  }, [currentDevices]);
+
   useEffect(() => {
     console.log('=================>>>>>>>>>>>> ON');
     const dfuStatusListener = BluetoothZ.emitter.addListener(
@@ -378,12 +362,77 @@ export default function TestDFU({navigation, route}) {
               prevDevs.map(prevD => {
                 if (
                   prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ===
-                  0
+                    0 ||
+                  (alternativeUUID !== undefined &&
+                    prevD.uuid
+                      .toLowerCase()
+                      .localeCompare(alternativeUUID.toLowerCase()) === 0)
                 ) {
                   return {
                     ...prevD,
                     error,
                     errorCode,
+                    status:
+                      event?.status !== undefined ? event.status : prevD.status,
+                    progress: undefined,
+                    dfuStarting: undefined,
+                    dfuPaused: false,
+                    alternativeUUID: undefined,
+                  };
+                }
+                return prevD;
+              }),
+            );
+
+            break;
+          }
+          case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_COMPLETED: {
+            console.log('Dfu completed');
+            updateDevices(prevDevs =>
+              prevDevs.map(prevD => {
+                if (
+                  prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ===
+                    0 ||
+                  (alternativeUUID !== undefined &&
+                    prevD.uuid
+                      .toLowerCase()
+                      .localeCompare(alternativeUUID.toLowerCase()) === 0)
+                ) {
+                  return {
+                    ...prevD,
+                    status:
+                      event?.status !== undefined ? event.status : prevD.status,
+                    progress: undefined,
+                    dfuStarting: undefined,
+                    dfuPaused: false,
+                    alternativeUUID: undefined,
+                  };
+                }
+                return prevD;
+              }),
+            );
+
+            break;
+          }
+          case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_ABORTED: {
+            const {error, errorCode} = event;
+            console.log('Dfu FAILED', error, errorCode);
+            updateDevices(prevDevs =>
+              prevDevs.map(prevD => {
+                if (
+                  prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ===
+                    0 ||
+                  (alternativeUUID !== undefined &&
+                    prevD.uuid
+                      .toLowerCase()
+                      .localeCompare(alternativeUUID.toLowerCase()) === 0)
+                ) {
+                  return {
+                    ...prevD,
+                    error,
+                    errorCode,
+                    status:
+                      event?.status !== undefined ? event.status : prevD.status,
                     progress: undefined,
                     dfuStarting: undefined,
                     dfuPaused: false,
@@ -409,12 +458,9 @@ export default function TestDFU({navigation, route}) {
                 ) {
                   return prevD;
                 }
-                /// it is advertising an alternate uuid
-                if (!alternativeUUID) {
-                  return prevD;
-                }
                 /// the advertising uuid is equal to the old one uuid
                 if (
+                  alternativeUUID !== undefined &&
                   prevD.uuid
                     .toLowerCase()
                     .localeCompare(alternativeUUID.toLowerCase()) === 0
@@ -423,6 +469,69 @@ export default function TestDFU({navigation, route}) {
                 }
                 return {
                   ...prevD,
+                  dfuStarting: true,
+                  alternativeUUID,
+                };
+              }),
+            );
+            break;
+          }
+          ///
+          case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_PAUSED: {
+            const alternativeUUID = event.alternativeUUID;
+            console.log('Dfu STARTING', uuid, alternativeUUID);
+            updateDevices(prevDevs =>
+              prevDevs.map(prevD => {
+                /// is the device i'm looking for?
+                if (
+                  prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) !==
+                  0
+                ) {
+                  return prevD;
+                }
+                /// the advertising uuid is equal to the old one uuid
+                if (
+                  alternativeUUID !== undefined &&
+                  prevD.uuid
+                    .toLowerCase()
+                    .localeCompare(alternativeUUID.toLowerCase()) === 0
+                ) {
+                  return prevD;
+                }
+                return {
+                  ...prevD,
+                  dfuPaused: true,
+                  alternativeUUID,
+                };
+              }),
+            );
+            break;
+          }
+          ///
+          case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_RESUMED: {
+            const alternativeUUID = event.alternativeUUID;
+            console.log('Dfu STARTING', uuid, alternativeUUID);
+            updateDevices(prevDevs =>
+              prevDevs.map(prevD => {
+                /// is the device i'm looking for?
+                if (
+                  prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) !==
+                  0
+                ) {
+                  return prevD;
+                }
+                /// the advertising uuid is equal to the old one uuid
+                if (
+                  alternativeUUID !== undefined &&
+                  prevD.uuid
+                    .toLowerCase()
+                    .localeCompare(alternativeUUID.toLowerCase()) === 0
+                ) {
+                  return prevD;
+                }
+                return {
+                  ...prevD,
+                  dfuPaused: false,
                   alternativeUUID,
                 };
               }),
@@ -432,27 +541,30 @@ export default function TestDFU({navigation, route}) {
           ///
           case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_UPLOADING: {
             const alternativeUUID = event.alternativeUUID;
+            console.log('Dfu progress=', event?.progress, alternativeUUID);
+
             updateDevices(prevDevs =>
               prevDevs.map(prevD => {
                 if (
                   prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ===
                     0 ||
-                  prevD.uuid
-                    .toLowerCase()
-                    .localeCompare(alternativeUUID.toLowerCase()) === 0
+                  (alternativeUUID !== undefined &&
+                    prevD.uuid
+                      .toLowerCase()
+                      .localeCompare(alternativeUUID.toLowerCase()) === 0)
                 ) {
                   return {
                     ...prevD,
                     progress:
                       event?.progress !== undefined
                         ? event.progress
-                        : d.progress,
+                        : prevD.progress,
                     description:
                       event?.description !== undefined
                         ? event.description
-                        : d.description,
+                        : prevD.description,
                     status:
-                      event?.status !== undefined ? event.status : d.status,
+                      event?.status !== undefined ? event.status : prevD.status,
                   };
                 }
                 return prevD;
@@ -460,8 +572,39 @@ export default function TestDFU({navigation, route}) {
             );
             break;
           }
-
           default:
+            console.log(
+              '=================>>>>>>>>>>>> %%%%%%%%%%%% % %% %  % % %% % %% %  %% % %  %%',
+              event,
+            );
+            console.log(
+              'Dfu progress=',
+              event?.progress,
+              event.alternativeUUID,
+            );
+            updateDevices(prevDevs =>
+              prevDevs.map(prevD => {
+                if (
+                  prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ===
+                    0 ||
+                  (event?.alternativeUUID !== undefined &&
+                    prevD.uuid
+                      .toLowerCase()
+                      .localeCompare(event.alternativeUUID.toLowerCase()) === 0)
+                ) {
+                  return {
+                    ...prevD,
+                    description:
+                      event?.description !== undefined
+                        ? event.description
+                        : prevD.description,
+                    status:
+                      event?.status !== undefined ? event.status : prevD.status,
+                  };
+                }
+                return prevD;
+              }),
+            );
             break;
         }
       },
@@ -480,19 +623,6 @@ export default function TestDFU({navigation, route}) {
       bleAdapterListener?.remove();
     };
   }, []);
-
-  // useEffect(() => {
-  //   const bleAdapterListener = BluetoothZ.emitter.addListener(
-  //     BluetoothZ.Defines.BLE_ADAPTER_STATUS_DID_UPDATE,
-  //     ({status}) => {
-  //       console.log('oooooooooooo', status);
-  //     },
-  //   );
-
-  //   return function cleanUp() {
-  //     bleAdapterListener?.remove();
-  //   };
-  // }, []);
 
   return (
     <View style={{flex: 1, backgroundColor: '#F7F7F7'}}>
@@ -515,52 +645,83 @@ export default function TestDFU({navigation, route}) {
             setFirmwareSelected(zip);
             setDfuProcess(State.file_selected);
           }}
-          onUploadPressed={async () => {
-            const size = devices.length <= 2 ? devices.length : 2;
-            let success = true;
-            // for (let i = 0; i < size; i++) {
-            //   console.log('COMINCIO CON ', devices[i]?.uuid, devices[i]?.name);
-            //   // startDFU({uuid: devices[i]?.uuid, firmware: firmwareSelected});
-            //   try {
-            //     console.log('2 ==============>', devices[i]?.uuid);
-
-            //     await BluetoothZ.connectSync({
-            //       uuid: devices[i]?.uuid,
-            //       enableDiscover: false,
-            //     });
-
-            //     console.log('3 ==============>', devices[i]?.uuid);
-            //   } catch (error) {
-            //     console.log(error);
-            //     success = false;
-            //     // return;
-            //   }
-            // }
-            if (success) {
-              for (let i = 0; i < size; i++) {
-                console.log('SFU CON ', devices[i]?.uuid, devices[i]?.name);
-                BluetoothZ.startDFU({
-                  uuid: devices[i]?.uuid,
-                  filePath: firmwareSelected.fileCopyUri,
-                  pathType:
-                    Platform.OS === 'ios'
-                      ? BluetoothZ.Defines.FILE_PATH_TYPE_STRING
-                      : BluetoothZ.Defines.FILE_PATH_TYPE_URL,
-                });
-              }
-            }
-            setDfuProcess(State.started);
-            setDfuIndex(prevIndex => prevIndex + 1);
-          }}
-          onAbortAllPressed={() => {
-            setDfuProcess(State.aborted);
-            const size = devices.length <= 2 ? devices.length : 2;
-            for (let i = 0; i < size; i++) {
-              console.log('DISCONNECTO ', devices[i]?.uuid, devices[i]?.name);
-              BluetoothZ.disconnect({uuid: devices[i]?.uuid});
-            }
-          }}
         />
+        <View
+          style={{
+            position: 'absolute',
+            // backgroundColor: 'pink',
+            height: 70,
+            width: '100%',
+            bottom: 120,
+            justifyContent: 'center',
+            alignItems: 'center',
+            flexDirection: 'row',
+            gap: 10,
+            zIndex: 1000,
+          }}>
+          {dfuProcess !== State.file_selected &&
+            dfuProcess !== State.idle &&
+            dfuProcess !== State.aborted && (
+              <RoundButton
+                onPress={async () => {
+                  for (let i = 0; i < devices.length; i++) {
+                    BluetoothZ.abortDFU({uuid: devices[i]?.uuid});
+                  }
+                  setDfuProcess(State.file_selected);
+                }}
+                iconSize={{height: 30, width: 30}}
+                buttonSize={{height: 50, width: 50, radius: 25}}
+                icon={require('../assets/icon/cancel-100.png')}
+              />
+            )}
+          {dfuProcess === State.running && (
+            <RoundButton
+              onPress={async () => {
+                for (let i = 0; i < devices.length; i++) {
+                  BluetoothZ.pauseDFU({uuid: devices[i]?.uuid});
+                }
+                setDfuProcess(State.paused);
+              }}
+              iconSize={{height: 30, width: 30}}
+              buttonSize={{height: 50, width: 50, radius: 25}}
+              icon={require('../assets/icon/pause-b-100.png')}
+            />
+          )}
+          {dfuProcess === State.paused && (
+            <RoundButton
+              onPress={async () => {
+                for (let i = 0; i < devices.length; i++) {
+                  BluetoothZ.resumeDFU({uuid: devices[i]?.uuid});
+                }
+                setDfuProcess(State.running);
+              }}
+              iconSize={{height: 30, width: 30}}
+              buttonSize={{height: 50, width: 50, radius: 25}}
+              icon={require('../assets/icon/resume-b-100.png')}
+            />
+          )}
+          {dfuProcess === State.file_selected && (
+            <RoundButton
+              onPress={async () => {
+                for (let i = 0; i < devices.length; i++) {
+                  console.log('SFU CON ', devices[i]?.uuid, devices[i]?.name);
+                  BluetoothZ.startDFU({
+                    uuid: devices[i]?.uuid,
+                    filePath: firmwareSelected.fileCopyUri,
+                    pathType:
+                      Platform.OS === 'ios'
+                        ? BluetoothZ.Defines.FILE_PATH_TYPE_STRING
+                        : BluetoothZ.Defines.FILE_PATH_TYPE_URL,
+                  });
+                }
+                setDfuProcess(State.running);
+              }}
+              iconSize={{height: 30, width: 30}}
+              buttonSize={{height: 50, width: 50, radius: 25}}
+              icon={require('../assets/icon/upload-100.png')}
+            />
+          )}
+        </View>
         <FlatList
           style={{backgroundColor: 'transparent'}}
           data={currentDevices}

@@ -44,10 +44,9 @@ let reconnect = null;
 let scanWatchDog = null;
 let connectionWatchDog = new Map();
 let isScanning = false;
-let dfuRetryOptions = null;
 const scanOptions = { allowDuplicates: false };
 const dfuOptions = {
-  enableDebug: false,
+  enableDebug: true,
   packetDelay: 300,
 };
 module.exports.scanOptions = Object.freeze(scanOptions);
@@ -119,85 +118,12 @@ bleEmitter.addListener(
   }
 );
 
-bleEmitter.addListener(
-  Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED,
-  async (event) => {
-    console.log('DFU RETRY =======================> 0.', event);
-    // if (
-    //   event?.errorCode === DFU_ERROR_DEVICE_DISCONNECTED &&
-    //   dfuRetryOptions !== null
-    // ) {
-    //   const { uuid } = event;
-    //   /// 1. incremento l'uuid(MAC addr + 1)
-    //   let newUUID = incrementMacAddress(uuid);
-    //   console.log('DFU RETRY =======================> 1.', newUUID);
-    //   /// 2. se la piattaforma e' Android devo connettermi
-    //   if (Platform.OS === 'android') {
-    //     console.log(
-    //       'DFU RETRY =======================> Android, provo a riconnettere 2.',
-    //       newUUID
-    //     );
-    //     /// 3. prima scansiono e cerco newUuid
-    //     let devices = [];
-    //     bleEmitter.emit(Defines.BLE_PERIPHERAL_DFU_STATUS_SCANNING, { uuid });
-    //     try {
-    //       devices = await startScanSync({});
-    //     } catch (error) {
-    //       console.log(
-    //         'DFU RETRY =======================> Android, riconnes. errore 3.',
-    //         error
-    //       );
-    //       bleEmitter.emit(Defines.DFU_SCAN_FAILED, { uuid, newUUID });
-    //       return;
-    //     }
-    //     devices = devices.filter(
-    //       (d) =>
-    //         d.uuid.toLowerCase() === newUUID.toLowerCase() ||
-    //         d.uuid.toLowerCase() === uuid.toLowerCase()
-    //     );
-    //     if (devices.length <= 0) {
-    //       console.log(
-    //         'DFU RETRY =======================> Android, riconnes. errore 4.'
-    //       );
-    //       bleEmitter.emit(Defines.DFU_INTERFACE_NOT_FOUND, { uuid, newUUID });
-    //       return;
-    //     }
-    //     let device = devices.shift();
-    //     console.log(
-    //       'DFU RETRY =======================> PROVO DI NUOVO! 4.5',
-    //       device
-    //     );
-    //     bleEmitter.emit(Defines.BLE_PERIPHERAL_DFU_STATUS_DFU_INTERFACE_FOUND, {
-    //       uuid,
-    //       newUUID,
-    //     });
-    //     try {
-    //       await connectSync({ uuid: device.uuid, enableDiscover: false });
-    //       console.log('DFU RETRY =======================> PROVO DI NUOVO! 6.');
-    //     } catch (error) {
-    //       console.log(
-    //         'DFU RETRY =======================> Android, riconnes. errore 5.',
-    //         error
-    //       );
-    //       bleEmitter.emit(Defines.DFU_INTERFACE_CONNECT_FAILED, {
-    //         uuid,
-    //         newUUID,
-    //       });
-    //       return;
-    //     }
-    //   }
-    //   bleEmitter.emit(Defines.DFU_INTERFACE_FOUND, { uuid, newUUID });
-    /// 3. provo ad effettuare nuovamente la proc DFU
-    // startDFU({
-    //   uuid,
-    //   filePath: dfuRetryOptions.filePath,
-    //   pathType: dfuRetryOptions.pathType,
-    //   retryOnDisconnectionError: false,
-    //   options: dfuRetryOptions.options,
-    // });
-    // }
-  }
-);
+// bleEmitter.addListener(
+//   Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED,
+//   async (event) => {
+//     console.log('DFU RETRY =======================> 0.', event);
+//   }
+// );
 
 /// aggancio ascoltatore periferica connessa
 bleEmitter.addListener(Defines.BLE_PERIPHERAL_CONNECTED, (event) => {
@@ -338,7 +264,6 @@ async function startDFU({
   uuid,
   filePath,
   pathType = Defines.FILE_PATH_TYPE_STRING,
-  retryOnDisconnectionError = true,
   options = dfuOptions,
 }) {
   if (!uuid) {
@@ -354,11 +279,6 @@ async function startDFU({
     throw new Error(
       `Path type not supported. Types available: ${Defines.FILE_PATH_TYPE_STRING}, ${Defines.FILE_PATH_TYPE_URL}`
     );
-  }
-  if (retryOnDisconnectionError) {
-    dfuRetryOptions = { filePath, pathType, options };
-  } else {
-    dfuRetryOptions = null;
   }
   BLE.startDFU(uuid, filePath, pathType, options);
 }
