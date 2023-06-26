@@ -6,6 +6,8 @@ import DocumentPicker from 'react-native-document-picker';
 import {useEffect, useState} from 'react';
 import * as BluetoothZ from 'react-native-bluetoothz';
 import RoundButton from '../components/RoundButton';
+import {Toast, Constants} from '../components/Toast';
+import Emitter from '../utils/emitter';
 
 const Element = ({device, onDeviceFailed}) => {
   // console.log(device);
@@ -98,87 +100,65 @@ const Element = ({device, onDeviceFailed}) => {
           {currentDevice.status ? currentDevice.description : 'Idle'}
         </Text>
       </View>
-      {/* {currentDevice?.status === undefined && (
-        <View
-          style={{
-            flexDirection: 'row',
-            gap: 10,
-            // opacity: 0.5,
-          }}>
-          <TouchableDebounce
-            disabled={true}
+      {currentDevice?.dfuStarting ||
+        (true && (
+          <View
             style={{
-              height: 40,
-              width: 40,
-              borderRadius: 20,
-              backgroundColor: '#444',
-              justifyContent: 'center',
-              alignItems: 'center',
+              flexDirection: 'row',
+              gap: 10,
             }}>
-            <Image
-              style={{width: 30, height: 30}}
-              source={require('../assets/icon/upload-100.png')}
-            />
-          </TouchableDebounce>
-        </View>
-      )} */}
-      {/* {currentDevice?.dfuStarting && (
-        <View
-          style={{
-            flexDirection: 'row',
-            gap: 10,
-          }}>
-          <TouchableDebounce
-            disabled={!currentDevice.dfuStarting}
-            onPress={() => {
-              BluetoothZ.abortDFU({
-                uuid: currentDevice.uuid,
-              });
-            }}
-            style={{
-              height: 40,
-              width: 40,
-              borderRadius: 20,
-              backgroundColor: '#444',
-              justifyContent: 'center',
-              alignItems: 'center',
-              opacity: !currentDevice.dfuStarting ? 0.5 : 1,
-            }}>
-            <Image
-              style={{width: 30, height: 30}}
-              source={require('../assets/icon/cancel-100.png')}
-            />
-          </TouchableDebounce>
-          <TouchableDebounce
-            onPress={() => {
-              if (!currentDevice?.dfuPaused)
-                BluetoothZ.pauseDFU({
-                  uuid: currentDevice.uuid,
-                });
-              else
-                BluetoothZ.resumeDFU({
-                  uuid: currentDevice.uuid,
-                });
-            }}
-            style={{
-              height: 40,
-              width: 40,
-              borderRadius: 20,
-              backgroundColor: '#444',
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}>
-            <Image
-              style={{width: 30, height: 30}}
-              source={
-                currentDevice?.dfuPaused
-                  ? require('../assets/icon/resume-b-100.png')
-                  : require('../assets/icon/pause-b-100.png')
-              }
-            />
-          </TouchableDebounce>
-        </View>
-      )} */}
+            <TouchableDebounce
+              // disabled={!currentDevice.dfuStarting}
+              onPress={() => {
+                // BluetoothZ.abortDFU({
+                //   uuid: currentDevice.uuid,
+                // });
+                Emitter.emit(Constants.Events.SHOW_TOAST, {visible: true});
+              }}
+              style={{
+                height: 40,
+                width: 40,
+                borderRadius: 20,
+                backgroundColor: '#444',
+                justifyContent: 'center',
+                alignItems: 'center',
+                opacity: !currentDevice.dfuStarting ? 0.5 : 1,
+              }}>
+              <Image
+                style={{width: 30, height: 30}}
+                source={require('../assets/icon/cancel-100.png')}
+              />
+            </TouchableDebounce>
+            <TouchableDebounce
+              onPress={() => {
+                if (!currentDevice?.dfuPaused)
+                  BluetoothZ.pauseDFU({
+                    uuid: currentDevice.uuid,
+                  });
+                else
+                  BluetoothZ.resumeDFU({
+                    uuid: currentDevice.uuid,
+                  });
+              }}
+              style={{
+                height: 40,
+                width: 40,
+                borderRadius: 20,
+                backgroundColor: '#444',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}>
+              <Image
+                style={{width: 30, height: 30}}
+                source={
+                  currentDevice?.dfuPaused
+                    ? require('../assets/icon/resume-b-100.png')
+                    : require('../assets/icon/pause-b-100.png')
+                }
+              />
+            </TouchableDebounce>
+          </View>
+        ))}
     </View>
   );
 };
@@ -363,10 +343,11 @@ export default function TestDFU({navigation, route}) {
                 if (
                   prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ===
                     0 ||
-                  (alternativeUUID !== undefined &&
+                  (event?.alternativeUUID !== undefined &&
                     prevD.uuid
                       .toLowerCase()
-                      .localeCompare(alternativeUUID.toLowerCase()) === 0)
+                      .localeCompare(event?.alternativeUUID.toLowerCase()) ===
+                      0)
                 ) {
                   return {
                     ...prevD,
@@ -393,10 +374,11 @@ export default function TestDFU({navigation, route}) {
                 if (
                   prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ===
                     0 ||
-                  (alternativeUUID !== undefined &&
+                  (event?.alternativeUUID !== undefined &&
                     prevD.uuid
                       .toLowerCase()
-                      .localeCompare(alternativeUUID.toLowerCase()) === 0)
+                      .localeCompare(event?.alternativeUUID.toLowerCase()) ===
+                      0)
                 ) {
                   return {
                     ...prevD,
@@ -422,10 +404,11 @@ export default function TestDFU({navigation, route}) {
                 if (
                   prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ===
                     0 ||
-                  (alternativeUUID !== undefined &&
+                  (event?.alternativeUUID !== undefined &&
                     prevD.uuid
                       .toLowerCase()
-                      .localeCompare(alternativeUUID.toLowerCase()) === 0)
+                      .localeCompare(event?.alternativeUUID.toLowerCase()) ===
+                      0)
                 ) {
                   return {
                     ...prevD,
@@ -447,8 +430,7 @@ export default function TestDFU({navigation, route}) {
           }
           ///
           case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_STARTING: {
-            const alternativeUUID = event.alternativeUUID;
-            console.log('Dfu STARTING', uuid, alternativeUUID);
+            console.log('Dfu STARTING', uuid, event?.alternativeUUID);
             updateDevices(prevDevs =>
               prevDevs.map(prevD => {
                 /// is the device i'm looking for?
@@ -460,17 +442,20 @@ export default function TestDFU({navigation, route}) {
                 }
                 /// the advertising uuid is equal to the old one uuid
                 if (
-                  alternativeUUID !== undefined &&
+                  event?.alternativeUUID !== undefined &&
                   prevD.uuid
                     .toLowerCase()
-                    .localeCompare(alternativeUUID.toLowerCase()) === 0
+                    .localeCompare(event?.alternativeUUID.toLowerCase()) === 0
                 ) {
                   return prevD;
                 }
                 return {
                   ...prevD,
                   dfuStarting: true,
-                  alternativeUUID,
+                  alternativeUUID:
+                    event?.alternativeUUID !== undefined
+                      ? event?.alternativeUUID
+                      : prevD?.alternativeUUID,
                 };
               }),
             );
@@ -478,8 +463,7 @@ export default function TestDFU({navigation, route}) {
           }
           ///
           case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_PAUSED: {
-            const alternativeUUID = event.alternativeUUID;
-            console.log('Dfu STARTING', uuid, alternativeUUID);
+            console.log('Dfu STARTING', uuid, event?.alternativeUUID);
             updateDevices(prevDevs =>
               prevDevs.map(prevD => {
                 /// is the device i'm looking for?
@@ -491,17 +475,20 @@ export default function TestDFU({navigation, route}) {
                 }
                 /// the advertising uuid is equal to the old one uuid
                 if (
-                  alternativeUUID !== undefined &&
+                  event?.alternativeUUID !== undefined &&
                   prevD.uuid
                     .toLowerCase()
-                    .localeCompare(alternativeUUID.toLowerCase()) === 0
+                    .localeCompare(event?.alternativeUUID.toLowerCase()) === 0
                 ) {
                   return prevD;
                 }
                 return {
                   ...prevD,
                   dfuPaused: true,
-                  alternativeUUID,
+                  alternativeUUID:
+                    event?.alternativeUUID !== undefined
+                      ? event?.alternativeUUID
+                      : prevD?.alternativeUUID,
                 };
               }),
             );
@@ -509,8 +496,7 @@ export default function TestDFU({navigation, route}) {
           }
           ///
           case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_PROCESS_RESUMED: {
-            const alternativeUUID = event.alternativeUUID;
-            console.log('Dfu STARTING', uuid, alternativeUUID);
+            console.log('Dfu STARTING', uuid, event?.alternativeUUID);
             updateDevices(prevDevs =>
               prevDevs.map(prevD => {
                 /// is the device i'm looking for?
@@ -522,17 +508,20 @@ export default function TestDFU({navigation, route}) {
                 }
                 /// the advertising uuid is equal to the old one uuid
                 if (
-                  alternativeUUID !== undefined &&
+                  event?.alternativeUUID !== undefined &&
                   prevD.uuid
                     .toLowerCase()
-                    .localeCompare(alternativeUUID.toLowerCase()) === 0
+                    .localeCompare(event?.alternativeUUID.toLowerCase()) === 0
                 ) {
                   return prevD;
                 }
                 return {
                   ...prevD,
                   dfuPaused: false,
-                  alternativeUUID,
+                  alternativeUUID:
+                    event?.alternativeUUID !== undefined
+                      ? event?.alternativeUUID
+                      : prevD?.alternativeUUID,
                 };
               }),
             );
@@ -540,18 +529,17 @@ export default function TestDFU({navigation, route}) {
           }
           ///
           case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_UPLOADING: {
-            const alternativeUUID = event.alternativeUUID;
-            console.log('Dfu progress=', event?.progress, alternativeUUID);
+            console.log(
+              'Dfu progress=',
+              event?.progress,
+              event?.alternativeUUID,
+            );
 
             updateDevices(prevDevs =>
               prevDevs.map(prevD => {
                 if (
                   prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ===
-                    0 ||
-                  (alternativeUUID !== undefined &&
-                    prevD.uuid
-                      .toLowerCase()
-                      .localeCompare(alternativeUUID.toLowerCase()) === 0)
+                  0
                 ) {
                   return {
                     ...prevD,
@@ -572,25 +560,15 @@ export default function TestDFU({navigation, route}) {
             );
             break;
           }
-          default:
-            console.log(
-              '=================>>>>>>>>>>>> %%%%%%%%%%%% % %% %  % % %% % %% %  %% % %  %%',
-              event,
-            );
-            console.log(
-              'Dfu progress=',
-              event?.progress,
-              event.alternativeUUID,
-            );
+          case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_CONNECTING:
+          case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_VALIDATING:
+          case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING:
+          case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU:
             updateDevices(prevDevs =>
               prevDevs.map(prevD => {
                 if (
                   prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ===
-                    0 ||
-                  (event?.alternativeUUID !== undefined &&
-                    prevD.uuid
-                      .toLowerCase()
-                      .localeCompare(event.alternativeUUID.toLowerCase()) === 0)
+                  0
                 ) {
                   return {
                     ...prevD,
@@ -605,6 +583,42 @@ export default function TestDFU({navigation, route}) {
                 return prevD;
               }),
             );
+            break;
+          case BluetoothZ.Defines.BLE_PERIPHERAL_DFU_DEBUG:
+            console.log(
+              '=================>>>>>>>>>>>> %%%%%%%%%%%% % %% %  % % %% % %% %  %% % %  %%',
+              event,
+            );
+            break;
+          default:
+            // console.log(
+            //   '=================>>>>>>>>>>>> %%%%%%%%%%%% % %% %  % % %% % %% %  %% % %  %%',
+            //   event,
+            // );
+            // updateDevices(prevDevs =>
+            //   prevDevs.map(prevD => {
+            //     if (
+            //       prevD.uuid.toLowerCase().localeCompare(uuid.toLowerCase()) ===
+            //         0 ||
+            //       (event?.alternativeUUID !== undefined &&
+            //         prevD.uuid
+            //           .toLowerCase()
+            //           .localeCompare(event?.alternativeUUID.toLowerCase()) ===
+            //           0)
+            //     ) {
+            //       return {
+            //         ...prevD,
+            //         description:
+            //           event?.description !== undefined
+            //             ? event.description
+            //             : prevD.description,
+            //         status:
+            //           event?.status !== undefined ? event.status : prevD.status,
+            //       };
+            //     }
+            //     return prevD;
+            //   }),
+            // );
             break;
         }
       },
@@ -632,6 +646,7 @@ export default function TestDFU({navigation, route}) {
           navigation.goBack();
         }}
       />
+      <Toast />
       <BackgroundShape bleStatus={true} />
       <View
         style={{

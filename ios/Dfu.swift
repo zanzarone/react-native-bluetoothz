@@ -63,16 +63,18 @@ class DfuOpQueue {
 
 
 class Dfu {
-    private let dfuWorkers              : [DfuWorker]
-    private let loop                    : DispatchQueue
-    private let operationQueue          : DfuOpQueue
-    private var running                 : Bool
-    private static var debugEnabled     : Bool = true
-    private static var sendEvent        : ((String,Any) -> Void)! = nil
-    private static let bufferSemaphore  : DispatchSemaphore = DispatchSemaphore(value: 1) // Semaphore to control access to the buffer
-    private static let itemsSemaphore   : DispatchSemaphore = DispatchSemaphore(value: 0) // Semaphore to signal availability of items in the buffer
-    private static let pippo   : DispatchSemaphore = DispatchSemaphore(value: 3) // Semaphore to signal availability of items in the buffer
-    
+    private let dfuWorkers                      : [DfuWorker]
+    private static var dfuControllers           : [String:DFUServiceController] = [:]
+    private let loop                            : DispatchQueue
+    private let operationQueue                  : DfuOpQueue
+    private var running                         : Bool
+    private static var debugEnabled             : Bool = false
+    private static var sendEvent                : ((String,Any) -> Void)! = nil
+    private static let controllersSemaphore     : DispatchSemaphore = DispatchSemaphore(value: 1) // Semaphore to control access to the buffer
+    private static let queueControlSemaphore    : DispatchSemaphore = DispatchSemaphore(value: 1) // Semaphore to control access to the buffer
+    private static let queueEmptySemaphore      : DispatchSemaphore = DispatchSemaphore(value: 0) // Semaphore to signal availability of items in the buffer
+    private static let maxConcurrentOpSemaphore : DispatchSemaphore = DispatchSemaphore(value: 3) // Semaphore to signal availability of items in the buffer
+
     init(queueCount: Int, callback:@escaping ((String,Any) -> Void)) {
         loop                = DispatchQueue(label: "BluetoothZ-\(String.randomString(length: 10))")
         operationQueue      = DfuOpQueue()
@@ -82,6 +84,13 @@ class Dfu {
             return DfuWorker(label: "BluetoothZ-\(String.randomString(length: 10))")
         }
         initLoop()
+    }
+    
+    static func operationFinished(forUUID uuid:String) -> Void {
+        Dfu.maxConcurrentOpSemaphore.signal() // Check number of concurrence
+        Dfu.controllersSemaphore.wait()
+        Dfu.dfuControllers.removeValue(forKey: uuid)
+        Dfu.controllersSemaphore.signal()
     }
     
     class DfuWorker : DFUServiceDelegate, DFUProgressDelegate, LoggerDelegate {
@@ -107,11 +116,11 @@ class Dfu {
             case .completed:
                 let body = ["uuid": peripheralUUID, "status":BLE_PERIPHERAL_DFU_STATUS_COMPLETED, "description": "DFU Procedure successfully completed."]
                 Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, body )
-                Dfu.bufferSemaphore.signal() // Signal that buffer access is complete
+                Dfu.operationFinished(forUUID: peripheralUUID) // Check number of concurrence
                 break
             case .aborted:
                 Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": peripheralUUID, "status":BLE_PERIPHERAL_DFU_STATUS_ABORTED, "description": "DFU Procedure aborted by the user."])
-                Dfu.bufferSemaphore.signal() // Signal that buffer access is complete
+                Dfu.operationFinished(forUUID: peripheralUUID) // Check number of concurrence
                 break
             case .starting:
                 Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": peripheralUUID, "status":BLE_PERIPHERAL_DFU_STATUS_STARTING, "description": "DFU Procedure started."])
@@ -136,7 +145,7 @@ class Dfu {
         
         func dfuError(_ error: iOSDFULibrary.DFUError, didOccurWithMessage message: String) {
             Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE ,  ["uuid": peripheralUUID, "error":"Error: \(message)(\(error.rawValue))", "errorCode": error.rawValue, "status":BLE_PERIPHERAL_DFU_PROCESS_FAILED])
-            Dfu.bufferSemaphore.signal() // Signal that buffer access is complete
+            Dfu.operationFinished(forUUID: peripheralUUID) // Check number of concurrence
         }
         
         func dfuProgressDidChange(for part: Int, outOf totalParts: Int, to progress: Int, currentSpeedBytesPerSecond: Double, avgSpeedBytesPerSecond: Double){
@@ -145,7 +154,7 @@ class Dfu {
                                                          "totalParts": totalParts,
                                                          "progress": progress,
                                                          "currentSpeedBytesPerSecond": currentSpeedBytesPerSecond,
-                                                         "avgSpeedBytesPerSecond": avgSpeedBytesPerSecond, "status":BLE_PERIPHERAL_DFU_PROGRESS
+                                                         "avgSpeedBytesPerSecond": avgSpeedBytesPerSecond, "status":BLE_PERIPHERAL_DFU_STATUS_UPLOADING
                                                         ])
         }
         
@@ -163,13 +172,19 @@ class Dfu {
     private func initLoop() {
         loop.async {
             self.running = true
+            print(" Dfu - init - started")
             while(self.running) {
-                Dfu.itemsSemaphore.wait() // Wait for an item to be available in the buffer
+                Dfu.queueEmptySemaphore.wait() // Wait for an item to be available in the buffer
+                Dfu.maxConcurrentOpSemaphore.wait() // Check number of concurrence
+                Dfu.queueControlSemaphore.wait() // Check number of concurrence
+                print(" Dfu - init - access operation")
                 // Choose a queue using a round-robin scheduling approach
                 let worker = self.dfuWorkers.randomElement()!
                 // Submit the task to the selected queue
                 guard let operation = self.operationQueue.pop() else {
-                    Dfu.bufferSemaphore.signal() // Signal availability of item to consumer
+                    print(" Dfu - init -  operation unknow")
+                    Dfu.queueControlSemaphore.signal() // Signal availability of item to consumer
+                    Dfu.maxConcurrentOpSemaphore.signal() // Check number of concurrence
                     return;
                 }
                 var baseURL:URL? = nil
@@ -182,13 +197,21 @@ class Dfu {
                 }
                 
                 guard let url = baseURL else {
-                    Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, ["uuid": operation.gatt.identifier.uuidString, "error": "Attempted to start DFU with invalid(\(operation.filePath) filePath", "status":BLE_PERIPHERAL_DFU_PROCESS_FAILED])
-                    Dfu.bufferSemaphore.signal() // Signal that buffer access is complete
+                    print(" Dfu - init - no fw path")
+                    Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, ["uuid": operation.gatt.identifier.uuidString,
+                                                                         "error": "Attempted to start DFU with invalid(\(operation.filePath) filePath",
+                                                                         "status":BLE_PERIPHERAL_DFU_PROCESS_FAILED])
+                    Dfu.queueControlSemaphore.signal() // Signal availability of item to consumer
+                    Dfu.maxConcurrentOpSemaphore.signal() // Check number of concurrence
                     return
                 }
                 guard let fw = try? DFUFirmware(urlToZipFile: url) else {
-                    Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, ["uuid": operation.gatt.identifier.uuidString, "error": "Invalid firmware", "status":BLE_PERIPHERAL_DFU_PROCESS_FAILED])
-                    Dfu.bufferSemaphore.signal() // Signal that buffer access is complete
+                    print(" Dfu - init - fw invalid")
+                    Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, ["uuid": operation.gatt.identifier.uuidString,
+                                                                         "error": "Invalid firmware",
+                                                                         "status":BLE_PERIPHERAL_DFU_PROCESS_FAILED])
+                    Dfu.queueControlSemaphore.signal() // Signal availability of item to consumer
+                    Dfu.maxConcurrentOpSemaphore.signal() // Check number of concurrence
                     return
                 }
                 if Dfu.isiOS13() {
@@ -218,21 +241,35 @@ class Dfu {
                     // Change for iOS 13
                     Thread.sleep(forTimeInterval: 2) //Work around for not finding the peripheral in iOS 13
                 }
-                operation.controller = serviceInitiator.with(firmware: fw).start(target: operation.gatt)
+                let identifier = operation.gatt.identifier.uuidString
+                worker.setPeripheralUUID(identifier)
+                let controller = serviceInitiator.with(firmware: fw).start(target: operation.gatt)
+                Dfu.controllersSemaphore.wait()
+                Dfu.dfuControllers[identifier] = controller
+                Dfu.controllersSemaphore.signal()
+                Dfu.queueControlSemaphore.signal()
+                print(" Dfu - init - queue released")
             }
+            print(" Dfu - init - terminated")
             self.running = false
         }
     }
     
     func startDfu(peripheral: CBPeripheral , filePath:String , pathType:String , options:NSDictionary) {
-        Dfu.bufferSemaphore.wait()
+        print(" Dfu - startDfu")
+        Dfu.queueControlSemaphore.wait()
         let operation = DfuOperation(peripheral: peripheral, filePath: filePath, pathType: pathType, options: options)
         operationQueue.push(operation)
-        Dfu.itemsSemaphore.signal() // Signal availability of item to consumer
+        print(" Dfu - startDfu - operation pushed")
+        Dfu.queueControlSemaphore.signal() // Signal availability of item to consumer
+        Dfu.queueEmptySemaphore.signal() // Signal availability of item to consumer
+        print(" Dfu - startDfu - signaled")
     }
     
     func pauseDfu(uuid:String) {
-        guard let op = operationQueue.find(uuid), let controller = op.controller else {
+        Dfu.controllersSemaphore.wait()
+        guard let controller = Dfu.dfuControllers[uuid] else {
+            Dfu.controllersSemaphore.signal()
             Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": uuid, "error" : "Controller not found", "status": BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED])
             return
         }
@@ -240,10 +277,13 @@ class Dfu {
             controller.pause()
             Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": uuid, "error" : "Controller not found", "status": BLE_PERIPHERAL_DFU_PROCESS_PAUSED])
         }
+        Dfu.controllersSemaphore.signal()
     }
     
     func resumeDfu(uuid:String) {
-        guard let op = operationQueue.find(uuid), let controller = op.controller else {
+        Dfu.controllersSemaphore.wait()
+        guard let controller = Dfu.dfuControllers[uuid] else {
+            Dfu.controllersSemaphore.signal()
             Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": uuid, "error" : "Controller not found", "status": BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED])
             return
         }
@@ -251,10 +291,13 @@ class Dfu {
             controller.resume()
             Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": uuid, "error" : "Controller not found", "status": BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED])
         }
+        Dfu.controllersSemaphore.signal()
     }
-    
+        
     func abortDfu(uuid:String) {
-        guard let op = operationQueue.find(uuid), let controller = op.controller else {
+        Dfu.controllersSemaphore.wait()
+        guard let controller = Dfu.dfuControllers[uuid] else {
+            Dfu.controllersSemaphore.signal()
             Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": uuid, "error" : "Controller not found", "status": BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED])
             return
         }
@@ -263,6 +306,7 @@ class Dfu {
                 Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": uuid, "error" : "Controller not found", "status": BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED])
             }
         }
+        Dfu.controllersSemaphore.signal()
     }
 }
 

@@ -12,7 +12,7 @@ import {
 import * as BluetoothZ from 'react-native-bluetoothz';
 import Header from '../components/Header';
 import BackgroundShape from '../components/BackgroundShape';
-import Toast from '../components/Toast';
+import {Toast} from '../components/Toast';
 import RoundButton from '../components/RoundButton';
 import TouchableDebounce from '../components/TouchableDebounce';
 import FilterMenu from '../components/FilterMenu';
@@ -323,21 +323,21 @@ const DevicesList = ({status, navigation, isScanning}) => {
         setDevices(devices);
       },
     );
-    const peripheralRSSIUpdatedListener = BluetoothZ.emitter.addListener(
-      BluetoothZ.Defines.BLE_PERIPHERAL_UPDATED_RSSI,
-      ({uuid, rssi}) => {
-        // console.log('RSSI');
-        setDevices(old => {
-          return old.map(d => {
-            // console.log('CONN', old, old.uuid, uuid, old.uuid === uuid);
-            if (d.uuid === uuid) {
-              return {...d, rssi};
-            }
-            return d;
-          });
-        });
-      },
-    );
+    // const peripheralRSSIUpdatedListener = BluetoothZ.emitter.addListener(
+    //   BluetoothZ.Defines.BLE_PERIPHERAL_UPDATED_RSSI,
+    //   ({uuid, rssi}) => {
+    //     // console.log('RSSI');
+    //     setDevices(old => {
+    //       return old.map(d => {
+    //         // console.log('CONN', old, old.uuid, uuid, old.uuid === uuid);
+    //         if (d.uuid === uuid) {
+    //           return {...d, rssi};
+    //         }
+    //         return d;
+    //       });
+    //     });
+    //   },
+    // );
     const peripheralReadyListener = BluetoothZ.emitter.addListener(
       BluetoothZ.Defines.BLE_PERIPHERAL_READY,
       ({uuid, dfuCompliant}) => {
@@ -390,7 +390,7 @@ const DevicesList = ({status, navigation, isScanning}) => {
     return function cleanup() {
       console.log('CLEANUP');
       peripheralFoundListener?.remove();
-      peripheralRSSIUpdatedListener?.remove();
+      // peripheralRSSIUpdatedListener?.remove();
       peripheralReadyListener?.remove();
       peripheralConnectedListener?.remove();
       peripheralDisconnectedListener?.remove();

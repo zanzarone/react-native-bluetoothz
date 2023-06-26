@@ -46,7 +46,7 @@ let connectionWatchDog = new Map();
 let isScanning = false;
 const scanOptions = { allowDuplicates: false };
 const dfuOptions = {
-  enableDebug: true,
+  enableDebug: false,
   packetDelay: 300,
 };
 module.exports.scanOptions = Object.freeze(scanOptions);

@@ -1,6 +1,7 @@
 import {Image, Modal, StyleSheet, Text, View} from 'react-native';
+import Emitter from '../utils/emitter';
 import TouchableDebounce from './TouchableDebounce';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 
 function toastColor({state}) {
   let color;
@@ -59,10 +60,34 @@ function toastTitle({state}) {
   return color;
 }
 
-export default function Toast() {
-  const [state, updateState] = useState({visible: false});
+const Constants = {
+  Events: {SHOW_TOAST: 'SHOW_TOAST', HIDE_TOAST: 'HIDE_TOAST'},
+  Types: {
+    ERROR: 'ERROR',
+    WARNING: 'WARNING',
+    INFO: 'INFO',
+  },
+};
+
+function showToast({type, title, message, timeout = 3000}) {}
+
+function Toast() {
+  const [state, updateState] = useState({
+    visible: false,
+    title: undefined,
+    text: undefined,
+    callbacks: [],
+  });
+
+  useEffect(() => {
+    Emitter.on(Constants.Events.SHOW_TOAST, showToast);
+    return () => {
+      Emitter.off(Constants.Events.SHOW_TOAST, showToast);
+    };
+  }, []);
+
   return (
-    <Modal transparent animationType="fade" visible={state !== undefined}>
+    <Modal transparent animationType="fade" visible={state?.visible}>
       <View style={styles.modalAlert.parent}>
         <View
           style={[
@@ -191,3 +216,5 @@ if (Platform.OS === 'ios') {
     shadowColor: '#000000',
   };
 }
+
+module.exports = {Toast, Constants, showToast};

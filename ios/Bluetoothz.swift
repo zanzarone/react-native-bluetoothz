@@ -41,7 +41,7 @@ let BLE_PERIPHERAL_DFU_PROCESS_RESUMED              : String  = "BLE_PERIPHERAL_
 let BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED         : String  = "BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED";
 let BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED        : String  = "BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED";
 let BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED         : String  = "BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED";
-let BLE_PERIPHERAL_DFU_PROGRESS                     : String  = "BLE_PERIPHERAL_DFU_PROGRESS";
+// let BLE_PERIPHERAL_DFU_PROGRESS                     : String  = "BLE_PERIPHERAL_DFU_PROGRESS";
 let BLE_PERIPHERAL_DFU_DEBUG                        : String  = "BLE_PERIPHERAL_DFU_DEBUG";
 let BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE            : String  = "BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE";
 let BLE_PERIPHERAL_DFU_STATUS_ABORTED               : String  = "BLE_PERIPHERAL_DFU_STATUS_ABORTED";
@@ -117,6 +117,14 @@ class Peripheral {
     
     func getLastSeen() -> TimeInterval {
         return self.lastSeen
+    }
+    
+    func setLastRSSI(rssi:NSNumber) -> Void {
+        self.lastRSSI = rssi
+    }
+    
+    func setLastSeen(ls:TimeInterval) -> Void {
+        self.lastSeen = ls
     }
     
     func setDfuCompliant(compliant: Bool) {
@@ -292,7 +300,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED,
             BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED,
             BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED,
-            BLE_PERIPHERAL_DFU_PROGRESS,
+            // BLE_PERIPHERAL_DFU_PROGRESS,
             BLE_PERIPHERAL_DFU_DEBUG,
             BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,
             BLE_PERIPHERAL_DFU_STATUS_ABORTED,
@@ -349,7 +357,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED:BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED,
             BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED:BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED,
             BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED:BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED,
-            BLE_PERIPHERAL_DFU_PROGRESS:BLE_PERIPHERAL_DFU_PROGRESS,
+            // BLE_PERIPHERAL_DFU_PROGRESS:BLE_PERIPHERAL_DFU_PROGRESS,
             BLE_PERIPHERAL_DFU_DEBUG:BLE_PERIPHERAL_DFU_DEBUG,
             BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE:BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,
             BLE_PERIPHERAL_DFU_STATUS_ABORTED:BLE_PERIPHERAL_DFU_STATUS_ABORTED,
@@ -438,14 +446,15 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             }
         }
         self.peripherals.removeAll()
-        self.centralManager?.scanForPeripherals(withServices: services, options: nil)
-        self.scanWatchdog = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(runTimedCode), userInfo: nil, repeats: true)
+        self.centralManager?.scanForPeripherals(withServices: services, options: [CBCentralManagerScanOptionAllowDuplicatesKey:true])
+        DispatchQueue.main.async {
+            self.scanWatchdog = Timer.scheduledTimer(timeInterval: 1.0, target: self, selector: #selector(self.runTimedCode), userInfo: nil, repeats: true)
+        }
     }
     
-    @objc
-    func runTimedCode() {
+    @objc func runTimedCode() {
         let currentTimeInSeconds = Date().timeIntervalSince1970
-        let result = self.peripherals.filter { currentTimeInSeconds - $0.value.getLastSeen() < 5 }
+        let result = self.peripherals.filter { currentTimeInSeconds - $0.value.getLastSeen() < 8 }
         var devices : [[String:Any]] = []
         for p in result.values {
             var el : [String:Any] = [:]
@@ -455,8 +464,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             el["rssi"] = p.getLastRSSI()
             devices.append(el)
         }
-        var body : [String:Any] = ["devices":devices]
-        self.sendEvent(withName: BLE_PERIPHERAL_UPDATES, body: body)
+        self.sendEvent(withName: BLE_PERIPHERAL_UPDATES, body: ["devices":devices])
     }
     
     @objc
@@ -701,12 +709,19 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             niceFind = name.range(of: pattern, options: .caseInsensitive) != nil
         }
         print("SOOOOOOOKA - niceFind 1 - ", niceFind)
+        let lastSeen = Date().timeIntervalSince1970
         if niceFind, let allow = self.allowDuplicates, allow == false  {
             niceFind = !self.peripherals.keys.contains(peripheral.identifier.uuidString)
+            if !niceFind {
+                let p = self.peripherals[peripheral.identifier.uuidString]!
+                p.setLastRSSI(rssi: RSSI)
+                p.setLastSeen(ls: lastSeen)
+            }
         }
         print("SOOOOOOOKA - niceFind 2 - ", niceFind)
         if niceFind {
             let p : Peripheral = Peripheral(peripheral, rssi: RSSI, delegate:self)
+            p.setLastSeen(ls: lastSeen)
             self.peripherals[peripheral.identifier.uuidString] = p
             if self.syncHelper.scanResolve == nil {
                 self.sendEvent(withName: BLE_PERIPHERAL_FOUND, body: ["uuid":  peripheral.identifier.uuidString , "name":  peripheral.name!, "rssi": RSSI])
