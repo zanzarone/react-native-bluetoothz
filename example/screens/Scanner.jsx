@@ -12,7 +12,13 @@ import {
 import * as BluetoothZ from 'react-native-bluetoothz';
 import Header from '../components/Header';
 import BackgroundShape from '../components/BackgroundShape';
-import {Toast} from '../components/Toast';
+import {
+  Toast,
+  ToastDefines,
+  showToast,
+  hideToast,
+  showDialog,
+} from '../components/Toast';
 import RoundButton from '../components/RoundButton';
 import TouchableDebounce from '../components/TouchableDebounce';
 import FilterMenu from '../components/FilterMenu';
@@ -258,6 +264,20 @@ function ScanButton({status, isScanning, filter}) {
             ? require('../assets/icon/scan-100.png')
             : require('../assets/icon/stop-100.png')
         }
+      />
+      <RoundButton
+        onPress={() => {
+          showDialog({
+            type: ToastDefines.INFO,
+            title: 'Ciao',
+            text: 'In this example, the handleButtonPress function returns a Promise that resolves or rejects based on the outcome of an asynchronous operation. You can modify this function to perform your desired asynchronous task, such as making an API call using fetch or any other asynchronous operation',
+            onButton1Title: 'azz',
+            onButton1Cb: () => hideToast(),
+          });
+        }}
+        iconSize={{height: 30, width: 30}}
+        buttonSize={{height: 50, width: 50, radius: 25}}
+        icon={require('../assets/icon/more-100.png')}
       />
     </View>
   );
@@ -525,6 +545,7 @@ export default function Scanner({navigation}) {
 
   return (
     <View style={{flex: 1, backgroundColor: '#F7F7F7'}}>
+      <Toast />
       <FirstPart
         isBluetoothPoweredOn={isBluetoothPoweredOn}
         isScanning={isScanning}
