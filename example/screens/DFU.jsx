@@ -6,7 +6,7 @@ import DocumentPicker from 'react-native-document-picker';
 import {useEffect, useState} from 'react';
 import * as BluetoothZ from 'react-native-bluetoothz';
 import RoundButton from '../components/RoundButton';
-import {Toast, ToastDefines, showDialog, showToast} from '../components/Toast';
+import {ToastDefines, showDialog, showToast} from '../components/Toast';
 import Emitter from '../utils/emitter';
 
 const Element = ({device, onDeviceFailed}) => {
@@ -80,6 +80,7 @@ const Element = ({device, onDeviceFailed}) => {
             fontFamily: 'Nunito-Bold',
             // backgroundColor: 'green',
             fontSize: 13,
+            textAlign: 'center',
             // width: '100%',
             color: currentDevice?.alternativeUUID ? 'coral' : 'black',
           }}>
