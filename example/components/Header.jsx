@@ -1,4 +1,4 @@
-import {Image, Platform, Text, View} from 'react-native';
+import {Image, Platform, SafeAreaView, Text, View} from 'react-native';
 import TouchableDebounce from './TouchableDebounce';
 import {useEffect, useState} from 'react';
 
@@ -60,6 +60,7 @@ export default function Header({
   onFilter,
 }) {
   const [filtersActive, setFiltersActive] = useState(0);
+
   useEffect(() => {
     let activeFilters = 0;
     if (filterMenu?.allowDuplicates) activeFilters += 1;
@@ -67,12 +68,13 @@ export default function Header({
     if (filterMenu?.filterByName?.enabled) activeFilters += 1;
     setFiltersActive(activeFilters);
   }, [filterMenu]);
+
   let leftPart = (
-    <View style={{alignItems: 'center', flexDirection: 'row'}}>
+    <View style={{alignItems: 'center', flexDirection: 'row', marginLeft: 10}}>
       {onGoBack && (
         <TouchableDebounce debounceTime={0} onPress={() => onGoBack()}>
           <Image
-            style={{height: 35, width: 20}}
+            style={{height: 35, width: 30, backgroundColor: 'transparent'}}
             source={require('../assets/icon/goback-100.png')}
           />
         </TouchableDebounce>
@@ -91,6 +93,10 @@ export default function Header({
       style={{
         alignItems: 'center',
         flexDirection: 'row',
+        marginRight: 10,
+        // backgroundColor: 'pink',
+        height: '100%',
+        // justifyContent: 'center',
         gap: 2,
         opacity: !status || isScanning ? 0.5 : 1,
       }}>
@@ -129,21 +135,24 @@ export default function Header({
       {rightPart}
     </View>
   ) : (
-    <View
+    <SafeAreaView
       style={{
         alignItems: 'flex-end',
         justifyContent: 'space-between',
         flexDirection: 'row',
-        paddingHorizontal: 15,
+        height: 100,
+        // paddingHorizontal: 15,
         paddingVertical: 0,
+        // backgroundColor: 'coral',
         backgroundColor: status === true ? '#D4F174' : 'coral',
-        paddingTop: 45,
-        paddingBottom: 5,
+        paddingTop: 0,
+        // marginVertical: 5,
+        // paddingBottom: 5,
         // height: 100,
         gap: 5,
       }}>
       {leftPart}
       {rightPart}
-    </View>
+    </SafeAreaView>
   );
 }

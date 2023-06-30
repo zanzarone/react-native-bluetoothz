@@ -12,13 +12,7 @@ import {
 import * as BluetoothZ from 'react-native-bluetoothz';
 import Header from '../components/Header';
 import BackgroundShape from '../components/BackgroundShape';
-import {
-  Toast,
-  ToastDefines,
-  showToast,
-  hideToast,
-  showDialog,
-} from '../components/Toast';
+import {ToastDefines, showToast, showDialog} from '../components/Toast';
 import RoundButton from '../components/RoundButton';
 import TouchableDebounce from '../components/TouchableDebounce';
 import FilterMenu from '../components/FilterMenu';
@@ -267,12 +261,18 @@ function ScanButton({status, isScanning, filter}) {
       />
       <RoundButton
         onPress={() => {
+          console.log('aaaaaaaaaa');
+          // showToast({
+          //   type: ToastDefines.INFO,
+          //   title: 'Ciao',
+          //   text: 'In this example, the handleButtonPress function returns a Promise that resolves or rejects based on the outcome of an asynchronous operation. You can modify this function to perform your desired asynchronous task, such as making an API call using fetch or any other asynchronous operation',
+          // });
           showDialog({
             type: ToastDefines.INFO,
-            title: 'Ciao',
+            title: `${Date.now()}`,
             text: 'In this example, the handleButtonPress function returns a Promise that resolves or rejects based on the outcome of an asynchronous operation. You can modify this function to perform your desired asynchronous task, such as making an API call using fetch or any other asynchronous operation',
-            onButton1Title: 'azz',
-            onButton1Cb: () => hideToast(),
+            buttonTitle1: 'azz',
+            onButton1Cb: () => console.log('OOOOOOOOK'),
           });
         }}
         iconSize={{height: 30, width: 30}}
@@ -535,9 +535,9 @@ export default function Scanner({navigation}) {
   useFocusEffect(
     React.useCallback(() => {
       return function cleanup() {
-        console.log(
-          '============= asdbjnsajkdjksasjkafjsdfbdsjbfdsjhfdshjbfjhk',
-        );
+        // console.log(
+        //   '============= asdbjnsajkdjksasjkafjsdfbdsjbfdsjhfdshjbfjhk',
+        // );
         BluetoothZ.stopScan();
       };
     }, []),
@@ -545,7 +545,6 @@ export default function Scanner({navigation}) {
 
   return (
     <View style={{flex: 1, backgroundColor: '#F7F7F7'}}>
-      <Toast />
       <FirstPart
         isBluetoothPoweredOn={isBluetoothPoweredOn}
         isScanning={isScanning}

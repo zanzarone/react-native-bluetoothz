@@ -66,7 +66,7 @@ class Dfu {
     private let dfuWorkers                      : [DfuWorker]
     private static var dfuControllers           : [String:DFUServiceController] = [:]
     private let loop                            : DispatchQueue
-    private let operationQueue                  : DfuOpQueue
+    private static var operationQueue           : DfuOpQueue = DfuOpQueue()
     private var running                         : Bool
     private static var debugEnabled             : Bool = false
     private static var sendEvent                : ((String,Any) -> Void)! = nil
@@ -77,7 +77,6 @@ class Dfu {
 
     init(queueCount: Int, callback:@escaping ((String,Any) -> Void)) {
         loop                = DispatchQueue(label: "BluetoothZ-\(String.randomString(length: 10))")
-        operationQueue      = DfuOpQueue()
         running             = false
         Dfu.sendEvent       = callback
         dfuWorkers          = (0..<queueCount).map { _ in
@@ -181,7 +180,7 @@ class Dfu {
                 // Choose a queue using a round-robin scheduling approach
                 let worker = self.dfuWorkers.randomElement()!
                 // Submit the task to the selected queue
-                guard let operation = self.operationQueue.pop() else {
+                guard let operation = Dfu.operationQueue.pop() else {
                     print(" Dfu - init -  operation unknow")
                     Dfu.queueControlSemaphore.signal() // Signal availability of item to consumer
                     Dfu.maxConcurrentOpSemaphore.signal() // Check number of concurrence
@@ -259,7 +258,7 @@ class Dfu {
         print(" Dfu - startDfu")
         Dfu.queueControlSemaphore.wait()
         let operation = DfuOperation(peripheral: peripheral, filePath: filePath, pathType: pathType, options: options)
-        operationQueue.push(operation)
+        Dfu.operationQueue.push(operation)
         print(" Dfu - startDfu - operation pushed")
         Dfu.queueControlSemaphore.signal() // Signal availability of item to consumer
         Dfu.queueEmptySemaphore.signal() // Signal availability of item to consumer
@@ -289,7 +288,7 @@ class Dfu {
         }
         if(controller.paused){
             controller.resume()
-            Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": uuid, "error" : "Controller not found", "status": BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED])
+            Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,  ["uuid": uuid, "error" : "Controller not found", "status": BLE_PERIPHERAL_DFU_PROCESS_RESUMED])
         }
         Dfu.controllersSemaphore.signal()
     }

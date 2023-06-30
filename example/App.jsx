@@ -5,6 +5,7 @@ import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 
 // import Home from './Home copy.jsx';
 import Main from './Main.jsx';
+import {Toast} from './components/Toast.jsx';
 import {Image, Platform, StyleSheet, Text, View} from 'react-native';
 import Settings from './screens/Settings.jsx';
 // import TestDFU from './screens/DFU.jsx';
@@ -81,6 +82,7 @@ export default function MyTabs() {
           
         /> */}
       </Tab.Navigator>
+      <Toast />
     </NavigationContainer>
   );
 }

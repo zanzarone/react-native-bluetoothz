@@ -20,8 +20,8 @@ RCT_EXTERN_METHOD(startScanSync:(NSArray*)serviceUUIDs deviceNameFilter:(NSStrin
 
 RCT_EXTERN_METHOD(stopScan)
 
-RCT_EXTERN_METHOD(connect:(NSString*)uuidString)
-RCT_EXTERN_METHOD(connectSync:(NSString*)uuidString resolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(connect:(NSString*)uuidString enableDiscover:(BOOL)enableDiscover)
+RCT_EXTERN_METHOD(connectSync:(NSString*)uuidString enableDiscover:(BOOL)enableDiscover resolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(isConnectedSync:(NSString*)uuidString resolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 

@@ -6,7 +6,7 @@ import DocumentPicker from 'react-native-document-picker';
 import {useEffect, useState} from 'react';
 import * as BluetoothZ from 'react-native-bluetoothz';
 import RoundButton from '../components/RoundButton';
-import {Toast, Constants} from '../components/Toast';
+import {Toast, ToastDefines, showDialog, showToast} from '../components/Toast';
 import Emitter from '../utils/emitter';
 
 const Element = ({device, onDeviceFailed}) => {
@@ -100,65 +100,72 @@ const Element = ({device, onDeviceFailed}) => {
           {currentDevice.status ? currentDevice.description : 'Idle'}
         </Text>
       </View>
-      {currentDevice?.dfuStarting ||
-        (true && (
-          <View
-            style={{
-              flexDirection: 'row',
-              gap: 10,
-            }}>
-            <TouchableDebounce
-              // disabled={!currentDevice.dfuStarting}
-              onPress={() => {
-                // BluetoothZ.abortDFU({
-                //   uuid: currentDevice.uuid,
-                // });
-                Emitter.emit(Constants.Events.SHOW_TOAST, {visible: true});
-              }}
-              style={{
-                height: 40,
-                width: 40,
-                borderRadius: 20,
-                backgroundColor: '#444',
-                justifyContent: 'center',
-                alignItems: 'center',
-                opacity: !currentDevice.dfuStarting ? 0.5 : 1,
-              }}>
-              <Image
-                style={{width: 30, height: 30}}
-                source={require('../assets/icon/cancel-100.png')}
-              />
-            </TouchableDebounce>
-            <TouchableDebounce
-              onPress={() => {
-                if (!currentDevice?.dfuPaused)
-                  BluetoothZ.pauseDFU({
-                    uuid: currentDevice.uuid,
-                  });
-                else
-                  BluetoothZ.resumeDFU({
-                    uuid: currentDevice.uuid,
-                  });
-              }}
-              style={{
-                height: 40,
-                width: 40,
-                borderRadius: 20,
-                backgroundColor: '#444',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}>
-              <Image
-                style={{width: 30, height: 30}}
-                source={
-                  currentDevice?.dfuPaused
-                    ? require('../assets/icon/resume-b-100.png')
-                    : require('../assets/icon/pause-b-100.png')
-                }
-              />
-            </TouchableDebounce>
-          </View>
-        ))}
+      <View
+        style={{
+          flexDirection: 'row',
+          gap: 10,
+        }}>
+        <TouchableDebounce
+          disabled={!currentDevice.dfuStarting}
+          onPress={() => {
+            showDialog({
+              type: ToastDefines.WARNING,
+              title: 'Stop DFU',
+              text: `Are you sure you want to terminate the DFU procedure on the device ${currentDevice.name}?`,
+              buttonTitle1: 'Yes',
+              onButton1Cb: () =>
+                BluetoothZ.abortDFU({
+                  uuid: currentDevice.uuid,
+                }),
+              buttonTitle2: 'Cancel',
+              onButton2Cb: () => console.log('OOOOOOOOK'),
+            });
+          }}
+          style={{
+            height: 40,
+            width: 40,
+            borderRadius: 20,
+            backgroundColor: '#444',
+            justifyContent: 'center',
+            alignItems: 'center',
+            opacity: !currentDevice.dfuStarting ? 0.5 : 1,
+          }}>
+          <Image
+            style={{width: 30, height: 30}}
+            source={require('../assets/icon/cancel-100.png')}
+          />
+        </TouchableDebounce>
+        <TouchableDebounce
+          disabled={!currentDevice.dfuStarting}
+          onPress={() => {
+            if (!currentDevice?.dfuPaused)
+              BluetoothZ.pauseDFU({
+                uuid: currentDevice.uuid,
+              });
+            else
+              BluetoothZ.resumeDFU({
+                uuid: currentDevice.uuid,
+              });
+          }}
+          style={{
+            height: 40,
+            width: 40,
+            borderRadius: 20,
+            backgroundColor: '#444',
+            justifyContent: 'center',
+            alignItems: 'center',
+            opacity: !currentDevice.dfuStarting ? 0.5 : 1,
+          }}>
+          <Image
+            style={{width: 30, height: 30}}
+            source={
+              currentDevice?.dfuPaused
+                ? require('../assets/icon/resume-b-100.png')
+                : require('../assets/icon/pause-b-100.png')
+            }
+          />
+        </TouchableDebounce>
+      </View>
     </View>
   );
 };
@@ -211,7 +218,9 @@ const CommandHeader = ({
           const zip = await pickFirmwareFile();
           onFirmwareSelected(zip);
         }}
-        disabled={dfuProcess !== State.idle}
+        disabled={
+          dfuProcess !== State.idle && dfuProcess !== State.file_selected
+        }
         style={{
           height: 40,
           width: 40,
@@ -224,21 +233,16 @@ const CommandHeader = ({
           style={{
             width: 30,
             height: 30,
-            opacity: dfuProcess !== State.idle ? 0.5 : 1,
+            opacity:
+              dfuProcess !== State.idle && dfuProcess !== State.file_selected
+                ? 0.5
+                : 1,
           }}
           source={require('../assets/icon/folder-100.png')}
         />
       </TouchableDebounce>
     </View>
   );
-};
-
-const State = {
-  idle: 0,
-  running: 1,
-  aborted: 2,
-  file_selected: 3,
-  paused: 4,
 };
 
 const pickFirmwareFile = async () => {
@@ -252,41 +256,25 @@ const pickFirmwareFile = async () => {
     console.log('Type:', res.type);
     console.log('Name:', res.name);
     console.log('Size:', res.size);
+    showToast({
+      type: ToastDefines.SUCCESS,
+      title: 'File imported',
+      text: `The firmware file ${res.name} has been successfully imported`,
+    });
   } catch (err) {
     if (DocumentPicker.isCancel(err)) {
       console.log('User cancelled the picker');
     } else {
       console.log('Error:', err);
+      showToast({
+        type: ToastDefines.ERROR,
+        title: 'File imported',
+        text: 'An error occurred importing the file.',
+      });
     }
   }
   return res;
 };
-
-// async function startDFU({uuid, alternativeUUID = undefined, firmware}) {
-//   // const {uuid} = devices[dfu?.currentDeviceIndex];
-//   console.log('1 ==============>', uuid);
-//   if (Platform.OS === 'android') {
-//     try {
-//       console.log('2 ==============>', uuid);
-
-//       await BluetoothZ.connectSync({uuid});
-
-//       console.log('3 ==============>', uuid);
-//     } catch (error) {
-//       console.log(error);
-//       return;
-//     }
-//   }
-//   BluetoothZ.startDFU({
-//     uuid,
-//     alternativeUUID,
-//     filePath: firmware.fileCopyUri,
-//     pathType:
-//       Platform.OS === 'ios'
-//         ? BluetoothZ.Defines.FILE_PATH_TYPE_STRING
-//         : BluetoothZ.Defines.FILE_PATH_TYPE_URL,
-//   });
-// }
 
 export default function TestDFU({navigation, route}) {
   const [firmwareSelected, setFirmwareSelected] = useState(undefined);
@@ -646,7 +634,6 @@ export default function TestDFU({navigation, route}) {
           navigation.goBack();
         }}
       />
-      <Toast />
       <BackgroundShape bleStatus={true} />
       <View
         style={{
@@ -749,3 +736,11 @@ export default function TestDFU({navigation, route}) {
     </View>
   );
 }
+
+const State = {
+  idle: 0,
+  running: 1,
+  aborted: 2,
+  file_selected: 3,
+  paused: 4,
+};

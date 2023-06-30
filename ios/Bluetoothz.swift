@@ -103,6 +103,7 @@ class Peripheral {
     private var lastRSSI            : NSNumber!
     private var dfuCompliant        : Bool = false
     private var lastSeen            : TimeInterval
+    private var enableDiscover      : Bool = false
     
     init(_ p:CBPeripheral, rssi: NSNumber, delegate: BluetoothZ) {
         gattServer = p
@@ -133,6 +134,14 @@ class Peripheral {
     
     func isDfuCompliant() -> Bool {
         return self.dfuCompliant
+    }
+    
+    func setEnableDisovering(enable: Bool) {
+        self.enableDiscover = enable
+    }
+    
+    func discoverEnable() -> Bool {
+        return self.enableDiscover
     }
     
     func getGATTServer() -> CBPeripheral {
@@ -507,7 +516,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     }
     
     @objc
-    func connect(_ uuidString: String)
+    func connect(_ uuidString: String, enableDiscover:Bool)
     {
         print ("SAMU - ========================>>>> connect")
         self.syncHelper.connectReject = nil
@@ -517,12 +526,13 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             print ("SAMU - ========================>>>> connect - isConnected")
             return
         }
-        let p = self.peripherals[uuidString]!.getGATTServer()
-        self.centralManager?.connect(p, options: nil)
+        let p = self.peripherals[uuidString]!
+        p.setEnableDisovering(enable: enableDiscover)
+        self.centralManager?.connect(p.getGATTServer(), options: nil)
     }
     
     @objc
-    func connectSync(_ uuidString: String, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
+    func connectSync(_ uuidString: String, enableDiscover:Bool, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
     {
         print ("SAMU - ========================>>>> connect")
         self.syncHelper.connectReject = rejecter
@@ -533,8 +543,9 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             rejecter(BLE_PERIPHERAL_CONNECT_FAILED, "Device already connected: \(uuidString)", nil)
             return
         }
-        let p = self.peripherals[uuidString]!.getGATTServer()
-        self.centralManager?.connect(p, options: nil)
+        let p = self.peripherals[uuidString]!
+        p.setEnableDisovering(enable: enableDiscover)
+        self.centralManager?.connect(p.getGATTServer(), options: nil)
     }
     
     @objc
@@ -740,7 +751,9 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
             p.setConnected(true)
-            p.discoverServices([])
+            if p.discoverEnable() {
+                p.discoverServices([])
+            }
         }
     }
     

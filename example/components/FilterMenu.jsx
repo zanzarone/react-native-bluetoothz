@@ -162,7 +162,7 @@ export default function FilterMenu({
   onEnabledNoNamedChange,
   onEnabledDuplicatesChanged,
 }) {
-  console.log('ou');
+  // console.log('ou');
   // console.log(state);
   return (
     <Modal transparent={true} animationType="fade" visible={state.open}>
