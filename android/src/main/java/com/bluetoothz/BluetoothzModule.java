@@ -299,6 +299,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
               Log.e("SAMUELE", "onServicesDiscovered received: " + status);
               sendEvent(reactContext, BLE_PERIPHERAL_DFU_COMPLIANT, params);
             }
+            p.setService(service);
             Log.i("SERVIZIOO", DFU_SERVICE_UUID + "=>" + service.getUuid().toString());
             List<BluetoothGattCharacteristic> characteristics = service.getCharacteristics();
             for (BluetoothGattCharacteristic c : characteristics) {
@@ -406,7 +407,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 
       for (String key : mPeripherals.keySet()) {
           Peripheral p = mPeripherals.get(key);
-          if(currentTimeMillis - p.getLastSeen() >= 5000){
+          if(currentTimeMillis - p.getLastSeen() >= 8000){
             mPeripherals.remove(key);
             continue;
           }
@@ -432,6 +433,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   public class Peripheral {
     private BluetoothGatt mBluetoothGATT;
     private BluetoothDevice mDevice;
+    private HashMap<String, BluetoothGattService> mServices;
     private HashMap<String, Pair<BluetoothGattCharacteristic, Boolean>> mCharacteristic;
     private boolean mConnected = false;
     private Promise mConnectPromise;
@@ -442,6 +444,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 
     @SuppressLint("MissingPermission")
     public Peripheral(BluetoothDevice device, int lastRSSI) {
+      this.mServices = new HashMap<>();
       this.mCharacteristic = new HashMap<>();
       this.mDevice = device;
       this.mLastRSSI = lastRSSI;
@@ -523,6 +526,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     public void flush() {
       this.mBluetoothGATT.close();
       this.mBluetoothGATT = null;
+      this.mServices.clear();
       this.mCharacteristic.clear();
       this.mConnected = false;
       this.mLastRSSI = 0;
@@ -533,6 +537,17 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       String[] charsUUID = new String[mCharacteristic.size()];
       mCharacteristic.keySet().toArray(charsUUID);
       return charsUUID;
+    }
+
+    public String[] allServices() {
+      String[] serviceUUID = new String[mServices.size()];
+      mServices.keySet().toArray(serviceUUID);
+      return serviceUUID;
+    }
+
+    @SuppressLint("MissingPermission")
+    public void setService(BluetoothGattService service) {
+      mServices.put(service.getUuid().toString(), service);
     }
 
     @SuppressLint("MissingPermission")
@@ -877,6 +892,19 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     }
     Peripheral p = mPeripherals.get(uuid);
     p.disconnect();
+  }
+
+  @ReactMethod
+  public void getAllServicesSync(String uuid, Promise promise) {
+    if (!isConnected(uuid)) {
+      promise.reject(BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE, "peripheral not connected");
+      return;
+    }
+    Peripheral p = mPeripherals.get(uuid);
+    WritableMap params = Arguments.createMap();
+    WritableArray array = Arguments.fromArray(p.allServices());
+    params.putArray("services", array);
+    promise.resolve(params);
   }
 
   @ReactMethod

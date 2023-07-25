@@ -164,6 +164,10 @@ class Peripheral {
         return services.count
     }
     
+    func allServices() -> [String] {
+        return self.services.keys.reversed()
+    }
+
     func allCharacteristics() -> [String] {
         return self.characteristics.keys.reversed()
     }
@@ -585,6 +589,17 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         let p : Peripheral = self.peripherals[uuidString]!
         self.centralManager?.cancelPeripheralConnection(p.getGATTServer())
+    }
+    
+    @objc
+    func getAllServicesSync(_ uuid:String, resolve: RCTPromiseResolveBlock, rejecter:RCTPromiseRejectBlock) -> Void {
+        if !self.isConnected(uuidString: uuid) {
+            /// i need to disconnect the current device before attempting a new connection
+            rejecter("status", "peripheral not found with uuid:\(uuid)", nil)
+            return
+        }
+        let p : Peripheral = self.peripherals[uuid]!
+        resolve( ["services":  p.allServices()] )
     }
     
     @objc

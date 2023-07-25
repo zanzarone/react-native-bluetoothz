@@ -31,6 +31,8 @@ RCT_EXTERN_METHOD(cancel:(NSString*)uuidString)
 
 RCT_EXTERN_METHOD(disconnect:(NSString*)uuidString)
 
+RCT_EXTERN_METHOD(getAllServicesSync:(NSString*)uuid resolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
+
 RCT_EXTERN_METHOD(getAllCharacteristicSync:(NSString*)uuid resolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(readCharacteristicValue:(NSString*)uuid charUUID:(NSString*)charUUID)

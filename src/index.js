@@ -432,6 +432,18 @@ module.exports.getAllCharacteristic = async ({ uuid }) => {
 };
 
 /// funzione per interrompere la scansione bluetooth
+module.exports.getAllServices = async ({ uuid }) => {
+  if (!uuid) {
+    throw new Error('Parameters UUID is mandatory');
+  }
+  try {
+    return await BLE.getAllServicesSync(uuid);
+  } catch (error) {
+    return [];
+  }
+};
+
+/// funzione per interrompere la scansione bluetooth
 module.exports.readCharacteristic = ({ uuid, charUUID }) => {
   if (!uuid || !charUUID) {
     throw new Error('Parameters UUID, charsUUID are mandatory');
