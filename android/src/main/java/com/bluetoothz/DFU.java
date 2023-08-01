@@ -95,7 +95,6 @@ class Dfu extends Thread implements LifecycleEventListener {
 
   @Override
   public void onHostDestroy() {
-    Log.d("CARDINALE", "onHostDestroy " + Thread.currentThread().getId());
     for (DfuOperation op : this.operationQueue) {
       DfuServiceListenerHelper.unregisterProgressListener(reactContext, op.dfuMainDeviceProgressListeners);
       DfuServiceListenerHelper.unregisterProgressListener(reactContext, op.dfuAlternativeDeviceProgressListeners);
@@ -180,13 +179,11 @@ class Dfu extends Thread implements LifecycleEventListener {
           serviceInitiator.setZip(uri);
           break;
       }
-      Log.d("CARDINALE", "thread " + Thread.currentThread().getId() + " working on device " + this.deviceUUID + " created DFU controller");
       this.controller = serviceInitiator.start(reactContext, dfuServiceClass);
     }
 
     @Override
     public void run() {
-      Log.d("CARDINALE", "thread " + Thread.currentThread().getId() + " working on device " + this.deviceUUID + " is started(" + this.dfuServiceClass.toString() + ")" + this.toString());
       this.mutex = new Object();
       this.dfuMainDeviceProgressListeners = new DfuProgressListener();
       this.dfuAlternativeDeviceProgressListeners = new DfuProgressListener();
@@ -197,11 +194,8 @@ class Dfu extends Thread implements LifecycleEventListener {
       }
 
       while (this.retriesCount > 0) {
-        Log.d("CARDINALE", "thread " + Thread.currentThread().getId() + " working on device " + this.deviceUUID + " RUNNING (" + this.dfuServiceClass.toString() + ")" + this.toString());
         initDFU();
-        Log.d("CARDINALE", "thread " + Thread.currentThread().getId() + " working on device " + this.deviceUUID + " WAITING (" + this.dfuServiceClass.toString() + ")" + this.toString());
         waitOperation();
-        Log.d("CARDINALE", "thread " + Thread.currentThread().getId() + " working on device " + this.deviceUUID + " FINISHED (" + this.dfuServiceClass.toString() + ")" + this.toString());
         if (this.errorCode != DfuBaseService.ERROR_DEVICE_DISCONNECTED) {
           break;
         }
@@ -212,13 +206,11 @@ class Dfu extends Thread implements LifecycleEventListener {
       DfuServiceListenerHelper.unregisterProgressListener(reactContext, dfuAlternativeDeviceProgressListeners);
       ///
       semaphore.release();
-      Log.d("CARDINALE", "thread " + Thread.currentThread().getId() + " working on device " + this.deviceUUID + " FINISHED");
     }
 
     class DfuProgressListener extends DfuProgressListenerAdapter {
 
       private WritableMap createNotification(final String uuid, final String alternativeUUID, final String status, final String description) {
-        Log.d("CARDINALE", "createNotification " + Thread.currentThread().getId() + "," + status + " uuid=" + uuid + ",alt=" + alternativeUUID);
         WritableMap map = Arguments.createMap();
         map.putString("uuid", uuid);
         map.putString("alternativeUUID", alternativeUUID);
@@ -259,7 +251,6 @@ class Dfu extends Thread implements LifecycleEventListener {
 
       @Override
       public void onProgressChanged(@NonNull final String deviceAddress, final int percent, final float speed, final float avgSpeed, final int currentPart, final int partsTotal) {
-        Log.d("CARDINALE", "ADDR " + deviceAddress);
         WritableMap map = createNotification(deviceUUID, alternativeUUID, BLE_PERIPHERAL_DFU_STATUS_UPLOADING, "Uploading firmware onto remote device.");
         map.putInt("progress", percent);
         map.putDouble("currentSpeedBytesPerSecond", speed);
@@ -321,13 +312,10 @@ class Dfu extends Thread implements LifecycleEventListener {
           while (this.operationQueue.isEmpty()) {
             mutex.wait();
           }
-          Log.d("CARDINALE", "waiting for semaphore");
           if (this.semaphore.tryAcquire(5, TimeUnit.SECONDS)) {
             // Acquire a permit from the semaphore
-            Log.d("CARDINALE", " semaphore acquired ");
             Dfu.DfuOperation operation = operationQueue.poll();
             int slot = this.index.getValue();
-            Log.d("CARDINALE", "operation gets slot:" + slot);
             switch (slot) {
               case 0:
                 operation.setDfuServiceClass(DfuService1.class);
@@ -341,19 +329,16 @@ class Dfu extends Thread implements LifecycleEventListener {
             }
             this.index.increment();
             this.executorService.execute(operation);
-            Log.d("CARDINALE", "op submitted to the pool");
           }
         } catch (InterruptedException e) {
           e.printStackTrace();
         }
       }
-      Log.d("CARDINALE", "queue empty wait for 1 second ");
     }
   }
 
 
   public void submit(String address, String path, String type, ReadableMap options) {
-    Log.d("CARDINALE", "submitting dfu operation for " + address);
     synchronized (mutex) {
       final DfuOperation operation = new DfuOperation(address, getIncrementedAddress(address), path, type, options);
       operationQueue.add(operation);
@@ -378,12 +363,10 @@ class Dfu extends Thread implements LifecycleEventListener {
       args.putString("error", "DFU controller undefined");
       args.putString("status", BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED);
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, args);
-      Log.d("CARDINALE", "pauseDfu failed " + address);
       return;
     }
     if (!controller.isPaused()) {
       controller.pause();
-      Log.d("CARDINALE", "pauseDfu " + address);
     }
     WritableMap args = Arguments.createMap();
     args.putString("uuid", address);
@@ -410,12 +393,10 @@ class Dfu extends Thread implements LifecycleEventListener {
       args.putString("error", "DFU controller undefined");
       args.putString("status", BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED);
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, args);
-      Log.d("CARDINALE", "resumeDfu failed " + address);
       return;
     }
     if (controller.isPaused()) {
       controller.resume();
-      Log.d("CARDINALE", "resumeDfu failed " + address);
     }
     WritableMap args = Arguments.createMap();
     args.putString("uuid", address);
@@ -442,12 +423,10 @@ class Dfu extends Thread implements LifecycleEventListener {
       args.putString("error", "DFU controller undefined");
       args.putString("status", BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED);
       sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, args);
-      Log.d("CARDINALE", "abortDfu failed " + address);
       return;
     }
     if (!controller.isAborted()) {
       controller.abort();
-      Log.d("CARDINALE", "abortDfu failed " + address);
     }
     /// I do not send event "aborted" here. The notification will arrive from DfuProgressListener
   }

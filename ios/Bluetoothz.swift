@@ -176,7 +176,6 @@ class Peripheral {
         for i in 0..<s.count {
             let service = s[i]
             self.services[service.uuid.uuidString] = service
-            print("@@@@@@@@@@@@@@@@@@@@@@@   \(service.uuid.uuidString) = \(DFU_SERVICE_UUID)" )
             if service.uuid.uuidString.compare(DFU_SERVICE_UUID, options: .caseInsensitive) == .orderedSame {
                 self.setDfuCompliant(compliant: true)
             }
@@ -452,9 +451,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         self.allowDuplicates = false
         if let opt = options as? [String: Any]{
-            print("SOOOOOOOKA - options 1 - ", opt)
             if let duplicates = opt["allowDuplicates"] as? Bool {
-                print("SOOOOOOOKA - options 2 - ", duplicates)
                 self.allowDuplicates = duplicates
             }
         }
@@ -467,7 +464,10 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     
     @objc func runTimedCode() {
         let currentTimeInSeconds = Date().timeIntervalSince1970
-        let result = self.peripherals.filter { currentTimeInSeconds - $0.value.getLastSeen() < 8 }
+        //! ==============================================
+        /// TODO KEEP A PARAMETRIC INPUT FOR THIS TWO
+        //! ==============================================
+        let result = self.peripherals.filter { currentTimeInSeconds - $0.value.getLastSeen() < 5 }
         var devices : [[String:Any]] = []
         for p in result.values {
             var el : [String:Any] = [:]
@@ -570,9 +570,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     @objc
     func cancel(_ uuidString: String)
     {
-        print("SAMU - 1")
         if !self.isConnected(uuidString: uuidString) {
-            print ("SAMU - ========================>>>> connect - !isConnected")
             return
         }
         let p = self.peripherals[uuidString]!.getGATTServer()
@@ -582,7 +580,6 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     @objc
     func disconnect(_ uuidString: String)
     {
-        print("SAMU 14 ========================>>>> disconnect")
         if !self.isConnected(uuidString: uuidString) {
             /// i need to disconnect the current device before attempting a new connection
             return
@@ -731,10 +728,8 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
         var niceFind = true
         if let pattern = self.scanFilter
         {
-            //        print("SOOOOOOOKA - niceFind 0 - ",peripheral.identifier.uuidString , pattern, peripheral.identifier.uuidString.range(of: pattern, options: .caseInsensitive))
             niceFind = name.range(of: pattern, options: .caseInsensitive) != nil
         }
-        print("SOOOOOOOKA - niceFind 1 - ", niceFind)
         let lastSeen = Date().timeIntervalSince1970
         if niceFind, let allow = self.allowDuplicates, allow == false  {
             niceFind = !self.peripherals.keys.contains(peripheral.identifier.uuidString)
@@ -744,7 +739,6 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
                 p.setLastSeen(ls: lastSeen)
             }
         }
-        print("SOOOOOOOKA - niceFind 2 - ", niceFind)
         if niceFind {
             let p : Peripheral = Peripheral(peripheral, rssi: RSSI, delegate:self)
             p.setLastSeen(ls: lastSeen)
@@ -757,7 +751,6 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral)
     {
-        print("SAMU ----- didConnect \(peripheral.identifier.uuidString)")
         let body = ["uuid": peripheral.identifier.uuidString]
         if let resolve = self.syncHelper.connectResolve {
             resolve(body)
@@ -817,9 +810,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
             return
         }
         if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
-            print("SAMU - trovati servizi ")
             if let services = peripheral.services {
-                print("\n\n\n \(services)\n\n\n")
                 p.setServicesAndDiscoverCharacteristics(services)
                 sendEvent(withName: BLE_PERIPHERAL_DFU_COMPLIANT, body: ["compliant" : p.isDfuCompliant()])
             }
@@ -838,7 +829,6 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
                     p.setCharacteristic(characteristic, forServiceUUID: service.uuid.uuidString)
                     self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED, body: ["uuid": _peripheral.identifier.uuidString, "charUUID": characteristic.uuid.uuidString])
                 }
-                print("\n\n\n COUNT \(p.servicesDiscovered())\n\n\n")
                 if p.servicesDiscovered() <= 0 {
                     self.sendEvent(withName: BLE_PERIPHERAL_READY, body: ["uuid": _peripheral.identifier.uuidString])
                 }

@@ -171,17 +171,14 @@ class Dfu {
     private func initLoop() {
         loop.async {
             self.running = true
-            print(" Dfu - init - started")
             while(self.running) {
                 Dfu.queueEmptySemaphore.wait() // Wait for an item to be available in the buffer
                 Dfu.maxConcurrentOpSemaphore.wait() // Check number of concurrence
                 Dfu.queueControlSemaphore.wait() // Check number of concurrence
-                print(" Dfu - init - access operation")
                 // Choose a queue using a round-robin scheduling approach
                 let worker = self.dfuWorkers.randomElement()!
                 // Submit the task to the selected queue
                 guard let operation = Dfu.operationQueue.pop() else {
-                    print(" Dfu - init -  operation unknow")
                     Dfu.queueControlSemaphore.signal() // Signal availability of item to consumer
                     Dfu.maxConcurrentOpSemaphore.signal() // Check number of concurrence
                     return;
@@ -196,7 +193,6 @@ class Dfu {
                 }
                 
                 guard let url = baseURL else {
-                    print(" Dfu - init - no fw path")
                     Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, ["uuid": operation.gatt.identifier.uuidString,
                                                                          "error": "Attempted to start DFU with invalid(\(operation.filePath) filePath",
                                                                          "status":BLE_PERIPHERAL_DFU_PROCESS_FAILED])
@@ -205,7 +201,6 @@ class Dfu {
                     return
                 }
                 guard let fw = try? DFUFirmware(urlToZipFile: url) else {
-                    print(" Dfu - init - fw invalid")
                     Dfu.sendEvent(BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, ["uuid": operation.gatt.identifier.uuidString,
                                                                          "error": "Invalid firmware",
                                                                          "status":BLE_PERIPHERAL_DFU_PROCESS_FAILED])
@@ -247,22 +242,17 @@ class Dfu {
                 Dfu.dfuControllers[identifier] = controller
                 Dfu.controllersSemaphore.signal()
                 Dfu.queueControlSemaphore.signal()
-                print(" Dfu - init - queue released")
             }
-            print(" Dfu - init - terminated")
             self.running = false
         }
     }
     
     func startDfu(peripheral: CBPeripheral , filePath:String , pathType:String , options:NSDictionary) {
-        print(" Dfu - startDfu")
         Dfu.queueControlSemaphore.wait()
         let operation = DfuOperation(peripheral: peripheral, filePath: filePath, pathType: pathType, options: options)
         Dfu.operationQueue.push(operation)
-        print(" Dfu - startDfu - operation pushed")
         Dfu.queueControlSemaphore.signal() // Signal availability of item to consumer
         Dfu.queueEmptySemaphore.signal() // Signal availability of item to consumer
-        print(" Dfu - startDfu - signaled")
     }
     
     func pauseDfu(uuid:String) {
@@ -316,7 +306,6 @@ extension Dfu {
         
         if let majorVersionString = versionComponents.first, let majorVersion = Int(majorVersionString) {
             if majorVersion == 13 {
-                print("Device is running iOS 13")
                 return true
             }
         }
