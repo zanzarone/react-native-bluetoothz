@@ -11,11 +11,11 @@ console.log('PRE FLIGHT SCRIPT ', name, version);
 
 function pre() {
   console.log('pre ', root, dest, name, version);
-  let oldPath = path.join(root, `${name}-${version}.tgz`);
-  console.log('aft ', oldPath);
-  if (fs.existsSync(oldPath)) fs.rmSync(oldPath);
-  oldPath = path.join(root, `${name}`);
-  if (fs.existsSync(oldPath)) fs.rmSync(oldPath, { recursive: true });
+  let tarGZ = path.join(root, `${name}-${version}.tgz`);
+  console.log('aft ', tarGZ);
+  if (fs.existsSync(tarGZ)) fs.rmSync(tarGZ);
+  // oldPath = path.join(root, `${name}`);
+  // if (fs.existsSync(oldPath)) fs.rmSync(oldPath, { recursive: true });
 }
 
 function move() {
