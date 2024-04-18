@@ -162,8 +162,8 @@ class Dfu extends Thread implements LifecycleEventListener {
       this.dfuServiceClass = dfuServiceClass;
     }
 
-    private void initDFU() {
-      final DfuServiceInitiator serviceInitiator = new DfuServiceInitiator(this.deviceUUID);
+    private void initDFU(String address) {
+      final DfuServiceInitiator serviceInitiator = new DfuServiceInitiator(address);
       serviceInitiator.setKeepBond(false);
       serviceInitiator.setPacketsReceiptNotificationsValue(1);
       if (this.options.hasKey(DFU_OPTION_PACKET_DELAY)) {
@@ -193,15 +193,22 @@ class Dfu extends Thread implements LifecycleEventListener {
         this.retriesCount = this.options.getInt(DFU_OPTION_RETRIES_NUMBER) + 1;
       }
 
-      while (this.retriesCount > 0) {
-        initDFU();
+//      while (this.retriesCount > 0) {
+        initDFU(this.deviceUUID);
         waitOperation();
-        if (this.errorCode != DfuBaseService.ERROR_DEVICE_DISCONNECTED) {
-          break;
+        Log.d("cazzola", ""+this.errorCode);
+        if (this.errorCode == DfuBaseService.ERROR_DEVICE_DISCONNECTED) {
+          Log.d("cazzola 1", ""+this.errorCode);
+  //          break;
+          initDFU(this.alternativeUUID);
+          waitOperation();
+        } else {
+          Log.d("cazzola 2", ""+this.errorCode);
+  //          break;
         }
-        this.errorCode = 0;
-        this.retriesCount--;
-      }
+//        this.errorCode = 0;
+//        this.retriesCount--;
+//      }
       DfuServiceListenerHelper.unregisterProgressListener(reactContext, dfuMainDeviceProgressListeners);
       DfuServiceListenerHelper.unregisterProgressListener(reactContext, dfuAlternativeDeviceProgressListeners);
       ///
