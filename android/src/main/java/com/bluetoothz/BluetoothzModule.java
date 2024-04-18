@@ -144,22 +144,24 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     this.mPeripherals = new ConcurrentHashMap<>();
     this.mLocalBroadcastReceiver = new LocalBroadcastReceiver();
     this.mBluetoothGATTCallback = new LocalBluetoothGattCallback();
-    this.reactContext.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
     this.mSyncHelper = new SyncHelper();
     this.mDfuHelper = new Dfu(context);
+    this.reactContext.addLifecycleEventListener(this);
   }
 
   @Override
   public void onHostResume() {
+    this.reactContext.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
   }
 
   @Override
   public void onHostPause() {
-
+    this.reactContext.unregisterReceiver(mLocalBroadcastReceiver);
   }
 
   @Override
   public void onHostDestroy() {
+    this.reactContext.unregisterReceiver(mLocalBroadcastReceiver);
   }
 
   private static String bytesToHex(byte[] bytes) {
@@ -195,7 +197,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       super.onScanFailed(errorCode);
       WritableMap params = Arguments.createMap();
       params.putInt("errorCode", errorCode);
-      sendEvent(reactContext, BLE_ADAPTER_SCAN_END, params);
+      sendEvent(reactContext, BLE_ADAPTER_SCAN_END, params.copy());
     }
 
     @SuppressLint("MissingPermission")
@@ -255,9 +257,9 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
           if(p.isDiscoveringEnable())
             p.discover();
           if (p.getConnectPromise() != null) {
-            p.getConnectPromise().resolve(params);
+            p.getConnectPromise().resolve(params.copy());
           } else {
-            sendEvent(reactContext, BLE_PERIPHERAL_CONNECTED, params);
+            sendEvent(reactContext, BLE_PERIPHERAL_CONNECTED, params.copy());
           }
         }
       } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
@@ -266,15 +268,15 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
           Peripheral p = mPeripherals.get(gatt.getDevice().getAddress());
           p.flush();
           if (mSyncHelper.disconnectPromise != null) {
-            mSyncHelper.disconnectPromise.resolve(params);
+            mSyncHelper.disconnectPromise.resolve(params.copy());
           } else {
-            sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECTED, params);
+            sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECTED, params.copy());
           }
         } else {
           if (mSyncHelper.disconnectPromise != null) {
             mSyncHelper.disconnectPromise.reject(BLE_PERIPHERAL_DISCONNECT_FAILED, "Device already disconnected:" + uuid);
           } else {
-            sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECT_FAILED, params);
+            sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECT_FAILED, params.copy());
           }
         }
       }
@@ -293,7 +295,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
               WritableMap params = Arguments.createMap();
               params.putString("uuid", gatt.getDevice().getAddress());
               params.putBoolean("compliant", true);
-              sendEvent(reactContext, BLE_PERIPHERAL_DFU_COMPLIANT, params);
+              sendEvent(reactContext, BLE_PERIPHERAL_DFU_COMPLIANT, params.copy());
             }
             p.setService(service);
             List<BluetoothGattCharacteristic> characteristics = service.getCharacteristics();
@@ -301,14 +303,14 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
               WritableMap params = Arguments.createMap();
               params.putString("uuid", gatt.getDevice().getAddress());
               params.putString("charUUID", c.getUuid().toString());
-              sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED, params);
+              sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED, params.copy());
               p.setCharacteristic(c);
             }
           }
           WritableMap params = Arguments.createMap();
           params.putString("uuid", gatt.getDevice().getAddress());
           params.putBoolean("dfuCompliant", p.isDfuCompliant());
-          sendEvent(reactContext, BLE_PERIPHERAL_READY, params);
+          sendEvent(reactContext, BLE_PERIPHERAL_READY, params.copy());
           //! ==============================================
           /// TODO KEEP A PARAMETRIC INPUT FOR THIS TWO
           //! ==============================================
@@ -318,15 +320,17 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       } else {
         WritableMap params = Arguments.createMap();
         params.putString("uuid", gatt.getDevice().getAddress());
-        sendEvent(reactContext, BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED, params);
+        sendEvent(reactContext, BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED, params.copy());
       }
     }
 
     @Override
     public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+      Peripheral p = mPeripherals.get(gatt.getDevice().getAddress());
       WritableMap params = Arguments.createMap();
       String uuid = gatt.getDevice().getAddress();
       String charUUID = characteristic.getUuid().toString();
+      Promise promise = p.getReadValuePromise(charUUID);
       params.putString("uuid", uuid);
       params.putString("charUUID", charUUID);
       if (status == BluetoothGatt.GATT_SUCCESS) {
@@ -336,9 +340,17 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
           value.pushInt(buffer[i]);
 //                String bufferString = BluetoothzModule.bytesToHex(characteristic.getValue());
         params.putArray("value", value);
-        sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, params);
+        if(promise != null){
+          promise.resolve(params.copy());
+        }else{
+          sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, params.copy());
+        }
       } else {
-        sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, params);
+        if(promise != null){
+          promise.reject(BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, "Error reading from characteristic");
+        }else{
+          sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, params.copy());
+        }
       }
     }
 
@@ -347,14 +359,24 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap params = Arguments.createMap();
       String uuid = characteristic.getUuid().toString();
       String charUUID = characteristic.getUuid().toString();
+      Peripheral p = mPeripherals.get(gatt.getDevice().getAddress());
+      Promise promise = p.getWriteValuePromise(charUUID);
       params.putString("uuid", uuid);
       params.putString("charUUID", charUUID);
       if (status == BluetoothGatt.GATT_SUCCESS) {
         String bufferString = BluetoothzModule.bytesToHex(characteristic.getValue());
         params.putString("value", bufferString);
-        sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, params);
+        if(promise != null){
+          promise.resolve(params.copy());
+        }else{
+          sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, params.copy());
+        }
       } else {
-        sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, params);
+        if(promise != null){
+          promise.reject(BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, "Error writing to characteristic");
+        }else{
+          sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, params.copy());
+        }
       }
     }
 
@@ -371,7 +393,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       params.putString("uuid", gatt.getDevice().getAddress());
       params.putString("charUUID", characteristic.getUuid().toString());
       params.putArray("value", value);
-      sendEvent(reactContext, BLE_PERIPHERAL_NOTIFICATION_UPDATES, params);
+      sendEvent(reactContext, BLE_PERIPHERAL_NOTIFICATION_UPDATES, params.copy());
     }
 
     @Override
@@ -410,7 +432,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
           params.putString("name", p.name());
           params.putBoolean("dfuCompliant", p.isDfuCompliant());
           params.putInt("rssi", p.getLastRSSI());
-          array.pushMap(params);
+          array.pushMap(params.copy());
       }
       WritableMap payload = Arguments.createMap();
       payload.putArray("devices",array);
@@ -429,6 +451,8 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     private BluetoothDevice mDevice;
     private HashMap<String, BluetoothGattService> mServices;
     private HashMap<String, Pair<BluetoothGattCharacteristic, Boolean>> mCharacteristic;
+    private HashMap<String, Promise> mReadCharPromises;
+    private HashMap<String, Promise> mWriteCharPromises;
     private boolean mConnected = false;
     private Promise mConnectPromise;
     private int mLastRSSI;
@@ -560,6 +584,19 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     }
 
     @SuppressLint("MissingPermission")
+    public void readCharacteristicSync(String uuid, Promise promise) {
+      if (mCharacteristic.containsKey(uuid)) {
+        mReadCharPromises.put(uuid, promise);
+        BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
+        mBluetoothGATT.readCharacteristic(characteristic);
+      }
+    }
+
+    public Promise getReadValuePromise(String uuid) {
+      return mReadCharPromises.containsKey(uuid) ? mReadCharPromises.get(uuid) : null;
+    }
+
+    @SuppressLint("MissingPermission")
     public boolean writeCharacteristic(String uuid, byte[] value, int NOT_IMPLEMENTED_type) {
       if (mCharacteristic.containsKey(uuid)) {
         BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
@@ -571,6 +608,20 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     }
 
     @SuppressLint("MissingPermission")
+    public void writeCharacteristicSync(String uuid, byte[] value, Promise promise, int NOT_IMPLEMENTED_type) {
+      if (mCharacteristic.containsKey(uuid)) {
+        mWriteCharPromises.put(uuid, promise);
+        BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
+        characteristic.setValue(value);
+        mBluetoothGATT.writeCharacteristic(characteristic);
+      }
+    }
+
+    public Promise getWriteValuePromise(String uuid) {
+      return mWriteCharPromises.containsKey(uuid) ? mWriteCharPromises.get(uuid) : null;
+    }
+
+    @SuppressLint("MissingPermission")
     public boolean changeCharacteristicNotification(String uuid, boolean enable) {
       if (mCharacteristic.containsKey(uuid)) {
         BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
@@ -579,7 +630,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
         params.putString("uuid", mBluetoothGATT.getDevice().getAddress());
         params.putString("charUUID", characteristic.getUuid().toString());
         params.putBoolean("enable", enable);
-        sendEvent(reactContext, BLE_PERIPHERAL_NOTIFICATION_CHANGED, params);
+        sendEvent(reactContext, BLE_PERIPHERAL_NOTIFICATION_CHANGED, params.copy());
         BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString(Client_Characteristic_Configuration));
         descriptor.setValue(enable ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
         mBluetoothGATT.writeDescriptor(descriptor);
@@ -674,25 +725,26 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     sendBleStatus(bluetoothAdapter.getState(), reactContext);
   }
 
-  private static void sendBleStatus(int state, ReactContext reactContext) {
-    WritableMap params = Arguments.createMap();
-    switch (state) {
-      case BluetoothAdapter.STATE_ON:
-      case BluetoothAdapter.STATE_TURNING_ON:
-        params.putString("status", BLE_ADAPTER_STATUS_POWERED_ON);
-        BluetoothzModule.sendEvent(reactContext, BLE_ADAPTER_STATUS_DID_UPDATE, params);
-        break;
-      case BluetoothAdapter.STATE_OFF:
-      case BluetoothAdapter.STATE_TURNING_OFF:
-        params.putString("status", BLE_ADAPTER_STATUS_POWERED_OFF);
-        BluetoothzModule.sendEvent(reactContext, BLE_ADAPTER_STATUS_DID_UPDATE, params);
-        break;
-      default:
-        params.putString("status", BLE_ADAPTER_STATUS_UNKNOW);
-        BluetoothzModule.sendEvent(reactContext, BLE_ADAPTER_STATUS_UNKNOW, params);
-        break;
+    private static void sendBleStatus(int state, ReactContext reactContext) {
+      WritableMap params = Arguments.createMap();
+      switch (state) {
+        case BluetoothAdapter.STATE_TURNING_ON:
+        case BluetoothAdapter.STATE_TURNING_OFF:
+          break;
+        case BluetoothAdapter.STATE_ON:
+          params.putString("status", BLE_ADAPTER_STATUS_POWERED_ON);
+          BluetoothzModule.sendEvent(reactContext, BLE_ADAPTER_STATUS_DID_UPDATE, params.copy());
+          break;
+        case BluetoothAdapter.STATE_OFF:
+          params.putString("status", BLE_ADAPTER_STATUS_POWERED_OFF);
+          BluetoothzModule.sendEvent(reactContext, BLE_ADAPTER_STATUS_DID_UPDATE, params.copy());
+          break;
+        default:
+          params.putString("status", BLE_ADAPTER_STATUS_UNKNOW);
+          BluetoothzModule.sendEvent(reactContext, BLE_ADAPTER_STATUS_UNKNOW, params.copy());
+          break;
+      }
     }
-  }
 
   @ReactMethod
   public void status() {
@@ -714,16 +766,16 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       case BluetoothAdapter.STATE_ON:
       case BluetoothAdapter.STATE_TURNING_ON:
         params.putString("status", BLE_ADAPTER_STATUS_POWERED_ON);
-        promise.resolve(params);
+        promise.resolve(params.copy());
         break;
       case BluetoothAdapter.STATE_OFF:
       case BluetoothAdapter.STATE_TURNING_OFF:
         params.putString("status", BLE_ADAPTER_STATUS_POWERED_OFF);
-        promise.resolve(params);
+        promise.resolve(params.copy());
         break;
       default:
         params.putString("status", BLE_ADAPTER_STATUS_UNKNOW);
-        promise.resolve(params);
+        promise.resolve(params.copy());
     }
   }
 
@@ -807,7 +859,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap params = Arguments.createMap();
       params.putString("uuid", uuid);
       params.putString("error", "Device already disconnected:" + uuid);
-      sendEvent(reactContext, BLE_PERIPHERAL_CONNECT_FAILED, params);
+      sendEvent(reactContext, BLE_PERIPHERAL_CONNECT_FAILED, params.copy());
       return;
     }
     Peripheral p = mPeripherals.get(uuid);
@@ -820,7 +872,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap params = Arguments.createMap();
       params.putString("uuid", uuid);
       params.putString("error", exception.getLocalizedMessage());
-      sendEvent(reactContext, BLE_PERIPHERAL_CONNECT_FAILED, params);
+      sendEvent(reactContext, BLE_PERIPHERAL_CONNECT_FAILED, params.copy());
     }
   }
 
@@ -874,7 +926,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap params = Arguments.createMap();
       params.putString("uuid", uuid);
       params.putString("error", "Device already disconnected:" + uuid);
-      sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECT_FAILED, params);
+      sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECT_FAILED, params.copy());
       return;
     }
     Peripheral p = mPeripherals.get(uuid);
@@ -891,7 +943,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     WritableMap params = Arguments.createMap();
     WritableArray array = Arguments.fromArray(p.allServices());
     params.putArray("services", array);
-    promise.resolve(params);
+    promise.resolve(params.copy());
   }
 
   @ReactMethod
@@ -904,7 +956,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     WritableMap params = Arguments.createMap();
     WritableArray array = Arguments.fromArray(p.allCharacteristics());
     params.putArray("characteristics", array);
-    promise.resolve(params);
+    promise.resolve(params.copy());
   }
 
   @SuppressLint("MissingPermission")
@@ -915,7 +967,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       params.putString("uuid", uuid);
       params.putString("charUUID", charUUID);
       params.putString("error", "Device already disconnected:" + uuid);
-      sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, params);
+      sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, params.copy());
       return;
     }
     Peripheral p = mPeripherals.get(uuid);
@@ -924,8 +976,23 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       params.putString("uuid", uuid);
       params.putString("charUUID", charUUID);
       params.putString("error", "Could not read characteristic " + charUUID);
-      sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, params);
+      sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, params.copy());
     }
+  }
+
+  @SuppressLint("MissingPermission")
+  @ReactMethod
+  public void readCharacteristicValueSync(String uuid, String charUUID, Promise promise) {
+    if (!isConnected(uuid)) {
+      WritableMap params = Arguments.createMap();
+      params.putString("uuid", uuid);
+      params.putString("charUUID", charUUID);
+      params.putString("error", "Device already disconnected:" + uuid);
+      sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, params.copy());
+      return;
+    }
+    Peripheral p = mPeripherals.get(uuid);
+    p.readCharacteristicSync(charUUID, promise);
   }
 
   @SuppressLint("MissingPermission")
@@ -936,7 +1003,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       params.putString("uuid", uuid);
       params.putString("charUUID", charUUID);
       params.putString("error", "Device already disconnected:" + uuid);
-      sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, params);
+      sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, params.copy());
       return;
     }
     byte[] byteArr = new byte[value.size()];
@@ -949,8 +1016,26 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       params.putString("uuid", uuid);
       params.putString("charUUID", charUUID);
       params.putString("error", "Could not write characteristic " + charUUID);
-      sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, params);
+      sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, params.copy());
     }
+  }
+  @SuppressLint("MissingPermission")
+  @ReactMethod
+  public void writeCharacteristicValueSync(String uuid, String charUUID, ReadableArray value, Promise promise) {
+    if (!isConnected(uuid)) {
+      WritableMap params = Arguments.createMap();
+      params.putString("uuid", uuid);
+      params.putString("charUUID", charUUID);
+      params.putString("error", "Device already disconnected:" + uuid);
+      sendEvent(reactContext, BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, params.copy());
+      return;
+    }
+    byte[] byteArr = new byte[value.size()];
+    for (int i = 0; i < value.size(); i++) {
+      byteArr[i] = (byte) value.getInt(i);
+    }
+    Peripheral p = mPeripherals.get(uuid);
+    p.writeCharacteristicSync(charUUID,byteArr, promise, 0);
   }
 
   @SuppressLint("MissingPermission")
@@ -961,7 +1046,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       params.putString("uuid", uuid);
       params.putString("charUUID", charUUID);
       params.putString("error", "Device already disconnected:" + uuid);
-      sendEvent(reactContext, BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, params);
+      sendEvent(reactContext, BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, params.copy());
       return;
     }
     Peripheral p = mPeripherals.get(uuid);
@@ -970,7 +1055,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       params.putString("uuid", uuid);
       params.putString("charUUID", charUUID);
       params.putString("error", "Could not enable characteristic " + charUUID);
-      sendEvent(reactContext, BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, params);
+      sendEvent(reactContext, BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, params.copy());
     }
   }
 
@@ -988,7 +1073,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap params = Arguments.createMap();
       params.putString("uuid", uuid);
       params.putString("error", "Device already disconnected:" + uuid);
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED, params);
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED, params.copy());
       return;
     }
     this.mDfuHelper.pauseDfu(uuid);
@@ -1000,7 +1085,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap params = Arguments.createMap();
       params.putString("uuid", uuid);
       params.putString("error", "Device already disconnected:" + uuid);
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED, params);
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED, params.copy());
       return;
     }
     this.mDfuHelper.resumeDfu(uuid);
@@ -1012,7 +1097,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       WritableMap params = Arguments.createMap();
       params.putString("uuid", uuid);
       params.putString("error", "Device already disconnected:" + uuid);
-      sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED, params);
+      sendEvent(reactContext, BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED, params.copy());
       return;
     }
     this.mDfuHelper.abortDfu(uuid);

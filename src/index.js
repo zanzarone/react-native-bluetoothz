@@ -17,6 +17,8 @@ const BLE = NativeModules.BluetoothZ
       }
     );
 
+let bleEmitter;
+let subscriptions = [];
 /**
  *  ============  ================= ============
  *  ============                    ============
@@ -55,142 +57,11 @@ module.exports.dfuOptions = Object.freeze(dfuOptions);
 const scheduler = new Scheduler();
 
 /**
- *  ============  ================= ============
- *  ============                    ============
- *  ============      LISTENERS     ============
- *  ============                    ============
- *  ============  ================= ============
- */
-
-/// Emettitore degli eventi nativi
-const bleEmitter = new NativeEventEmitter(BLE);
-module.exports.emitter = bleEmitter;
-
-/// aggancio ascoltatore connessione alla periferica fallita
-bleEmitter.addListener(
-  Defines.BLE_PERIPHERAL_CHARACTERISTIC_READ_OK,
-  (event) => {
-    const { uuid } = event;
-    scheduler.dequeue();
-  }
-);
-
-/// aggancio ascoltatore connessione alla periferica fallita
-bleEmitter.addListener(
-  Defines.BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED,
-  (event) => {
-    console.log('#################################### 000000000000000 ', event);
-    const { uuid } = event;
-    scheduler.dequeue();
-  }
-);
-
-/// aggancio ascoltatore connessione alla periferica fallita
-bleEmitter.addListener(
-  Defines.BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK,
-  (event) => {
-    const { uuid } = event;
-    scheduler.dequeue();
-  }
-);
-
-/// aggancio ascoltatore connessione alla periferica fallita
-bleEmitter.addListener(
-  Defines.BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED,
-  (event) => {
-    const { uuid } = event;
-    scheduler.dequeue();
-  }
-);
-
-/// aggancio ascoltatore connessione alla periferica fallita
-bleEmitter.addListener(Defines.BLE_PERIPHERAL_NOTIFICATION_CHANGED, (event) => {
-  const { uuid } = event;
-  scheduler.dequeue();
-});
-
-/// aggancio ascoltatore connessione alla periferica fallita
-bleEmitter.addListener(
-  Defines.BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED,
-  (event) => {
-    const { uuid } = event;
-    scheduler.dequeue();
-  }
-);
-
-// bleEmitter.addListener(
-//   Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED,
-//   async (event) => {
-//     console.log('DFU RETRY =======================> 0.', event);
-//   }
-// );
-
-/// aggancio ascoltatore periferica connessa
-bleEmitter.addListener(Defines.BLE_PERIPHERAL_CONNECTED, (event) => {
-  console.log('!! BLE_PERIPHERAL_CONNECTED ', event);
-  reconnect = null;
-  const { uuid } = event;
-  stopConnWatchdog(uuid);
-  startConnWatchdog(uuid);
-});
-
-/// aggancio ascoltatore periferica pronta
-bleEmitter.addListener(Defines.BLE_PERIPHERAL_READY, (event) => {
-  console.log('!! BLE_PERIPHERAL_READY ', event);
-  const { uuid } = event;
-  stopConnWatchdog(uuid);
-});
-
-/// aggancio ascoltatore periferica pronta
-bleEmitter.addListener(Defines.BLE_PERIPHERAL_FOUND, (event) => {
-  console.log('!! BLE_PERIPHERAL_FOUND ', event);
-});
-
-/// aggancio ascoltatore periferica disconnessa
-bleEmitter.addListener(Defines.BLE_PERIPHERAL_DISCONNECTED, (event) => {
-  console.log('x BLE_PERIPHERAL_DISCONNECTED ', event);
-  const { uuid } = event;
-  if (reconnect?.count > 0) {
-    console.log('====> REDO CONNECT', uuid, reconnect?.count - 1);
-    connect({
-      uuid,
-      enableDiscover: reconnect?.enableDiscover,
-      maxRetryCount: reconnect?.count - 1,
-    });
-    return;
-  }
-  reconnect = null;
-  stopConnWatchdog(uuid);
-  /// devo chiamare la invalidate, perche se il dispositivo che si è disconnesso aveva delle operazioni
-  /// pendenti, le devo rimuovere
-  scheduler.invalidate(uuid);
-});
-
-/// aggancio ascoltatore connessione alla periferica fallita
-bleEmitter.addListener(Defines.BLE_PERIPHERAL_CONNECT_FAILED, (event) => {
-  reconnect = null;
-  const { uuid } = event;
-  stopConnWatchdog(uuid);
-  console.log('x BLE_PERIPHERAL_CONNECT_FAILED ', event);
-});
-
-/// aggancio ascoltatore trovata nuova caratteristica
-bleEmitter.addListener(
-  Defines.BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED,
-  (event) => {
-    const { uuid } = event;
-    // console.log('!! BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED ', event);
-    stopConnWatchdog(uuid);
-    startConnWatchdog(uuid);
-  }
-);
-
-/**
- *  ============  ================= ============
- *  ============                    ============
- *  ============  PRIVATE FUNCTIONS ============
- *  ============                    ============
- *  ============  ================= ============
+ *?  ============  ================= ============
+ *?  ============                    ============
+ *?  ============  PRIVATE FUNCTIONS ============
+ *?  ============                    ============
+ *?  ============  ================= ============
  */
 
 function stopConnWatchdog(uuid) {
@@ -217,30 +88,30 @@ function startConnWatchdog(uuid) {
   );
 }
 
-function incrementMacAddress(macAddress) {
-  // Dividiamo l'indirizzo MAC in coppie di caratteri
-  const macParts = macAddress.split(':');
-  // Convertiamo ogni parte dell'indirizzo MAC in un numero intero esadecimale
-  const decimalParts = macParts.map((part) => parseInt(part, 16));
-  let index = decimalParts.length - 1;
-  // Incrementiamo l'ultimo numero intero di 1
-  decimalParts[index] += 1;
+// function incrementMacAddress(macAddress) {
+//   // Dividiamo l'indirizzo MAC in coppie di caratteri
+//   const macParts = macAddress.split(':');
+//   // Convertiamo ogni parte dell'indirizzo MAC in un numero intero esadecimale
+//   const decimalParts = macParts.map((part) => parseInt(part, 16));
+//   let index = decimalParts.length - 1;
+//   // Incrementiamo l'ultimo numero intero di 1
+//   decimalParts[index] += 1;
 
-  while (index >= 0) {
-    if (decimalParts[index] > 255) {
-      decimalParts[index] = 0;
-      if (index - 1 >= 0) decimalParts[index - 1] += 1;
-    }
-    index--;
-  }
-  // Convertiamo i numeri decimali in stringhe esadecimali a 2 cifre
-  const incrementedParts = decimalParts.map((part) =>
-    part.toString(16).padStart(2, '0')
-  );
-  // Uniamo le parti dell'indirizzo MAC in una stringa con i due punti
-  const incrementedMacAddress = incrementedParts.join(':');
-  return incrementedMacAddress.toUpperCase();
-}
+//   while (index >= 0) {
+//     if (decimalParts[index] > 255) {
+//       decimalParts[index] = 0;
+//       if (index - 1 >= 0) decimalParts[index - 1] += 1;
+//     }
+//     index--;
+//   }
+//   // Convertiamo i numeri decimali in stringhe esadecimali a 2 cifre
+//   const incrementedParts = decimalParts.map((part) =>
+//     part.toString(16).padStart(2, '0')
+//   );
+//   // Uniamo le parti dell'indirizzo MAC in una stringa con i due punti
+//   const incrementedMacAddress = incrementedParts.join(':');
+//   return incrementedMacAddress.toUpperCase();
+// }
 
 function stopScan() {
   console.log('====> STOP SCAN');
@@ -342,12 +213,184 @@ async function startScanSync({
 }
 
 /**
- *  ============  ==================  ============
- *  ============                      ============
- *  ============  EXPORTED FUNCTIONS  ============
- *  ============                      ============
- *  ============  ==================  ============
+ *?  ============  ==================  ============
+ *?  ============                      ============
+ *?  ============  EXPORTED FUNCTIONS  ============
+ *?  ============                      ============
+ *?  ============  ==================  ============
  */
+
+module.exports.configure = (nativeEventEmitter) => {
+  //? se la configure viene chiamata nuovamente, devo assicurarmi che i listeners
+  //? dell'istanza precedente siano stati rimossi
+  if (subscriptions?.length) {
+    for (let i = 0; i < subscriptions.length; i++) {
+      subscriptions[i]?.remove();
+    }
+    subscriptions = [];
+  }
+
+  bleEmitter = new nativeEventEmitter(BLE);
+
+  /**
+   *?  ============  ================= ============
+   *?  ============                    ============
+   *?  ============      LISTENERS     ============
+   *?  ============                    ============
+   *?  ============  ================= ============
+   */
+
+  /// aggancio ascoltatore connessione alla periferica fallita
+  subscriptions.push(
+    bleEmitter.addListener(
+      Defines.BLE_PERIPHERAL_CHARACTERISTIC_READ_OK,
+      (event) => {
+        const { uuid } = event;
+        scheduler.dequeue();
+      }
+    )
+  );
+
+  /// aggancio ascoltatore connessione alla periferica fallita
+  subscriptions.push(
+    bleEmitter.addListener(
+      Defines.BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED,
+      (event) => {
+        console.log(
+          '#################################### 000000000000000 ',
+          event
+        );
+        const { uuid } = event;
+        scheduler.dequeue();
+      }
+    )
+  );
+  /// aggancio ascoltatore connessione alla periferica fallita
+  subscriptions.push(
+    bleEmitter.addListener(
+      Defines.BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK,
+      (event) => {
+        const { uuid } = event;
+        scheduler.dequeue();
+      }
+    )
+  );
+
+  /// aggancio ascoltatore connessione alla periferica fallita
+  subscriptions.push(
+    bleEmitter.addListener(
+      Defines.BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED,
+      (event) => {
+        const { uuid } = event;
+        scheduler.dequeue();
+      }
+    )
+  );
+
+  /// aggancio ascoltatore connessione alla periferica fallita
+  subscriptions.push(
+    bleEmitter.addListener(
+      Defines.BLE_PERIPHERAL_NOTIFICATION_CHANGED,
+      (event) => {
+        const { uuid } = event;
+        scheduler.dequeue();
+      }
+    )
+  );
+
+  /// aggancio ascoltatore connessione alla periferica fallita
+  subscriptions.push(
+    bleEmitter.addListener(
+      Defines.BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED,
+      (event) => {
+        const { uuid } = event;
+        scheduler.dequeue();
+      }
+    )
+  );
+
+  // bleEmitter.addListener(
+  //   Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED,
+  //   async (event) => {
+  //     console.log('DFU RETRY =======================> 0.', event);
+  //   }
+  // );
+
+  /// aggancio ascoltatore periferica connessa
+  subscriptions.push(
+    bleEmitter.addListener(Defines.BLE_PERIPHERAL_CONNECTED, (event) => {
+      console.log('!! BLE_PERIPHERAL_CONNECTED ', event);
+      reconnect = null;
+      const { uuid } = event;
+      stopConnWatchdog(uuid);
+      startConnWatchdog(uuid);
+    })
+  );
+
+  /// aggancio ascoltatore periferica pronta
+  subscriptions.push(
+    bleEmitter.addListener(Defines.BLE_PERIPHERAL_READY, (event) => {
+      console.log('!! BLE_PERIPHERAL_READY ', event);
+      const { uuid } = event;
+      stopConnWatchdog(uuid);
+    })
+  );
+
+  /// aggancio ascoltatore periferica pronta
+  subscriptions.push(
+    bleEmitter.addListener(Defines.BLE_PERIPHERAL_FOUND, (event) => {
+      console.log('!! BLE_PERIPHERAL_FOUND ', event);
+    })
+  );
+
+  /// aggancio ascoltatore periferica disconnessa
+  subscriptions.push(
+    bleEmitter.addListener(Defines.BLE_PERIPHERAL_DISCONNECTED, (event) => {
+      console.log('x BLE_PERIPHERAL_DISCONNECTED ', event);
+      const { uuid } = event;
+      if (reconnect?.count > 0) {
+        console.log('====> REDO CONNECT', uuid, reconnect?.count - 1);
+        connect({
+          uuid,
+          enableDiscover: reconnect?.enableDiscover,
+          maxRetryCount: reconnect?.count - 1,
+        });
+        return;
+      }
+      reconnect = null;
+      stopConnWatchdog(uuid);
+      /// devo chiamare la invalidate, perche se il dispositivo che si è disconnesso aveva delle operazioni
+      /// pendenti, le devo rimuovere
+      scheduler.invalidate(uuid);
+    })
+  );
+
+  /// aggancio ascoltatore connessione alla periferica fallita
+  subscriptions.push(
+    bleEmitter.addListener(Defines.BLE_PERIPHERAL_CONNECT_FAILED, (event) => {
+      reconnect = null;
+      const { uuid } = event;
+      stopConnWatchdog(uuid);
+      console.log('x BLE_PERIPHERAL_CONNECT_FAILED ', event);
+    })
+  );
+
+  /// aggancio ascoltatore trovata nuova caratteristica
+  subscriptions.push(
+    bleEmitter.addListener(
+      Defines.BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED,
+      (event) => {
+        const { uuid } = event;
+        // console.log('!! BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED ', event);
+        stopConnWatchdog(uuid);
+        startConnWatchdog(uuid);
+      }
+    )
+  );
+
+  /// Inizializzo il modulo nativo
+  BLE.setup();
+};
 
 /// funzione per ricavare lo stato dell'adattatore
 module.exports.adapterStatusSync = async () => {
@@ -454,6 +497,20 @@ module.exports.readCharacteristic = ({ uuid, charUUID }) => {
 };
 
 /// funzione per interrompere la scansione bluetooth
+module.exports.readCharacteristicSync = async ({ uuid, charUUID }) => {
+  if (!uuid || !charUUID) {
+    throw new Error('Parameters UUID, charsUUID are mandatory');
+  }
+  try {
+    console.log('====> READ', charUUID);
+    return await BLE.readCharacteristicValueSync(uuid, charUUID);
+  } catch (error) {
+    console.log('====> READ error', error);
+    return null;
+  }
+};
+
+/// funzione per interrompere la scansione bluetooth
 module.exports.writeCharacteristic = ({ uuid, charUUID, value }) => {
   if (!uuid || !charUUID || value === undefined) {
     throw new Error('Parameters UUID, charsUUID and value are mandatory');
@@ -461,6 +518,20 @@ module.exports.writeCharacteristic = ({ uuid, charUUID, value }) => {
   console.log('====> WRITE', charUUID);
   const task = () => BLE.writeCharacteristicValue(uuid, charUUID, value);
   scheduler.enqueue(task, uuid);
+};
+
+/// funzione per interrompere la scansione bluetooth
+module.exports.writeCharacteristicSync = async ({ uuid, charUUID, value }) => {
+  if (!uuid || !charUUID || value === undefined) {
+    throw new Error('Parameters UUID, charsUUID and value are mandatory');
+  }
+  try {
+    console.log('====> WRITE', charUUID);
+    return await BLE.writeCharacteristicValue(uuid, charUUID, value);
+  } catch (error) {
+    console.log('====> WRITE error', error);
+    return null;
+  }
 };
 
 /// funzione per interrompere la scansione bluetooth
@@ -515,5 +586,6 @@ module.exports.isDfuCompliantSync = async ({ uuid }) => {
   return BLE.isDfuCompliantSync(uuid);
 };
 
-/// Inizializzo il modulo nativo
-BLE.setup();
+module.exports.emitter = function () {
+  return bleEmitter;
+};

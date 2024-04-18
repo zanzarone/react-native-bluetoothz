@@ -37,7 +37,11 @@ RCT_EXTERN_METHOD(getAllCharacteristicSync:(NSString*)uuid resolve:(RCTPromiseRe
 
 RCT_EXTERN_METHOD(readCharacteristicValue:(NSString*)uuid charUUID:(NSString*)charUUID)
 
+RCT_EXTERN_METHOD(readCharacteristicValueSync:(NSString*)uuid charUUID:(NSString*)charUUID resolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
+
 RCT_EXTERN_METHOD(writeCharacteristicValue:(NSString*)uuid charUUID:(NSString*)charUUID value:(NSArray*)value)
+
+RCT_EXTERN_METHOD(writeCharacteristicValueSync:(NSString*)uuid charUUID:(NSString*)charUUID value:(NSArray*)value resolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(changeCharacteristicNotification:(NSString*)uuid charUUID:(NSString*)charUUID enable:(BOOL)enable)
 

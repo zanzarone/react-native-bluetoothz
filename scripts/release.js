@@ -14,14 +14,25 @@ function pre() {
   let tarGZ = path.join(root, `${name}-${version}.tgz`);
   console.log('aft ', tarGZ);
   if (fs.existsSync(tarGZ)) fs.rmSync(tarGZ);
-  // oldPath = path.join(root, `${name}`);
-  // if (fs.existsSync(oldPath)) fs.rmSync(oldPath, { recursive: true });
+  const oldPath = path.join(root, 'extract');
+  if (fs.existsSync(oldPath)) fs.rmSync(oldPath, { recursive: true });
 }
 
 function move() {
+  const extractFolder = path.join(root, 'extract');
+  if (!fs.existsSync(extractFolder)) {
+    fs.mkdirSync(extractFolder);
+  }
   console.log('move ', name, version);
-  tar.x({ file: path.join(root, `${name}-${version}.tgz`), sync: true });
-  fs.renameSync(path.join(root, 'package'), `${name}`);
+  tar.x({
+    cwd: extractFolder,
+    file: path.join(root, `${name}-${version}.tgz`),
+    sync: true,
+  });
+  fs.renameSync(
+    path.join(extractFolder, 'package'),
+    path.join(extractFolder, `${name}`)
+  );
 }
 
 function copyFiles(sourceDir, targetDir) {
@@ -58,7 +69,9 @@ function copy() {
   console.log('copy ', name, version);
   if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true });
   fs.mkdirSync(dest);
-  copyFiles(path.join(root, `${name}`), dest);
+  const extractFolder = path.join(root, 'extract', `${name}`);
+  copyFiles(extractFolder, dest);
+  copyFiles(extractFolder, path.join(root, `${name}`));
   // fs.renameSync(path.join(root, `${name}`), dest);
 }
 

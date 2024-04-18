@@ -243,6 +243,9 @@ class SyncHelper {
     /// DFU PROPS
     var processResolve     : RCTPromiseResolveBlock?
     var processReject      : RCTPromiseRejectBlock?
+	/// CHARS
+	var readValuePromises  : [String: (RCTPromiseResolveBlock, RCTPromiseRejectBlock)] = [:]
+	var writeValuePromises  : [String: (RCTPromiseResolveBlock, RCTPromiseRejectBlock)] = [:]
 }
 
 @objc(BluetoothZ)
@@ -609,36 +612,70 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
         let p : Peripheral = self.peripherals[uuid]!
         resolve( ["characteristics":  p.allCharacteristics()] )
     }
-    
-    @objc
-    func readCharacteristicValue(_ uuid:String, charUUID:String)
-    {
-        /// ("========================>>>> readCharacteristicValue")
-        if !self.isConnected(uuidString: uuid) {
-            /// i need to disconnect the current device before attempting a new connection
-            self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "peripheral not found with uuid:\(uuid)"])
-            return
-        }
-        let p : Peripheral = self.peripherals[uuid]!
-        if !p.readCharacteristic(charUUID) {
-            self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "characteristic not found with uuid:\(uuid)"])
-        }
-    }
-    
-    @objc
-    func writeCharacteristicValue(_ uuid:String, charUUID:String, value:NSArray)
-    {
-        /// ("========================>>>> readCharacteristicValue")
-        if !self.isConnected(uuidString: uuid) {
-            /// i need to disconnect the current device before attempting a new connection
-            self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "peripheral not found with uuid:\(uuid)"])
-            return
-        }
-        let p : Peripheral = self.peripherals[uuid]!
-        if !p.writeCharacteristic(charUUID, value: value) {
-            self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "characteristic not found with uuid:\(uuid)"])
-        }
-    }
+	
+	@objc
+	 func readCharacteristicValue(_ uuid:String, charUUID:String)
+	 {
+		 /// ("========================>>>> readCharacteristicValue")
+		 if !self.isConnected(uuidString: uuid) {
+			 /// i need to disconnect the current device before attempting a new connection
+			 self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "peripheral not found with uuid:\(uuid)"])
+			 return
+		 }
+		 self.syncHelper.readValuePromises.removeValue(forKey: uuid)
+		 let p : Peripheral = self.peripherals[uuid]!
+		 if !p.readCharacteristic(charUUID) {
+			 self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "characteristic not found with uuid:\(uuid)"])
+		 }
+	 }
+	
+	@objc
+	func readCharacteristicValueSync(_ uuid:String, charUUID:String, resolve: RCTPromiseResolveBlock, rejecter:RCTPromiseRejectBlock) -> Void
+	{
+		 /// ("========================>>>> readCharacteristicValue")
+		 if !self.isConnected(uuidString: uuid) {
+			 /// i need to disconnect the current device before attempting a new connection
+			 rejecter("status", "peripheral not found with uuid:\(uuid)", nil)
+			 return
+		 }
+		 self.syncHelper.readValuePromises[uuid] = (resolve, rejecter)
+		 let p : Peripheral = self.peripherals[uuid]!
+		 if !p.readCharacteristic(charUUID) {
+			 self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "characteristic not found with uuid:\(uuid)"])
+		 }
+	 }
+	
+	@objc
+	 func writeCharacteristicValue(_ uuid:String, charUUID:String, value:NSArray)
+	 {
+		 /// ("========================>>>> readCharacteristicValue")
+		 if !self.isConnected(uuidString: uuid) {
+			 /// i need to disconnect the current device before attempting a new connection
+			 self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "peripheral not found with uuid:\(uuid)"])
+			 return
+		 }
+		 self.syncHelper.writeValuePromises.removeValue(forKey: uuid)
+		 let p : Peripheral = self.peripherals[uuid]!
+		 if !p.writeCharacteristic(charUUID, value: value) {
+			 self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "characteristic not found with uuid:\(uuid)"])
+		 }
+	 }
+		
+	@objc
+	 func writeCharacteristicValueSync(_ uuid:String, charUUID:String, value:NSArray, resolve: RCTPromiseResolveBlock, rejecter:RCTPromiseRejectBlock) -> Void
+	 {
+		 /// ("========================>>>> readCharacteristicValue")
+		 if !self.isConnected(uuidString: uuid) {
+			 /// i need to disconnect the current device before attempting a new connection
+			 self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "peripheral not found with uuid:\(uuid)"])
+			 return
+		 }
+		 self.syncHelper.writeValuePromises[uuid] = (resolve, rejecter)
+		 let p : Peripheral = self.peripherals[uuid]!
+		 if !p.writeCharacteristic(charUUID, value: value) {
+			 self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": uuid, "charUUID": charUUID, "error": "characteristic not found with uuid:\(uuid)"])
+		 }
+	 }
     
     @objc
     func changeCharacteristicNotification(_ uuid:String, charUUID:String, enable:Bool)
@@ -840,13 +877,36 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
         if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
             let charUUID = characteristic.uuid.uuidString
             if let err = error {
-                self.sendEvent(withName: p.isNotifying(charUUID) ? BLE_PERIPHERAL_NOTIFICATION_UPDATES : BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, body: ["uuid": peripheral.identifier.uuidString, "error": err.localizedDescription])
+				let event = p.isNotifying(charUUID) ? BLE_PERIPHERAL_NOTIFICATION_UPDATES : BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED
+				if let promise = self.syncHelper.readValuePromises[charUUID], let reject = promise.1  {
+					reject(event, err.localizedDescription, nil)
+				}else{
+					self.sendEvent(withName: event, body:body)
+				}
+	
+//                self.sendEvent(withName: p.isNotifying(charUUID) ? BLE_PERIPHERAL_NOTIFICATION_UPDATES : BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, body: ["uuid": peripheral.identifier.uuidString, "error": err.localizedDescription])
                 return
             }
-            if let data = characteristic.value{
-                self.sendEvent(withName: p.isNotifying(charUUID) ? BLE_PERIPHERAL_NOTIFICATION_UPDATES : BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, body: ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": data.bytes])
+            if let data = characteristic.value {
+				
+				let body = ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": data.bytes]
+				if let promise = self.syncHelper.readValuePromises[charUUID], let resolve = promise.0  {
+					resolve(p.isNotifying(charUUID) ? BLE_PERIPHERAL_NOTIFICATION_UPDATES : BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, body: body)
+				}else{
+					self.sendEvent(withName: p.isNotifying(charUUID) ? BLE_PERIPHERAL_NOTIFICATION_UPDATES : BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, body:body)
+				}
+				
+				
+//                self.sendEvent(withName: p.isNotifying(charUUID) ? BLE_PERIPHERAL_NOTIFICATION_UPDATES : BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, body: ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": data.bytes])
             }else{
-                self.sendEvent(withName: p.isNotifying(charUUID) ? BLE_PERIPHERAL_NOTIFICATION_UPDATES : BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, body: ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": nil])
+				let body = ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": nil]
+				if let promise = self.syncHelper.readValuePromises[charUUID], let resolve = promise.0  {
+					resolve(p.isNotifying(charUUID) ? BLE_PERIPHERAL_NOTIFICATION_UPDATES : BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, body: body)
+				}else{
+					self.sendEvent(withName: p.isNotifying(charUUID) ? BLE_PERIPHERAL_NOTIFICATION_UPDATES : BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, body:body])
+				}
+				
+//                self.sendEvent(withName: p.isNotifying(charUUID) ? BLE_PERIPHERAL_NOTIFICATION_UPDATES : BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, body: ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": nil])
             }
         }
     }
@@ -855,13 +915,41 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         let charUUID = characteristic.uuid.uuidString
         if let err = error {
-            self.sendEvent(withName:  BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": peripheral.identifier.uuidString, "charUUID":charUUID, "error": err.localizedDescription])
+			let event = BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED
+			
+			if let promise = self.syncHelper.writeValuePromises[charUUID], let reject = promise.1  {
+				reject(event, err.localizedDescription, nil)
+			}else{
+				self.sendEvent(withName: event, body:body)
+			}
+			
+//            self.sendEvent(withName:  BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, body: ["uuid": peripheral.identifier.uuidString, "charUUID":charUUID, "error": err.localizedDescription])
             return
         }
         if let data = characteristic.value{
-            self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, body: ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": data.bytes])
+			
+			let body = ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": data.bytes]
+			if let promise = self.syncHelper.writeValuePromises[charUUID], let resolve = promise.0  {
+				resolve(BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, body: body)
+			}else{
+				self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, body:body)
+			}
+			
+			
+//            self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, body: body )
         }else{
-            self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, body: ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": nil])
+			
+			
+				
+				let body =  ["uuid": peripheral.identifier.uuidString,"charUUID": charUUID, "value": nil]
+				if let promise = self.syncHelper.writeValuePromises[charUUID], let resolve = promise.0  {
+					resolve(BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, body: body)
+				}else{
+					self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, body:body)
+				}
+			
+			
+//            self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, body:body)
         }
     }
     
