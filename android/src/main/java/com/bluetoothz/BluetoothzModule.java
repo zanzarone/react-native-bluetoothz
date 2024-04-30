@@ -464,6 +464,8 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     public Peripheral(BluetoothDevice device, int lastRSSI) {
       this.mServices = new HashMap<>();
       this.mCharacteristic = new HashMap<>();
+      this.mReadCharPromises = new HashMap<>();
+      this.mWriteCharPromises = new HashMap<>();
       this.mDevice = device;
       this.mLastRSSI = lastRSSI;
     }
@@ -576,6 +578,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     @SuppressLint("MissingPermission")
     public boolean readCharacteristic(String uuid) {
       if (mCharacteristic.containsKey(uuid)) {
+        mReadCharPromises.remove(uuid);
         BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
         mBluetoothGATT.readCharacteristic(characteristic);
         return true;
@@ -599,6 +602,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     @SuppressLint("MissingPermission")
     public boolean writeCharacteristic(String uuid, byte[] value, int NOT_IMPLEMENTED_type) {
       if (mCharacteristic.containsKey(uuid)) {
+        mWriteCharPromises.remove(uuid, promise);
         BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
         characteristic.setValue(value);
         mBluetoothGATT.writeCharacteristic(characteristic);

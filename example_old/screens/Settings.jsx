@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react';
 import * as BluetoothZ from 'react-native-bluetoothz';
-import {Image, StyleSheet, View} from 'react-native';
+import {Image, StyleSheet, View, Platform} from 'react-native';
 import BackgroundShape from '../components/BackgroundShape';
 import Header from '../components/Header';
 import {Text} from 'react-native';
@@ -9,7 +9,7 @@ import Switch from '../components/Switch';
 export default function Settings({navigation, route}) {
   const [isBluetoothPoweredOn, bluetoothPoweredOn] = useState(undefined);
   useEffect(() => {
-    const bleAdapterListener = BluetoothZ.emitter.addListener(
+    const bleAdapterListener = BluetoothZ.emitter().addListener(
       BluetoothZ.Defines.BLE_ADAPTER_STATUS_DID_UPDATE,
       ({status}) => {
         console.log('oooooooooooo', status);

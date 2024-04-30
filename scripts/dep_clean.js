@@ -38,29 +38,53 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
-// Chiedi all'utente di inserire qualcosa
-rl.question('\n > Are you sure you want to run dep-clean? [Y/n] ', (answer) => {
-  // Chiudi l'interfaccia dopo aver ottenuto l'input
-  rl.close();
-  if (answer.toLowerCase() === 'yes' || answer.toLowerCase() === 'y') {
-    console.log('Running the script...');
+function step2() {
+  rl.question('a. Rebuild Android\nb. Rebuild All\nd. Nothing\n', (answer) => {
+    if (answer !== 'a' && answer !== 'b' && answer !== 'c' && answer !== 'd') {
+      step2();
+      return;
+    }
+    rl.close();
+    if (answer === 'd') {
+      return;
+    }
+    console.log('removing react-native-bluetoothz...');
     execSync(`npm r react-native-bluetoothz --prefix ${exampleDIR}`, {
       stdio: 'inherit',
     });
-    execSync(`cd ${path.join(exampleDIR, 'ios')} && pod install`, {
-      stdio: 'inherit',
-    });
+    if (answer === 'b') {
+      console.log('removing react-native-bluetoothz POD...');
+      execSync(`cd ${path.join(exampleDIR, 'ios')} && pod install`, {
+        stdio: 'inherit',
+      });
+    }
+    console.log('installing react-native-bluetoothz...');
     execSync(`npm i react-native-bluetoothz --prefix ${exampleDIR}`, {
       stdio: 'inherit',
     });
+    console.log('running preflight script...');
     execSync(`npm run preflight`, {
       stdio: 'inherit',
     });
-    execSync(`cd ${path.join(exampleDIR, 'ios')} && pod install`, {
-      stdio: 'inherit',
-    });
+    if (answer === 'b') {
+      console.log('installing react-native-bluetoothz POD...');
+      execSync(`cd ${path.join(exampleDIR, 'ios')} && pod install`, {
+        stdio: 'inherit',
+      });
+    }
+    console.log('packing library...');
     execSync('npm pack');
+    console.log('Done.');
+  });
+}
+
+// Chiedi all'utente di inserire qualcosa
+rl.question('\n > Are you sure you want to run dep-clean? [Y/n] ', (answer) => {
+  // Chiudi l'interfaccia dopo aver ottenuto l'input
+  if (answer.toLowerCase() === 'yes' || answer.toLowerCase() === 'y') {
+    step2();
   } else {
+    rl.close();
     console.log('Script execution canceled.');
   }
 });

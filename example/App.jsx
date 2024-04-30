@@ -1,113 +1,280 @@
-import * as React from 'react';
-import {NavigationContainer} from '@react-navigation/native';
-import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+/**
+ * Sample React Native App
+ * https://github.com/facebook/react-native
+ *
+ * @format
+ */
 
-// import Home from './Home copy.jsx';
-import Main from './Main.jsx';
-import {Toast} from './components/Toast.jsx';
-import {Image, Platform, StyleSheet, Text, View} from 'react-native';
-import Settings from './screens/Settings.jsx';
-// import TestDFU from './screens/DFU.jsx';
+import React, {useEffect, useState} from 'react';
+import {
+  Button,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  useColorScheme,
+  View,
+} from 'react-native';
 
-// const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
+import {
+  Colors,
+  DebugInstructions,
+  Header,
+  LearnMoreLinks,
+  ReloadInstructions,
+} from 'react-native/Libraries/NewAppScreen';
+const {Buffer} = require('buffer');
+import {
+  emitter as bleEmitter,
+  adapterStatus,
+  startScan,
+  stopScan,
+  connect,
+  disconnect,
+  getAllCharacteristic,
+  readCharacteristicSync,
+  Defines,
+} from 'react-native-bluetoothz';
+import {Permission} from './src/androidPermissions';
 
-const TabBarButton = ({focused, tabName, icon, iconFocused}) => {
+function Section({children, title}) {
+  const isDarkMode = useColorScheme() === 'dark';
   return (
-    <View
-      style={{
-        top: 10,
-        position: 'absolute',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-      <Image
-        resizeMode="contain"
-        style={{height: 30, width: 30}}
-        source={focused ? iconFocused : icon}
-      />
+    <View style={styles.sectionContainer}>
       <Text
-        style={{
-          color: focused ? 'black' : 'silver',
-          fontFamily: 'Nunito-Bold',
-          fontSize: 12,
-        }}>
-        {tabName}
+        style={[
+          styles.sectionTitle,
+          {
+            color: isDarkMode ? Colors.white : Colors.black,
+          },
+        ]}>
+        {title}
       </Text>
+      {children}
     </View>
   );
-};
+}
 
-export default function MyTabs() {
+function App() {
+  const isDarkMode = useColorScheme() === 'dark';
+  const [isBluetoothPoweredOn, bluetoothPoweredOn] = useState(undefined);
+  const [isScanning, setScanning] = useState(false);
+  const [devices, setDevices] = useState([]);
+
+  useEffect(() => {
+    const bleAdapterListener = bleEmitter().addListener(
+      Defines.BLE_ADAPTER_STATUS_DID_UPDATE,
+      ({status}) => {
+        console.log('oooooooooooo', status);
+        bluetoothPoweredOn(status === Defines.BLE_ADAPTER_STATUS_POWERED_ON);
+      },
+    );
+    const scanStartedListener = bleEmitter().addListener(
+      Defines.BLE_ADAPTER_SCAN_START,
+      () => {
+        setScanning(true);
+      },
+    );
+    const scanStoppedListener = bleEmitter().addListener(
+      Defines.BLE_ADAPTER_SCAN_END,
+      () => {
+        setScanning(false);
+      },
+    );
+    const peripheralFoundListener = bleEmitter().addListener(
+      Defines.BLE_PERIPHERAL_UPDATES,
+      ({devices}) => {
+        console.log('--->', devices);
+        setDevices(devices.sort((a, b) => b.rssi - a.rssi));
+      },
+    );
+    const peripheralReadyListener = bleEmitter().addListener(
+      Defines.BLE_PERIPHERAL_READY,
+      ({uuid, dfuCompliant}) => {
+        console.log('READy');
+        setDevices(old => {
+          return old.map(d => {
+            // console.log('CONN', old, old.uuid, uuid, old.uuid === uuid);
+            if (d.uuid === uuid) {
+              console.log('CONN 2');
+              return {...d, ready: true, dfuCompliant};
+            }
+            return d;
+          });
+        });
+      },
+    );
+    const peripheralConnectedListener = bleEmitter().addListener(
+      Defines.BLE_PERIPHERAL_CONNECTED,
+      ({uuid}) => {
+        setDevices(old => {
+          return old.map(d => {
+            // console.log('CONN', old, old.uuid, uuid, old.uuid === uuid);
+            if (d.uuid === uuid) {
+              console.log('CONN 2');
+              return {...d, connected: true};
+            }
+            return d;
+          });
+        });
+      },
+    );
+    const peripheralDisconnectedListener = bleEmitter().addListener(
+      Defines.BLE_PERIPHERAL_DISCONNECTED,
+      ({uuid}) => {
+        setDevices(old => {
+          return old.map(d => {
+            // console.log('CONN', old, old.uuid, uuid, old.uuid === uuid);
+            if (d.uuid === uuid) {
+              console.log('CONN 2');
+              return {...d, connected: false, ready: false, checked: false};
+            }
+            return d;
+          });
+        });
+      },
+    );
+    adapterStatus();
+    return function cleanup() {
+      bleAdapterListener?.remove();
+      scanStartedListener?.remove();
+      scanStoppedListener?.remove();
+      peripheralFoundListener?.remove();
+      peripheralReadyListener?.remove();
+      peripheralConnectedListener?.remove();
+      peripheralDisconnectedListener?.remove();
+    };
+  }, []);
+
+  const backgroundStyle = {
+    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+  };
+
   return (
-    <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={{
-          headerShown: false,
-          tabBarShowLabel: false,
-          tabBarStyle: {...styles.tabBarStyle, ...styles.shadow},
-        }}>
-        <Tab.Screen
-          name="Main"
-          component={Main}
-          options={{
-            tabBarIcon: ({focused}) => (
-              <TabBarButton
-                focused={focused}
-                tabName={'Scanner'}
-                icon={require('./assets/icon/scanner-100.png')}
-                iconFocused={require('./assets/icon/scanner-selected-100.png')}
-              />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="Settings"
-          component={Settings}
-          options={{
-            tabBarIcon: ({focused}) => (
-              <TabBarButton
-                focused={focused}
-                tabName={'Settings'}
-                icon={require('./assets/icon/settings-100.png')}
-                iconFocused={require('./assets/icon/settings-selected-100.png')}
-              />
-            ),
-          }}
-        />
-        {/* <Tab.Screen
-          name="Test DFU"
-          component={TestDFU}
-          
-        /> */}
-      </Tab.Navigator>
-      <Toast />
-    </NavigationContainer>
+    <SafeAreaView style={backgroundStyle}>
+      {Platform.OS === 'android' && <Permission />}
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={backgroundStyle.backgroundColor}
+      />
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        style={backgroundStyle}>
+        {/* <Header /> */}
+        <View
+          style={{
+            backgroundColor: isDarkMode ? Colors.black : Colors.white,
+          }}>
+          <Section title="Bluetooth status">
+            <Text
+              style={[
+                styles.sectionTitle,
+                {
+                  color: 'skyblue',
+                },
+              ]}>
+              {isBluetoothPoweredOn ? 'On' : 'Off'}
+            </Text>
+            <Button
+              title={!isScanning ? 'START SCAN' : 'STOP SCAN'}
+              disabled={!isBluetoothPoweredOn}
+              onPress={() => {
+                if (!isScanning) {
+                  // const {filterByName, ...options} = filter;
+                  startScan({
+                    // filter: filterByName.enabled ? filterByName.text : undefined,
+                    options: {allowNoNamed: true},
+                    // timeout: -1,
+                  });
+                } else {
+                  stopScan();
+                }
+              }}
+            />
+          </Section>
+          <Section title="Scanning info">
+            {devices.map(device => {
+              return (
+                <View key={device.uuid}>
+                  <Text
+                    style={[
+                      styles.sectionTitle,
+                      {
+                        color: 'orange',
+                        fontSize: 18,
+                      },
+                    ]}>
+                    {device?.name ?? 'No name'} ({device.uuid})
+                  </Text>
+                  {device?.rssi && <Text>RSSI: {device.rssi}</Text>}
+                  {device?.connected === true && (
+                    <Button
+                      color={'limegreen'}
+                      disabled={isScanning || device?.ready !== true}
+                      title={'print chars'}
+                      onPress={async () => {
+                        const chars = await getAllCharacteristic({
+                          uuid: device.uuid,
+                        });
+                        console.log(chars);
+                        const pippo = await readCharacteristicSync({
+                          uuid: device.uuid,
+                          charUUID:
+                            Platform.OS === 'android'
+                              ? '00002a29-0000-1000-8000-00805f9b34fb'
+                              : '2A29',
+                        });
+                        console.log(pippo, Buffer);
+                        try {
+                          const buff = Buffer.from(pippo.value, 'base64');
+                          console.log(buff.toString());
+                        } catch (exc) {
+                          console.log(exc);
+                        }
+                      }}
+                    />
+                  )}
+                  <Button
+                    color={!device.connected ? 'blue' : 'red'}
+                    disabled={isScanning}
+                    title={!device?.connected ? 'Connect' : 'Disconnect'}
+                    onPress={() => {
+                      if (!device?.connected) {
+                        connect({uuid: device.uuid});
+                      } else {
+                        disconnect({uuid: device.uuid});
+                      }
+                    }}
+                  />
+                </View>
+              );
+            })}
+          </Section>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  tabBarStyle: {
-    position: 'absolute',
-    backgroundColor: '#FAFAFA',
-    bottom: Platform.OS === 'android' ? 25 : 30,
-    left: 20,
-    right: 20,
-    borderRadius: 15,
-    height: 70,
-    elevation: 0,
+  sectionContainer: {
+    marginTop: 32,
+    paddingHorizontal: 24,
   },
-  shadow:
-    Platform.OS === 'ios'
-      ? {
-          shadowColor: '#171717',
-          shadowOffset: {width: -2, height: 4},
-          shadowOpacity: 0.2,
-          shadowRadius: 3,
-        }
-      : {
-          elevation: 4,
-          shadowColor: '#000000',
-        },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+  },
+  sectionDescription: {
+    marginTop: 8,
+    fontSize: 18,
+    fontWeight: '400',
+  },
+  highlight: {
+    fontWeight: '700',
+  },
 });
+
+export default App;

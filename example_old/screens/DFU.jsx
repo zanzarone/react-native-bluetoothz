@@ -1,4 +1,5 @@
-import {FlatList, View, Text, Image, Touchable} from 'react-native';
+import React from 'react';
+import {FlatList, View, Text, Image, Touchable, Platform} from 'react-native';
 import BackgroundShape from '../components/BackgroundShape';
 import Header from '../components/Header';
 import TouchableDebounce from '../components/TouchableDebounce';
@@ -317,7 +318,7 @@ export default function TestDFU({navigation, route}) {
 
   useEffect(() => {
     console.log('=================>>>>>>>>>>>> ON');
-    const dfuStatusListener = BluetoothZ.emitter.addListener(
+    const dfuStatusListener = BluetoothZ.emitter().addListener(
       BluetoothZ.Defines.BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,
       event => {
         const {status, uuid} = event;
@@ -613,7 +614,7 @@ export default function TestDFU({navigation, route}) {
       },
     );
 
-    const bleAdapterListener = BluetoothZ.emitter.addListener(
+    const bleAdapterListener = BluetoothZ.emitter().addListener(
       BluetoothZ.Defines.BLE_ADAPTER_STATUS_DID_UPDATE,
       ({status}) => {
         console.log('oooooooooooo', status);

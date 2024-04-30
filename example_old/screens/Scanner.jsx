@@ -337,13 +337,14 @@ const DevicesList = ({status, navigation, isScanning}) => {
   }, [isScanning]);
 
   useEffect(() => {
-    const peripheralFoundListener = BluetoothZ.emitter.addListener(
+    const peripheralFoundListener = BluetoothZ.emitter().addListener(
       BluetoothZ.Defines.BLE_PERIPHERAL_UPDATES,
       ({devices}) => {
+        console.log('--->', devices);
         setDevices(devices);
       },
     );
-    // const peripheralRSSIUpdatedListener = BluetoothZ.emitter.addListener(
+    // const peripheralRSSIUpdatedListener = BluetoothZ.emitter().addListener(
     //   BluetoothZ.Defines.BLE_PERIPHERAL_UPDATED_RSSI,
     //   ({uuid, rssi}) => {
     //     // console.log('RSSI');
@@ -358,7 +359,7 @@ const DevicesList = ({status, navigation, isScanning}) => {
     //     });
     //   },
     // );
-    const peripheralReadyListener = BluetoothZ.emitter.addListener(
+    const peripheralReadyListener = BluetoothZ.emitter().addListener(
       BluetoothZ.Defines.BLE_PERIPHERAL_READY,
       ({uuid, dfuCompliant}) => {
         console.log('READy');
@@ -374,7 +375,7 @@ const DevicesList = ({status, navigation, isScanning}) => {
         });
       },
     );
-    const peripheralConnectedListener = BluetoothZ.emitter.addListener(
+    const peripheralConnectedListener = BluetoothZ.emitter().addListener(
       BluetoothZ.Defines.BLE_PERIPHERAL_CONNECTED,
       ({uuid}) => {
         setDevices(old => {
@@ -389,7 +390,7 @@ const DevicesList = ({status, navigation, isScanning}) => {
         });
       },
     );
-    const peripheralDisconnectedListener = BluetoothZ.emitter.addListener(
+    const peripheralDisconnectedListener = BluetoothZ.emitter().addListener(
       BluetoothZ.Defines.BLE_PERIPHERAL_DISCONNECTED,
       ({uuid}) => {
         setDevices(old => {
@@ -502,7 +503,7 @@ export default function Scanner({navigation}) {
   const [isScanning, setScanning] = useState(false);
 
   useEffect(() => {
-    const bleAdapterListener = BluetoothZ.emitter.addListener(
+    const bleAdapterListener = BluetoothZ.emitter().addListener(
       BluetoothZ.Defines.BLE_ADAPTER_STATUS_DID_UPDATE,
       ({status}) => {
         console.log('oooooooooooo', status);
@@ -511,13 +512,13 @@ export default function Scanner({navigation}) {
         );
       },
     );
-    const scanStartedListener = BluetoothZ.emitter.addListener(
+    const scanStartedListener = BluetoothZ.emitter().addListener(
       BluetoothZ.Defines.BLE_ADAPTER_SCAN_START,
       () => {
         setScanning(true);
       },
     );
-    const scanStoppedListener = BluetoothZ.emitter.addListener(
+    const scanStoppedListener = BluetoothZ.emitter().addListener(
       BluetoothZ.Defines.BLE_ADAPTER_SCAN_END,
       () => {
         setScanning(false);

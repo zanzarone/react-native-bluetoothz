@@ -1,6 +1,6 @@
 {
   "name": "react-native-bluetoothz",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "description": "test",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -152,13 +152,7 @@
     "output": "lib",
     "targets": [
       "commonjs",
-      "module",
-      [
-        "typescript",
-        {
-          "project": "tsconfig.build.json"
-        }
-      ]
+      "module"
     ]
   }
 }

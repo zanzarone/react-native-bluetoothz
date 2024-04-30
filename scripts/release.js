@@ -5,7 +5,6 @@ const { name, version } = require('../package.json');
 const { execSync } = require('child_process');
 const root = path.resolve(__dirname, '..');
 const dest = path.join(root, `example/node_modules/${name}`);
-const bin = path.join(root, `bin/`);
 
 console.log('PRE FLIGHT SCRIPT ', name, version);
 
