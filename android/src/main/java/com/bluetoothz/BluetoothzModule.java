@@ -602,7 +602,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     @SuppressLint("MissingPermission")
     public boolean writeCharacteristic(String uuid, byte[] value, int NOT_IMPLEMENTED_type) {
       if (mCharacteristic.containsKey(uuid)) {
-        mWriteCharPromises.remove(uuid, promise);
+        mWriteCharPromises.remove(uuid);
         BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
         characteristic.setValue(value);
         mBluetoothGATT.writeCharacteristic(characteristic);
