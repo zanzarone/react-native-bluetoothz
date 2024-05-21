@@ -461,16 +461,16 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 		self.peripherals.removeAll()
 		self.centralManager?.scanForPeripherals(withServices: services, options: [CBCentralManagerScanOptionAllowDuplicatesKey:true])
 		DispatchQueue.main.async {
-			self.scanWatchdog = Timer.scheduledTimer(timeInterval: 1.0, target: self, selector: #selector(self.runTimedCode), userInfo: nil, repeats: true)
+			self.scanWatchdog = Timer.scheduledTimer(timeInterval: 1.0, target: self, selector: #selector(self.watcher), userInfo: nil, repeats: true)
 		}
 	}
 
-	@objc func runTimedCode() {
+	@objc func watcher() {
 		let currentTimeInSeconds = Date().timeIntervalSince1970
 		//! ==============================================
 		/// TODO KEEP A PARAMETRIC INPUT FOR THIS TWO
 		//! ==============================================
-		let result = self.peripherals.filter { currentTimeInSeconds - $0.value.getLastSeen() < 5 }
+		let result = self.peripherals.filter { currentTimeInSeconds - $0.value.getLastSeen() < 5 || $0.value.isConnected() }
 		var devices : [[String:Any]] = []
 		for p in result.values {
 			var el : [String:Any] = [:]

@@ -1,4 +1,4 @@
-import { NativeModules, Platform, NativeEventEmitter } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 const Scheduler = require('./scheduler');
 const LINKING_ERROR =
   `The package 'react-native-bluetoothz' doesn't seem to be linked. Make sure: \n\n` +
@@ -29,8 +29,9 @@ let subscriptions = [];
 const DFU_ERROR_DEVICE_DISCONNECTED = Platform.OS === 'android' ? 4096 : 202;
 
 const Defines = {
-  CONNECTION_TIMEOUT_MSEC: 10000,
   SCAN_TIMEOUT_MSEC: 8000,
+  CONNECTION_TIMEOUT_MSEC: 10000,
+  CHARS_OPERATION_TIMEOUT_MSEC: 10000,
   DEFAULT_MAX_RETRY_COUNT: 5,
   DFU_ERROR_DEVICE_DISCONNECTED,
   DFU_SCAN_FAILED: 'DFU_SCAN_FAILED',
@@ -45,6 +46,7 @@ module.exports.Defines = Defines;
 let reconnect = null;
 let scanWatchDog = null;
 let connectionWatchDog = new Map();
+// let charsWatchDog = new Map();
 let isScanning = false;
 const scanOptions = { allowDuplicates: false };
 const dfuOptions = {
@@ -87,31 +89,6 @@ function startConnWatchdog(uuid) {
     }, Defines.CONNECTION_TIMEOUT_MSEC)
   );
 }
-
-// function incrementMacAddress(macAddress) {
-//   // Dividiamo l'indirizzo MAC in coppie di caratteri
-//   const macParts = macAddress.split(':');
-//   // Convertiamo ogni parte dell'indirizzo MAC in un numero intero esadecimale
-//   const decimalParts = macParts.map((part) => parseInt(part, 16));
-//   let index = decimalParts.length - 1;
-//   // Incrementiamo l'ultimo numero intero di 1
-//   decimalParts[index] += 1;
-
-//   while (index >= 0) {
-//     if (decimalParts[index] > 255) {
-//       decimalParts[index] = 0;
-//       if (index - 1 >= 0) decimalParts[index - 1] += 1;
-//     }
-//     index--;
-//   }
-//   // Convertiamo i numeri decimali in stringhe esadecimali a 2 cifre
-//   const incrementedParts = decimalParts.map((part) =>
-//     part.toString(16).padStart(2, '0')
-//   );
-//   // Uniamo le parti dell'indirizzo MAC in una stringa con i due punti
-//   const incrementedMacAddress = incrementedParts.join(':');
-//   return incrementedMacAddress.toUpperCase();
-// }
 
 function stopScan() {
   console.log('====> STOP SCAN');
@@ -327,6 +304,17 @@ module.exports.configure = (nativeEventEmitter) => {
     })
   );
 
+  /// aggancio ascoltatore periferica connessa
+  subscriptions.push(
+    bleEmitter.addListener(
+      Defines.BLE_PERIPHERAL_DISCONNECT_FAILED,
+      (event) => {
+        const { uuid, error } = event;
+        console.log('!! BLE_PERIPHERAL_DISCONNECT_FAILED ', uuid, error);
+      }
+    )
+  );
+
   /// aggancio ascoltatore periferica pronta
   subscriptions.push(
     bleEmitter.addListener(Defines.BLE_PERIPHERAL_READY, (event) => {
@@ -452,6 +440,22 @@ module.exports.connectSync = async ({ uuid, enableDiscover }) =>
 /// funzione per interrompere la scansione bluetooth
 module.exports.cancel = ({ uuid }) => cancel({ uuid });
 
+if (Platform.OS === 'android') {
+  /// funzione per interrompere la scansione bluetooth
+  module.exports.requestMtu = ({ uuid, mtu }) => {
+    if (!uuid) {
+      throw new Error('Parameters UUID is mandatory');
+    }
+    BLE.requestMtu(uuid, mtu);
+  };
+  /// funzione per interrompere la scansione bluetooth
+  module.exports.requestConnectionPriority = ({ uuid, priority }) => {
+    if (!uuid) {
+      throw new Error('Parameters UUID is mandatory');
+    }
+    BLE.requestConnectionPriority(uuid, priority);
+  };
+}
 /// funzione per interrompere la scansione bluetooth
 module.exports.disconnect = ({ uuid }) => {
   if (!uuid) {
@@ -501,13 +505,16 @@ module.exports.readCharacteristicSync = async ({ uuid, charUUID }) => {
   if (!uuid || !charUUID) {
     throw new Error('Parameters UUID, charsUUID are mandatory');
   }
-  try {
-    console.log('====> READ', charUUID);
-    return await BLE.readCharacteristicValueSync(uuid, charUUID);
-  } catch (error) {
-    console.log('====> READ error', error);
-    return null;
-  }
+  const cancelSignal = new Promise((_, reject) => {
+    setTimeout(
+      () => reject(Defines.BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED),
+      Defines.CHARS_OPERATION_TIMEOUT_MSEC
+    );
+  });
+  return Promise.race([
+    BLE.readCharacteristicValueSync(uuid, charUUID),
+    cancelSignal,
+  ]);
 };
 
 /// funzione per interrompere la scansione bluetooth
@@ -525,13 +532,16 @@ module.exports.writeCharacteristicSync = async ({ uuid, charUUID, value }) => {
   if (!uuid || !charUUID || value === undefined) {
     throw new Error('Parameters UUID, charsUUID and value are mandatory');
   }
-  try {
-    console.log('====> WRITE', charUUID);
-    return await BLE.writeCharacteristicValue(uuid, charUUID, value);
-  } catch (error) {
-    console.log('====> WRITE error', error);
-    return null;
-  }
+  const cancelSignal = new Promise((_, reject) => {
+    setTimeout(
+      () => reject(Defines.BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED),
+      Defines.CHARS_OPERATION_TIMEOUT_MSEC
+    );
+  });
+  return Promise.race([
+    BLE.writeCharacteristicValue(uuid, charUUID, value),
+    cancelSignal,
+  ]);
 };
 
 /// funzione per interrompere la scansione bluetooth

@@ -185,8 +185,8 @@ function App() {
                   // const {filterByName, ...options} = filter;
                   startScan({
                     // filter: filterByName.enabled ? filterByName.text : undefined,
-                    options: {allowNoNamed: true},
-                    // timeout: -1,
+                    options: {allowNoNamed: false},
+                    timeout: -1,
                   });
                 } else {
                   stopScan();
