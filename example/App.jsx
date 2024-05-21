@@ -85,9 +85,10 @@ function App() {
     );
     const peripheralFoundListener = bleEmitter().addListener(
       Defines.BLE_PERIPHERAL_UPDATES,
-      ({devices}) => {
-        console.log('--->', devices);
-        setDevices(devices.sort((a, b) => b.rssi - a.rssi));
+      ({devices: devs}) => {
+        console.log('--->', devs);
+        // setDevices(devices.sort((a, b) => b.rssi - a.rssi));
+        setDevices(devs);
       },
     );
     const peripheralReadyListener = bleEmitter().addListener(
@@ -196,6 +197,7 @@ function App() {
           </Section>
           <Section title="Scanning info">
             {devices.map(device => {
+              console.log('sooooka', device);
               return (
                 <View key={device.uuid}>
                   <Text
@@ -208,11 +210,13 @@ function App() {
                     ]}>
                     {device?.name ?? 'No name'} ({device.uuid})
                   </Text>
-                  {device?.rssi && <Text>RSSI: {device.rssi}</Text>}
+                  {device?.rssi !== undefined && (
+                    <Text>RSSI: {device.rssi}</Text>
+                  )}
                   {device?.connected === true && (
                     <Button
                       color={'limegreen'}
-                      disabled={isScanning || device?.ready !== true}
+                      disabled={device?.ready !== true}
                       title={'print chars'}
                       onPress={async () => {
                         const chars = await getAllCharacteristic({
@@ -238,7 +242,7 @@ function App() {
                   )}
                   <Button
                     color={!device.connected ? 'blue' : 'red'}
-                    disabled={isScanning}
+                    // disabled={isScanning}
                     title={!device?.connected ? 'Connect' : 'Disconnect'}
                     onPress={() => {
                       if (!device?.connected) {

@@ -166,6 +166,17 @@ async function connectSync({ uuid, enableDiscover = true }) {
   return Promise.race([BLE.connectSync(newUuid, enableDiscover), cancelSignal]);
 }
 
+async function discoverSync({ uuid }) {
+  if (!uuid) {
+    throw new Error('Parameters UUID is mandatory');
+  }
+  const newUuid = uuid.toUpperCase();
+  const cancelSignal = new Promise((resolve, reject) => {
+    setTimeout(() => reject(Defines.BLE_PERIPHERAL_DISCOVER_FAILED), 15000);
+  });
+  return Promise.race([BLE.discoverSync(newUuid), cancelSignal]);
+}
+
 async function startScanSync({
   services,
   filter,
@@ -456,6 +467,7 @@ if (Platform.OS === 'android') {
     BLE.requestConnectionPriority(uuid, priority);
   };
 }
+
 /// funzione per interrompere la scansione bluetooth
 module.exports.disconnect = ({ uuid }) => {
   if (!uuid) {
@@ -465,6 +477,9 @@ module.exports.disconnect = ({ uuid }) => {
   stopConnWatchdog(uuid);
   BLE.disconnect(uuid);
 };
+
+//? funzione per interrompere la scansione bluetooth
+module.exports.discoverSync = ({ uuid }) => discoverSync({ uuid });
 
 /// funzione per interrompere la scansione bluetooth
 module.exports.getAllCharacteristic = async ({ uuid }) => {
