@@ -74,11 +74,10 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   public static final String BLE_PERIPHERAL_DISCONNECTED = "BLE_PERIPHERAL_DISCONNECTED";
   public static final String BLE_PERIPHERAL_CONNECT_FAILED = "BLE_PERIPHERAL_CONNECT_FAILED";
   public static final String BLE_PERIPHERAL_DISCONNECT_FAILED = "BLE_PERIPHERAL_DISCONNECT_FAILED";
-  public static final String BLE_PERIPHERAL_DISCOVERED = "BLE_PERIPHERAL_DISCOVERED";
   public static final String BLE_PERIPHERAL_DISCOVER_FAILED = "BLE_PERIPHERAL_DISCOVER_FAILED";
-  public static final String BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED = "BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED";
   public static final String BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED = "BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED";
-  public static final String BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE = "BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE";
+  public static final String BLE_PERIPHERAL_SERVICES_RETRIEVE_FAILED = "BLE_PERIPHERAL_SERVICES_RETRIEVE_FAILED";
+  public static final String BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE_FAILED = "BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE_FAILED";
   public static final String BLE_PERIPHERAL_CHARACTERISTIC_READ_OK = "BLE_PERIPHERAL_CHARACTERISTIC_READ_OK";
   public static final String BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED = "BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED";
   public static final String BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK = "BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK";
@@ -192,7 +191,6 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   }
 
   private class SyncHelper {
-    public Promise disconnectPromise;
     public Promise scanPromise;
   }
 
@@ -266,6 +264,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       String uuid = gatt.getDevice().getAddress();
       WritableMap params = Arguments.createMap();
       params.putString("uuid", uuid);
+      params.putInt("status", status);
       if (newState == BluetoothProfile.STATE_CONNECTED) {
         if (mPeripherals.containsKey(gatt.getDevice().getAddress())) {
           Peripheral p = mPeripherals.get(gatt.getDevice().getAddress());
@@ -281,21 +280,21 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
         }
       } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
         // disconnected from the GATT Server
+        Peripheral p = mPeripherals.get(gatt.getDevice().getAddress());
         if (mPeripherals.containsKey(gatt.getDevice().getAddress())) {
-          Peripheral p = mPeripherals.get(gatt.getDevice().getAddress());
-          p.flush();
-          if (mSyncHelper.disconnectPromise != null) {
-            mSyncHelper.disconnectPromise.resolve(params.copy());
+          if (p.getDisconnectPromise() != null) {
+            p.getDisconnectPromise().resolve(params.copy());
           } else {
             sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECTED, params.copy());
           }
         } else {
-          if (mSyncHelper.disconnectPromise != null) {
-            mSyncHelper.disconnectPromise.reject(BLE_PERIPHERAL_DISCONNECT_FAILED, "Device already disconnected:" + uuid);
+          if (p.getDisconnectPromise() != null) {
+            p.getDisconnectPromise().reject(BLE_PERIPHERAL_DISCONNECT_FAILED, "Device already disconnected:" + uuid);
           } else {
             sendEvent(reactContext, BLE_PERIPHERAL_DISCONNECT_FAILED, params.copy());
           }
         }
+        p.flush();
       }
     }
 
@@ -329,9 +328,8 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
           params.putBoolean("dfuCompliant", p.isDfuCompliant());
           if (p.getDiscoverPromise() != null) {
             p.getDiscoverPromise().resolve(params.copy());
-          } else {
-            sendEvent(reactContext, BLE_PERIPHERAL_READY, params.copy());
           }
+          sendEvent(reactContext, BLE_PERIPHERAL_READY, params.copy());
         }
       } else {
         WritableMap params = Arguments.createMap();
@@ -339,7 +337,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
         if (p.getDiscoverPromise() != null) {
           p.getDiscoverPromise().resolve(params.copy());
         } else {
-          sendEvent(reactContext, BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED, params.copy());
+          sendEvent(reactContext, BLE_PERIPHERAL_DISCOVER_FAILED, params.copy());
         }
       }
     }
@@ -485,6 +483,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     private boolean mConnected = false;
     private Promise mConnectPromise;
     private Promise mDiscoverPromise;
+    private Promise mDisconnectPromise;
     private int mLastRSSI;
     private long mLastSeen;
     private boolean mDfuCompliant = false;
@@ -522,6 +521,14 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 
     public void setDiscoverPromise(Promise mDiscoverPromise) {
       this.mDiscoverPromise = mDiscoverPromise;
+    }
+
+    public Promise getDisconnectPromise() {
+      return mDisconnectPromise;
+    }
+
+    public void setDisconnectPromise(Promise mDisconnectPromise) {
+      this.mDisconnectPromise = mDisconnectPromise;
     }
 
     public int getLastRSSI() {
@@ -711,11 +718,10 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     constants.put(BLE_PERIPHERAL_DISCONNECTED, BLE_PERIPHERAL_DISCONNECTED);
     constants.put(BLE_PERIPHERAL_CONNECT_FAILED, BLE_PERIPHERAL_CONNECT_FAILED);
     constants.put(BLE_PERIPHERAL_DISCONNECT_FAILED, BLE_PERIPHERAL_DISCONNECT_FAILED);
-    constants.put(BLE_PERIPHERAL_DISCOVERED, BLE_PERIPHERAL_DISCOVERED);
     constants.put(BLE_PERIPHERAL_DISCOVER_FAILED, BLE_PERIPHERAL_DISCOVER_FAILED);
-    constants.put(BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED, BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED);
     constants.put(BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED, BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED);
-    constants.put(BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE, BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE);
+    constants.put(BLE_PERIPHERAL_SERVICES_RETRIEVE_FAILED, BLE_PERIPHERAL_SERVICES_RETRIEVE_FAILED);
+    constants.put(BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE_FAILED, BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE_FAILED);
     constants.put(BLE_PERIPHERAL_CHARACTERISTIC_READ_OK, BLE_PERIPHERAL_CHARACTERISTIC_READ_OK);
     constants.put(BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED, BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED);
     constants.put(BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK, BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK);
@@ -936,13 +942,13 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 
   @SuppressLint("MissingPermission")
   @ReactMethod
-  public void connectSync(String uuid, boolean enableDiscover, Promise promise) {
+  public void connectSync(String uuid, Promise promise) {
     if (isConnected(uuid)) {
       promise.reject(BLE_PERIPHERAL_CONNECT_FAILED, "Device already connected:" + uuid);
       return;
     }
       Peripheral p = mPeripherals.get(uuid);
-      p.enableDiscovering(enableDiscover);
+      p.enableDiscovering(false);
       p.setConnectPromise(promise);
     try {
       final BluetoothDevice device = bluetoothAdapter.getRemoteDevice(uuid);
@@ -1017,6 +1023,19 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       return;
     }
     Peripheral p = mPeripherals.get(uuid);
+    p.setDisconnectPromise(null);
+    p.disconnect();
+  }
+
+  @SuppressLint("MissingPermission")
+  @ReactMethod
+  public void disconnectSync(String uuid, Promise promise) {
+    if (!isConnected(uuid)) {
+      promise.reject(BLE_PERIPHERAL_DISCONNECT_FAILED, "Device not connected:" + uuid);
+      return;
+    }
+    Peripheral p = mPeripherals.get(uuid);
+    p.setDisconnectPromise(promise);
     p.disconnect();
   }
 
@@ -1035,7 +1054,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   @ReactMethod
   public void getAllServicesSync(String uuid, Promise promise) {
     if (!isConnected(uuid)) {
-      promise.reject(BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE, "peripheral not connected");
+      promise.reject(BLE_PERIPHERAL_SERVICES_RETRIEVE_FAILED, "peripheral not connected");
       return;
     }
     Peripheral p = mPeripherals.get(uuid);
@@ -1048,7 +1067,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   @ReactMethod
   public void getAllCharacteristicSync(String uuid, Promise promise) {
     if (!isConnected(uuid)) {
-      promise.reject(BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE, "peripheral not connected");
+      promise.reject(BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE_FAILED, "peripheral not connected");
       return;
     }
     Peripheral p = mPeripherals.get(uuid);

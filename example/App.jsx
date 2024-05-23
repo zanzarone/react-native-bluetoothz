@@ -33,6 +33,7 @@ import {
   stopScan,
   connect,
   disconnect,
+  disconnectSync,
   getAllCharacteristic,
   readCharacteristicSync,
   Defines,
@@ -122,21 +123,21 @@ function App() {
         });
       },
     );
-    const peripheralDisconnectedListener = bleEmitter().addListener(
-      Defines.BLE_PERIPHERAL_DISCONNECTED,
-      ({uuid}) => {
-        setDevices(old => {
-          return old.map(d => {
-            // console.log('CONN', old, old.uuid, uuid, old.uuid === uuid);
-            if (d.uuid === uuid) {
-              console.log('CONN 2');
-              return {...d, connected: false, ready: false, checked: false};
-            }
-            return d;
-          });
-        });
-      },
-    );
+    // const peripheralDisconnectedListener = bleEmitter().addListener(
+    //   Defines.BLE_PERIPHERAL_DISCONNECTED,
+    //   ({uuid}) => {
+    //     setDevices(old => {
+    //       return old.map(d => {
+    //         // console.log('CONN', old, old.uuid, uuid, old.uuid === uuid);
+    //         if (d.uuid === uuid) {
+    //           console.log('CONN 2');
+    //           return {...d, connected: false, ready: false, checked: false};
+    //         }
+    //         return d;
+    //       });
+    //     });
+    //   },
+    // );
     adapterStatus();
     return function cleanup() {
       bleAdapterListener?.remove();
@@ -145,7 +146,7 @@ function App() {
       peripheralFoundListener?.remove();
       peripheralReadyListener?.remove();
       peripheralConnectedListener?.remove();
-      peripheralDisconnectedListener?.remove();
+      // peripheralDisconnectedListener?.remove();
     };
   }, []);
 
@@ -244,11 +245,18 @@ function App() {
                     color={!device.connected ? 'blue' : 'red'}
                     // disabled={isScanning}
                     title={!device?.connected ? 'Connect' : 'Disconnect'}
-                    onPress={() => {
+                    onPress={async () => {
                       if (!device?.connected) {
                         connect({uuid: device.uuid});
                       } else {
-                        disconnect({uuid: device.uuid});
+                        try {
+                          const seko = await disconnectSync({
+                            uuid: device.uuid,
+                          });
+                          console.log(seko);
+                        } catch (error) {
+                          console.log(error);
+                        }
                       }
                     }}
                   />

@@ -31,6 +31,8 @@ const DFU_ERROR_DEVICE_DISCONNECTED = Platform.OS === 'android' ? 4096 : 202;
 const Defines = {
   SCAN_TIMEOUT_MSEC: 8000,
   CONNECTION_TIMEOUT_MSEC: 10000,
+  DISCONNECT_TIMEOUT_MSEC: 5000,
+  DISCOVER_TIMEOUT_MSEC: 15000,
   CHARS_OPERATION_TIMEOUT_MSEC: 10000,
   DEFAULT_MAX_RETRY_COUNT: 5,
   DFU_ERROR_DEVICE_DISCONNECTED,
@@ -42,11 +44,10 @@ const Defines = {
 };
 module.exports.Defines = Defines;
 
-/// Inizializzo le variabili di stato
+//@ Inizializzo le variabili di stato
 let reconnect = null;
 let scanWatchDog = null;
 let connectionWatchDog = new Map();
-// let charsWatchDog = new Map();
 let isScanning = false;
 const scanOptions = { allowDuplicates: false };
 const dfuOptions = {
@@ -57,148 +58,6 @@ module.exports.scanOptions = Object.freeze(scanOptions);
 module.exports.dfuOptions = Object.freeze(dfuOptions);
 
 const scheduler = new Scheduler();
-
-/**
- *?  ============  ================= ============
- *?  ============                    ============
- *?  ============  PRIVATE FUNCTIONS ============
- *?  ============                    ============
- *?  ============  ================= ============
- */
-
-function stopConnWatchdog(uuid) {
-  if (connectionWatchDog.has(uuid)) {
-    console.log('- invalidate TIMER ', uuid);
-    clearTimeout(connectionWatchDog.get(uuid));
-    const deleted = connectionWatchDog.delete(uuid);
-    console.log('- invalidate TIMER ', uuid, deleted);
-  }
-}
-
-function startConnWatchdog(uuid) {
-  console.log('+ startConnWatchdog ', uuid);
-  for (const [key, value] of connectionWatchDog) {
-    console.log(`!!!! ${key} = ${value}`);
-  }
-  connectionWatchDog.set(
-    uuid,
-    setTimeout(() => {
-      console.log('====> 1 TIMEOUT CONNECTION', uuid);
-      reconnect = null;
-      cancel({ uuid });
-    }, Defines.CONNECTION_TIMEOUT_MSEC)
-  );
-}
-
-function stopScan() {
-  console.log('====> STOP SCAN');
-  BLE.stopScan();
-  clearTimeout(scanWatchDog);
-  scanWatchDog = null;
-  isScanning = false;
-}
-
-function cancel({ uuid }) {
-  if (!uuid) {
-    throw new Error('Parameters UUID is mandatory');
-  }
-  console.log('====> CANCEL CONN', uuid);
-  stopConnWatchdog(uuid);
-  BLE.cancel(uuid);
-}
-
-/// funzione per interrompere la scansione bluetooth
-async function startDFU({
-  uuid,
-  filePath,
-  pathType = Defines.FILE_PATH_TYPE_STRING,
-  options = dfuOptions,
-}) {
-  if (!uuid) {
-    throw new Error('Parameter UUID is mandatory');
-  }
-  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
-    throw new Error('Platform not supported (not android or ios)');
-  }
-  if (
-    pathType !== Defines.FILE_PATH_TYPE_STRING &&
-    pathType !== Defines.FILE_PATH_TYPE_URL
-  ) {
-    throw new Error(
-      `Path type not supported. Types available: ${Defines.FILE_PATH_TYPE_STRING}, ${Defines.FILE_PATH_TYPE_URL}`
-    );
-  }
-  BLE.startDFU(uuid, filePath, pathType, options);
-}
-
-function connect({
-  uuid,
-  enableDiscover = true,
-  maxRetryCount = Defines.DEFAULT_MAX_RETRY_COUNT,
-}) {
-  if (!uuid) {
-    throw new Error('Parameters UUID is mandatory');
-  }
-  if (connectionWatchDog.has(uuid)) {
-    console.log('====> ESTABILISHING CONNECTION ', uuid);
-    cancel({ uuid });
-  }
-  console.log('====> CONNECT', uuid);
-  startConnWatchdog(uuid);
-  BLE.connect(uuid, enableDiscover);
-  reconnect = {
-    count: maxRetryCount > 0 ? maxRetryCount : null,
-    enableDiscover,
-  };
-}
-
-async function connectSync({ uuid, enableDiscover = true }) {
-  if (!uuid) {
-    throw new Error('Parameters UUID is mandatory');
-  }
-  const newUuid = uuid.toUpperCase();
-  const cancelSignal = new Promise((resolve, reject) => {
-    setTimeout(
-      () => reject(Defines.BLE_PERIPHERAL_CONNECT_FAILED),
-      Defines.CONNECTION_TIMEOUT_MSEC
-    );
-  });
-  return Promise.race([BLE.connectSync(newUuid, enableDiscover), cancelSignal]);
-}
-
-async function discoverSync({ uuid }) {
-  if (!uuid) {
-    throw new Error('Parameters UUID is mandatory');
-  }
-  const newUuid = uuid.toUpperCase();
-  const cancelSignal = new Promise((resolve, reject) => {
-    setTimeout(() => reject(Defines.BLE_PERIPHERAL_DISCOVER_FAILED), 15000);
-  });
-  return Promise.race([BLE.discoverSync(newUuid), cancelSignal]);
-}
-
-async function startScanSync({
-  services,
-  filter,
-  options,
-  timeout = Defines.SCAN_TIMEOUT_MSEC,
-}) {
-  if (isScanning) {
-    stopScan();
-  }
-  filter = filter ? filter : undefined;
-  services = services ? services : undefined;
-  options = options ? options : scanOptions;
-  console.log('====> SCAN START', options);
-  const stopScanSignal = new Promise((resolve, reject) => {
-    setTimeout(() => stopScan(), timeout);
-  });
-  isScanning = true;
-  return Promise.race([
-    BLE.startScanSync(services, filter, options),
-    stopScanSignal,
-  ]);
-}
 
 /**
  *?  ============  ==================  ============
@@ -297,13 +156,6 @@ module.exports.configure = (nativeEventEmitter) => {
     )
   );
 
-  // bleEmitter.addListener(
-  //   Defines.BLE_PERIPHERAL_DFU_PROCESS_FAILED,
-  //   async (event) => {
-  //     console.log('DFU RETRY =======================> 0.', event);
-  //   }
-  // );
-
   /// aggancio ascoltatore periferica connessa
   subscriptions.push(
     bleEmitter.addListener(Defines.BLE_PERIPHERAL_CONNECTED, (event) => {
@@ -311,7 +163,6 @@ module.exports.configure = (nativeEventEmitter) => {
       reconnect = null;
       const { uuid } = event;
       stopConnWatchdog(uuid);
-      startConnWatchdog(uuid);
     })
   );
 
@@ -331,7 +182,6 @@ module.exports.configure = (nativeEventEmitter) => {
     bleEmitter.addListener(Defines.BLE_PERIPHERAL_READY, (event) => {
       console.log('!! BLE_PERIPHERAL_READY ', event);
       const { uuid } = event;
-      stopConnWatchdog(uuid);
     })
   );
 
@@ -381,8 +231,6 @@ module.exports.configure = (nativeEventEmitter) => {
       (event) => {
         const { uuid } = event;
         // console.log('!! BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED ', event);
-        stopConnWatchdog(uuid);
-        startConnWatchdog(uuid);
       }
     )
   );
@@ -402,6 +250,112 @@ module.exports.adapterStatusSync = async () => {
 
 /// funzione per ricavare lo stato dell'adattatore
 module.exports.adapterStatus = () => BLE.status();
+
+module.exports.isConnectedSync = async ({ uuid }) => {
+  if (!uuid) {
+    throw new Error('Parameter UUID is mandatory');
+  }
+  return BLE.isConnectedSync(uuid);
+};
+
+module.exports.isDfuCompliantSync = async ({ uuid }) => {
+  if (!uuid) {
+    throw new Error('Parameter UUID is mandatory');
+  }
+  return BLE.isDfuCompliantSync(uuid);
+};
+
+/**
+ *?  ============  ================= ============
+ *?  ============                    ============
+ *?  ============  PRIVATE FUNCTIONS ============
+ *?  ============                    ============
+ *?  ============  ================= ============
+ */
+
+function stopConnWatchdog(uuid) {
+  if (connectionWatchDog.has(uuid)) {
+    console.log('- invalidate TIMER ', uuid);
+    clearTimeout(connectionWatchDog.get(uuid));
+    const deleted = connectionWatchDog.delete(uuid);
+    console.log('- invalidate TIMER ', uuid, deleted);
+  }
+}
+
+// function stopDiscoverWatchdog(uuid) {
+//   if (discoverWatchDog.has(uuid)) {
+//     console.log('discoverWatchDog - invalidate TIMER ', uuid);
+//     clearTimeout(discoverWatchDog.get(uuid));
+//     const deleted = discoverWatchDog.delete(uuid);
+//     console.log('discoverWatchDog - invalidate TIMER ', uuid, deleted);
+//   }
+// }
+
+function startConnWatchdog(uuid) {
+  console.log('+ startConnWatchdog ', uuid);
+  for (const [key, value] of connectionWatchDog) {
+    console.log(`!!!! ${key} = ${value}`);
+  }
+  connectionWatchDog.set(
+    uuid,
+    setTimeout(() => {
+      console.log('====> 1 TIMEOUT CONNECTION', uuid);
+      reconnect = null;
+      cancelConnection({ uuid });
+    }, Defines.CONNECTION_TIMEOUT_MSEC)
+  );
+}
+
+// function startDiscoverWatchdog(uuid) {
+//   console.log('+ discoverWatchDog ', uuid);
+//   for (const [key, value] of discoverWatchDog) {
+//     console.log(`!!!! ${key} = ${value}`);
+//   }
+//   discoverWatchDog.set(
+//     uuid,
+//     setTimeout(() => {
+//       console.log('====> discoverWatchDog TIMEOUT CONNECTION', uuid);
+//     }, Defines.CONNECTION_TIMEOUT_MSEC)
+//   );
+// }
+
+function stopScan() {
+  console.log('====> STOP SCAN');
+  BLE.stopScan();
+  clearTimeout(scanWatchDog);
+  scanWatchDog = null;
+  isScanning = false;
+}
+
+function cancelConnection({ uuid }) {
+  if (!uuid) {
+    throw new Error('Parameters UUID is mandatory');
+  }
+  console.log('====> CANCEL CONN', uuid);
+  stopConnWatchdog(uuid);
+  BLE.cancel(uuid);
+}
+
+function connect({
+  uuid,
+  enableDiscover = true,
+  maxRetryCount = Defines.DEFAULT_MAX_RETRY_COUNT,
+}) {
+  if (!uuid) {
+    throw new Error('Parameters UUID is mandatory');
+  }
+  if (connectionWatchDog.has(uuid)) {
+    console.log('====> Cancel previous connection ', uuid);
+    cancelConnection({ uuid });
+  }
+  console.log('====> CONNECT', uuid);
+  startConnWatchdog(uuid);
+  BLE.connect(uuid, enableDiscover);
+  reconnect = {
+    count: maxRetryCount > 0 ? maxRetryCount : null,
+    enableDiscover,
+  };
+}
 
 /// funzione per iniziare la scansione bluetooth
 module.exports.startScan = ({
@@ -427,15 +381,25 @@ module.exports.startScanSync = async ({
   filter,
   options,
   timeout = Defines.SCAN_TIMEOUT_MSEC,
-}) =>
-  startScanSync({
-    services,
-    filter,
-    options,
-    timeout,
+}) => {
+  if (isScanning) {
+    stopScan();
+  }
+  filter = filter ? filter : undefined;
+  services = services ? services : undefined;
+  options = options ? options : scanOptions;
+  console.log('====> SCAN START SYNC', options);
+  const stopScanSignal = new Promise((resolve, reject) => {
+    setTimeout(() => stopScan(), timeout);
   });
+  isScanning = true;
+  return Promise.race([
+    BLE.startScanSync(services, filter, options),
+    stopScanSignal,
+  ]);
+};
 
-/// funzione per interrompere la scansione bluetooth
+//@ funzione per interrompere la scansione bluetooth
 module.exports.stopScan = () => stopScan();
 
 /// funzione per interrompere la scansione bluetooth
@@ -445,21 +409,33 @@ module.exports.connect = ({
   maxRetryCount = Defines.DEFAULT_MAX_RETRY_COUNT,
 }) => connect({ uuid, enableDiscover, maxRetryCount });
 
-module.exports.connectSync = async ({ uuid, enableDiscover }) =>
-  connectSync({ uuid, enableDiscover });
+module.exports.connectSync = async ({ uuid }) => {
+  if (!uuid) {
+    throw new Error('Parameters UUID is mandatory');
+  }
+  const newUuid = uuid.toUpperCase();
+  const cancelSignal = new Promise((resolve, reject) => {
+    setTimeout(
+      () => reject(Defines.BLE_PERIPHERAL_CONNECT_FAILED),
+      Defines.CONNECTION_TIMEOUT_MSEC
+    );
+  });
+  return Promise.race([BLE.connectSync(newUuid), cancelSignal]);
+};
 
-/// funzione per interrompere la scansione bluetooth
-module.exports.cancel = ({ uuid }) => cancel({ uuid });
+///@ funzione per cancellare una connessione pendente
+module.exports.cancel = ({ uuid }) => cancelConnection({ uuid });
 
+//! funzioni disponibili solo per Android
 if (Platform.OS === 'android') {
-  /// funzione per interrompere la scansione bluetooth
+  ///@ funzione per interrompere la scansione bluetooth
   module.exports.requestMtu = ({ uuid, mtu }) => {
     if (!uuid) {
       throw new Error('Parameters UUID is mandatory');
     }
     BLE.requestMtu(uuid, mtu);
   };
-  /// funzione per interrompere la scansione bluetooth
+  //@ funzione per interrompere la scansione bluetooth
   module.exports.requestConnectionPriority = ({ uuid, priority }) => {
     if (!uuid) {
       throw new Error('Parameters UUID is mandatory');
@@ -468,7 +444,7 @@ if (Platform.OS === 'android') {
   };
 }
 
-/// funzione per interrompere la scansione bluetooth
+///@ funzione per disconnettere una periferica
 module.exports.disconnect = ({ uuid }) => {
   if (!uuid) {
     throw new Error('Parameters UUID is mandatory');
@@ -478,31 +454,61 @@ module.exports.disconnect = ({ uuid }) => {
   BLE.disconnect(uuid);
 };
 
-//? funzione per interrompere la scansione bluetooth
-module.exports.discoverSync = ({ uuid }) => discoverSync({ uuid });
-
-/// funzione per interrompere la scansione bluetooth
-module.exports.getAllCharacteristic = async ({ uuid }) => {
+///@ funzione per disconnettere una periferica
+module.exports.disconnectSync = ({ uuid }) => {
   if (!uuid) {
     throw new Error('Parameters UUID is mandatory');
   }
-  try {
-    return await BLE.getAllCharacteristicSync(uuid);
-  } catch (error) {
-    return [];
+  console.log('====> DISCONNECT', uuid);
+  const cancelSignal = new Promise((resolve, reject) => {
+    setTimeout(
+      () => reject(Defines.BLE_PERIPHERAL_DISCONNECT_FAILED),
+      Defines.DISCONNECT_TIMEOUT_MSEC
+    );
+  });
+  return Promise.race([BLE.disconnectSync(uuid), cancelSignal]);
+};
+
+//@ funzione per interrompere la scansione bluetooth
+module.exports.discoverSync = ({ uuid }) => {
+  if (!uuid) {
+    throw new Error('Parameters UUID is mandatory');
   }
+  const cancelSignal = new Promise((resolve, reject) => {
+    setTimeout(
+      () => reject(Defines.BLE_PERIPHERAL_DISCOVER_FAILED),
+      Defines.DISCOVER_TIMEOUT_MSEC
+    );
+  });
+  return Promise.race([BLE.discoverSync(uuid), cancelSignal]);
 };
 
 /// funzione per interrompere la scansione bluetooth
-module.exports.getAllServices = async ({ uuid }) => {
+module.exports.getAllCharacteristicSync = async ({ uuid }) => {
   if (!uuid) {
     throw new Error('Parameters UUID is mandatory');
   }
-  try {
-    return await BLE.getAllServicesSync(uuid);
-  } catch (error) {
-    return [];
+  const cancelSignal = new Promise((resolve, reject) => {
+    setTimeout(
+      () => reject(Defines.BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE_FAILED),
+      Defines.DISCOVER_TIMEOUT_MSEC
+    );
+  });
+  return Promise.race([BLE.getAllCharacteristicSync(uuid), cancelSignal]);
+};
+
+/// funzione per interrompere la scansione bluetooth
+module.exports.getAllServicesSync = async ({ uuid }) => {
+  if (!uuid) {
+    throw new Error('Parameters UUID is mandatory');
   }
+  const cancelSignal = new Promise((resolve, reject) => {
+    setTimeout(
+      () => reject(Defines.BLE_PERIPHERAL_SERVICES_RETRIEVE_FAILED),
+      Defines.DISCOVER_TIMEOUT_MSEC
+    );
+  });
+  return Promise.race([BLE.getAllServicesSync(uuid), cancelSignal]);
 };
 
 /// funzione per interrompere la scansione bluetooth
@@ -574,7 +580,36 @@ module.exports.changeCharacteristicNotification = ({
   scheduler.enqueue(task, uuid);
 };
 
-module.exports.startDFU = startDFU;
+/**
+ *?  ============  ================= ============
+ *?  ============                    ============
+ *?  ============  DFU               ============
+ *?  ============                    ============
+ *?  ============  ================= ============
+ */
+
+module.exports.startDFU = ({
+  uuid,
+  filePath,
+  pathType = Defines.FILE_PATH_TYPE_STRING,
+  options = dfuOptions,
+}) => {
+  if (!uuid) {
+    throw new Error('Parameter UUID is mandatory');
+  }
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    throw new Error('Platform not supported (not android or ios)');
+  }
+  if (
+    pathType !== Defines.FILE_PATH_TYPE_STRING &&
+    pathType !== Defines.FILE_PATH_TYPE_URL
+  ) {
+    throw new Error(
+      `Path type not supported. Types available: ${Defines.FILE_PATH_TYPE_STRING}, ${Defines.FILE_PATH_TYPE_URL}`
+    );
+  }
+  BLE.startDFU(uuid, filePath, pathType, options);
+};
 
 module.exports.pauseDFU = ({ uuid }) => {
   if (!uuid) {
@@ -595,20 +630,6 @@ module.exports.abortDFU = ({ uuid }) => {
     throw new Error('Parameter UUID is mandatory');
   }
   BLE.abortDFU(uuid);
-};
-
-module.exports.isConnectedSync = async ({ uuid }) => {
-  if (!uuid) {
-    throw new Error('Parameter UUID is mandatory');
-  }
-  return BLE.isConnectedSync(uuid);
-};
-
-module.exports.isDfuCompliantSync = async ({ uuid }) => {
-  if (!uuid) {
-    throw new Error('Parameter UUID is mandatory');
-  }
-  return BLE.isDfuCompliantSync(uuid);
 };
 
 module.exports.emitter = function () {
