@@ -32,6 +32,7 @@ import {
   startScan,
   stopScan,
   connect,
+  connectSync,
   disconnect,
   disconnectSync,
   getAllCharacteristic,
@@ -92,37 +93,37 @@ function App() {
         setDevices(devs);
       },
     );
-    const peripheralReadyListener = bleEmitter().addListener(
-      Defines.BLE_PERIPHERAL_READY,
-      ({uuid, dfuCompliant}) => {
-        console.log('READy');
-        setDevices(old => {
-          return old.map(d => {
-            // console.log('CONN', old, old.uuid, uuid, old.uuid === uuid);
-            if (d.uuid === uuid) {
-              console.log('CONN 2');
-              return {...d, ready: true, dfuCompliant};
-            }
-            return d;
-          });
-        });
-      },
-    );
-    const peripheralConnectedListener = bleEmitter().addListener(
-      Defines.BLE_PERIPHERAL_CONNECTED,
-      ({uuid}) => {
-        setDevices(old => {
-          return old.map(d => {
-            // console.log('CONN', old, old.uuid, uuid, old.uuid === uuid);
-            if (d.uuid === uuid) {
-              console.log('CONN 2');
-              return {...d, connected: true};
-            }
-            return d;
-          });
-        });
-      },
-    );
+    // const peripheralReadyListener = bleEmitter().addListener(
+    //   Defines.BLE_PERIPHERAL_READY,
+    //   ({uuid, dfuCompliant}) => {
+    //     console.log('READy');
+    //     setDevices(old => {
+    //       return old.map(d => {
+    //         // console.log('CONN', old, old.uuid, uuid, old.uuid === uuid);
+    //         if (d.uuid === uuid) {
+    //           console.log('CONN 2');
+    //           return {...d, ready: true, dfuCompliant};
+    //         }
+    //         return d;
+    //       });
+    //     });
+    //   },
+    // );
+    // const peripheralConnectedListener = bleEmitter().addListener(
+    //   Defines.BLE_PERIPHERAL_CONNECTED,
+    //   ({uuid}) => {
+    //     setDevices(old => {
+    //       return old.map(d => {
+    //         // console.log('CONN', old, old.uuid, uuid, old.uuid === uuid);
+    //         if (d.uuid === uuid) {
+    //           console.log('CONN 2');
+    //           return {...d, connected: true};
+    //         }
+    //         return d;
+    //       });
+    //     });
+    //   },
+    // );
     // const peripheralDisconnectedListener = bleEmitter().addListener(
     //   Defines.BLE_PERIPHERAL_DISCONNECTED,
     //   ({uuid}) => {
@@ -144,8 +145,8 @@ function App() {
       scanStartedListener?.remove();
       scanStoppedListener?.remove();
       peripheralFoundListener?.remove();
-      peripheralReadyListener?.remove();
-      peripheralConnectedListener?.remove();
+      // peripheralReadyListener?.remove();
+      // peripheralConnectedListener?.remove();
       // peripheralDisconnectedListener?.remove();
     };
   }, []);
@@ -247,13 +248,42 @@ function App() {
                     title={!device?.connected ? 'Connect' : 'Disconnect'}
                     onPress={async () => {
                       if (!device?.connected) {
-                        connect({uuid: device.uuid});
-                      } else {
+                        // connect({uuid: device.uuid});
+
                         try {
-                          const seko = await disconnectSync({
+                          const {uuid} = await connectSync({
                             uuid: device.uuid,
                           });
-                          console.log(seko);
+                          setDevices(old => {
+                            return old.map(d => {
+                              // console.log('CONN', old, old.uuid, uuid, old.uuid === uuid);
+                              if (d.uuid === uuid) {
+                                console.log('CONN 2');
+                                return {...d, connected: true};
+                              }
+                              return d;
+                            });
+                          });
+                          console.log(uuid);
+                        } catch (error) {
+                          console.log(error);
+                        }
+                      } else {
+                        try {
+                          const {uuid} = await disconnectSync({
+                            uuid: device.uuid,
+                          });
+                          console.log(uuid);
+                          setDevices(old => {
+                            return old.map(d => {
+                              // console.log('CONN', old, old.uuid, uuid, old.uuid === uuid);
+                              if (d.uuid === uuid) {
+                                console.log('CONN 2');
+                                return {...d, connected: false};
+                              }
+                              return d;
+                            });
+                          });
                         } catch (error) {
                           console.log(error);
                         }

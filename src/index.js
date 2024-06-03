@@ -150,29 +150,8 @@ module.exports.configure = (nativeEventEmitter) => {
     bleEmitter.addListener(
       Defines.BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED,
       (event) => {
-        const { uuid } = event;
+        // const { uuid } = event;
         scheduler.dequeue();
-      }
-    )
-  );
-
-  /// aggancio ascoltatore periferica connessa
-  subscriptions.push(
-    bleEmitter.addListener(Defines.BLE_PERIPHERAL_CONNECTED, (event) => {
-      console.log('!! BLE_PERIPHERAL_CONNECTED ', event);
-      reconnect = null;
-      const { uuid } = event;
-      stopConnWatchdog(uuid);
-    })
-  );
-
-  /// aggancio ascoltatore periferica connessa
-  subscriptions.push(
-    bleEmitter.addListener(
-      Defines.BLE_PERIPHERAL_DISCONNECT_FAILED,
-      (event) => {
-        const { uuid, error } = event;
-        console.log('!! BLE_PERIPHERAL_DISCONNECT_FAILED ', uuid, error);
       }
     )
   );
@@ -181,7 +160,7 @@ module.exports.configure = (nativeEventEmitter) => {
   subscriptions.push(
     bleEmitter.addListener(Defines.BLE_PERIPHERAL_READY, (event) => {
       console.log('!! BLE_PERIPHERAL_READY ', event);
-      const { uuid } = event;
+      // const { uuid } = event;
     })
   );
 
@@ -194,34 +173,50 @@ module.exports.configure = (nativeEventEmitter) => {
 
   /// aggancio ascoltatore periferica disconnessa
   subscriptions.push(
-    bleEmitter.addListener(Defines.BLE_PERIPHERAL_DISCONNECTED, (event) => {
-      console.log('x BLE_PERIPHERAL_DISCONNECTED ', event);
-      const { uuid } = event;
-      if (reconnect?.count > 0) {
-        console.log('====> REDO CONNECT', uuid, reconnect?.count - 1);
-        connect({
+    bleEmitter.addListener(
+      Defines.BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED,
+      (event) => {
+        const { uuid, status, state } = event;
+        console.log(
+          'x BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED ',
           uuid,
-          enableDiscover: reconnect?.enableDiscover,
-          maxRetryCount: reconnect?.count - 1,
-        });
-        return;
-      }
-      reconnect = null;
-      stopConnWatchdog(uuid);
-      /// devo chiamare la invalidate, perche se il dispositivo che si è disconnesso aveva delle operazioni
-      /// pendenti, le devo rimuovere
-      scheduler.invalidate(uuid);
-    })
-  );
+          status,
+          state
+        );
+        switch (state) {
+          case Defines.BLE_PERIPHERAL_STATE_CONNECTED:
+            reconnect = null;
+            stopConnWatchdog(uuid);
+            break;
+          case Defines.BLE_PERIPHERAL_STATE_DISCONNECTED:
+            if (reconnect?.count > 0) {
+              console.log('====> REDO CONNECT', uuid, reconnect?.count - 1);
+              connect({
+                uuid,
+                enableDiscover: reconnect?.enableDiscover,
+                maxRetryCount: reconnect?.count - 1,
+              });
+              return;
+            }
+            reconnect = null;
+            stopConnWatchdog(uuid);
+            /// devo chiamare la invalidate, perche se il dispositivo che si è disconnesso aveva delle operazioni
+            /// pendenti, le devo rimuovere
+            scheduler.invalidate(uuid);
+            break;
+          case Defines.BLE_PERIPHERAL_STATE_CONNECTING:
+            if (status === Defines.BLE_PERIPHERAL_STATUS_FAILURE) {
+              reconnect = null;
+              stopConnWatchdog(uuid);
+              console.log('x BLE_PERIPHERAL_CONNECT_FAILED ', event);
+            }
+            break;
 
-  /// aggancio ascoltatore connessione alla periferica fallita
-  subscriptions.push(
-    bleEmitter.addListener(Defines.BLE_PERIPHERAL_CONNECT_FAILED, (event) => {
-      reconnect = null;
-      const { uuid } = event;
-      stopConnWatchdog(uuid);
-      console.log('x BLE_PERIPHERAL_CONNECT_FAILED ', event);
-    })
+          default:
+            break;
+        }
+      }
+    )
   );
 
   /// aggancio ascoltatore trovata nuova caratteristica
@@ -376,7 +371,7 @@ module.exports.startScan = ({
   if (timeout > 0) scanWatchDog = setTimeout(() => stopScan(), timeout);
 };
 
-module.exports.startScanSync = async ({
+const scanSync = async ({
   services,
   filter,
   options,
@@ -399,6 +394,13 @@ module.exports.startScanSync = async ({
   ]);
 };
 
+module.exports.startScanSync = async ({
+  services,
+  filter,
+  options,
+  timeout = Defines.SCAN_TIMEOUT_MSEC,
+}) => scanSync({ services, filter, options, timeout });
+
 //@ funzione per interrompere la scansione bluetooth
 module.exports.stopScan = () => stopScan();
 
@@ -416,7 +418,30 @@ module.exports.connectSync = async ({ uuid }) => {
   const newUuid = uuid.toUpperCase();
   const cancelSignal = new Promise((resolve, reject) => {
     setTimeout(
-      () => reject(Defines.BLE_PERIPHERAL_CONNECT_FAILED),
+      () => reject(Defines.BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED),
+      Defines.CONNECTION_TIMEOUT_MSEC
+    );
+  });
+  return Promise.race([BLE.connectSync(newUuid), cancelSignal]);
+};
+
+module.exports.reconnectSync = async ({ uuid }) => {
+  if (!uuid) {
+    throw new Error('Parameters UUID is mandatory');
+  }
+  const newUuid = uuid.toUpperCase();
+  try {
+    const found = (await BLE.searchSync(newUuid)) ?? false;
+    //? non ho trovato il dispositivio con l'uuid, cercato, termino.
+    if (!found) {
+      return Defines.BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED;
+    }
+  } catch (error) {
+    return Defines.BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED;
+  }
+  const cancelSignal = new Promise((resolve, reject) => {
+    setTimeout(
+      () => reject(Defines.BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED),
       Defines.CONNECTION_TIMEOUT_MSEC
     );
   });

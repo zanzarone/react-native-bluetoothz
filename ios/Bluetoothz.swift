@@ -20,11 +20,8 @@ let BLE_PERIPHERAL_FOUND                            : String  = "BLE_PERIPHERAL_
 let BLE_PERIPHERAL_UPDATES                          : String  = "BLE_PERIPHERAL_UPDATES"
 let BLE_PERIPHERAL_READY                            : String  = "BLE_PERIPHERAL_READY"
 let BLE_PERIPHERAL_READ_RSSI                        : String  = "BLE_PERIPHERAL_READ_RSSI"
-let BLE_PERIPHERAL_CONNECTED                        : String  = "BLE_PERIPHERAL_CONNECTED"
-let BLE_PERIPHERAL_DISCONNECTED                     : String  = "BLE_PERIPHERAL_DISCONNECTED"
-let BLE_PERIPHERAL_CONNECT_FAILED                   : String  = "BLE_PERIPHERAL_CONNECT_FAILED"
-let BLE_PERIPHERAL_DISCONNECT_FAILED                : String  = "BLE_PERIPHERAL_DISCONNECT_FAILED"
-let BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED         : String  = "BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED"
+let BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED        : String  = "BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED"
+let BLE_PERIPHERAL_DISCOVER_FAILED        			: String  = "BLE_PERIPHERAL_DISCOVER_FAILED"
 let BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED        : String  = "BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED"
 let BLE_PERIPHERAL_CHARACTERISTIC_READ_OK           : String  = "BLE_PERIPHERAL_CHARACTERISTIC_READ_OK"
 let BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED       : String  = "BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED"
@@ -41,7 +38,6 @@ let BLE_PERIPHERAL_DFU_PROCESS_RESUMED              : String  = "BLE_PERIPHERAL_
 let BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED         : String  = "BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED";
 let BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED        : String  = "BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED";
 let BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED         : String  = "BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED";
-// let BLE_PERIPHERAL_DFU_PROGRESS                     : String  = "BLE_PERIPHERAL_DFU_PROGRESS";
 let BLE_PERIPHERAL_DFU_DEBUG                        : String  = "BLE_PERIPHERAL_DFU_DEBUG";
 let BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE            : String  = "BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE";
 let BLE_PERIPHERAL_DFU_STATUS_ABORTED               : String  = "BLE_PERIPHERAL_DFU_STATUS_ABORTED";
@@ -64,12 +60,21 @@ let DFU_OPTION_ENABLE_DEBUG                             : String  = "DFU_OPTION_
 let DFU_OPTION_PACKET_DELAY                             : String  = "DFU_OPTION_PACKET_DELAY";
 let FILE_PATH_TYPE_STRING                               : String  = "FILE_PATH_TYPE_STRING";
 let FILE_PATH_TYPE_URL                                  : String  = "FILE_PATH_TYPE_URL";
+let BLE_PERIPHERAL_STATE_CONNECTED     : String  = "BLE_PERIPHERAL_STATE_CONNECTED";
+let BLE_PERIPHERAL_STATE_CONNECTING    : String  = "BLE_PERIPHERAL_STATE_CONNECTING";
+let BLE_PERIPHERAL_STATE_DISCONNECTED  : String  = "BLE_PERIPHERAL_STATE_DISCONNECTED";
+let BLE_PERIPHERAL_STATE_DISCONNECTING : String  = "BLE_PERIPHERAL_STATE_DISCONNECTING";
+let BLE_PERIPHERAL_STATE_COUNT : String  = "BLE_PERIPHERAL_STATE_COUNT";
+let BLE_PERIPHERAL_STATUS_SUCCESS : String  = "BLE_PERIPHERAL_STATUS_SUCCESS";
+let BLE_PERIPHERAL_STATUS_FAILURE : String  = "BLE_PERIPHERAL_STATUS_FAILURE";
 // =====================================================================================================================
 // =====================================================================================================================
 //                                                  PRIVATE DEFINES
 // =====================================================================================================================
 // =====================================================================================================================
 let DFU_SERVICE_UUID                                    : String  = "FE59";
+let SCAN_WD_KEEP_ALIVE_TIMEOUT_MSEC 					          : Double = 5.0
+let SCAN_WD_REFRESH_RATE 								                : TimeInterval = 1.0;
 
 
 public extension Data {
@@ -104,8 +109,9 @@ class Peripheral {
 	private var dfuCompliant        : Bool = false
 	private var lastSeen            : TimeInterval
 	private var enableDiscover      : Bool = false
-	var connectPromises     		:(RCTPromiseResolveBlock, RCTPromiseRejectBlock)?
-	var disconnectPromises  		:(RCTPromiseResolveBlock, RCTPromiseRejectBlock)?
+	var connectionStatusPromises    :(RCTPromiseResolveBlock, RCTPromiseRejectBlock)?
+	var discoverPromise    :(RCTPromiseResolveBlock, RCTPromiseRejectBlock)?
+//	var disconnectPromises  		:(RCTPromiseResolveBlock, RCTPromiseRejectBlock)?
 	/// - Device specific promises -- CHARS
 	var readValuePromises   		: [String: (RCTPromiseResolveBlock, RCTPromiseRejectBlock)] = [:]
 	var writeValuePromises  		: [String: (RCTPromiseResolveBlock, RCTPromiseRejectBlock)] = [:]
@@ -185,9 +191,7 @@ class Peripheral {
 			if service.uuid.uuidString.compare(DFU_SERVICE_UUID, options: .caseInsensitive) == .orderedSame {
 				self.setDfuCompliant(compliant: true)
 			}
-		}
-		for i in 0..<s.count {
-			self.gattServer.discoverCharacteristics([], for: s[i])
+			self.gattServer.discoverCharacteristics([], for: service)
 		}
 	}
 
@@ -257,6 +261,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 	var scanFilter            : String? = nil
 	var scanWatchdog          : Timer?
 	var allowDuplicates       : Bool?
+	var keepAliveTimeout      : Double = SCAN_WD_KEEP_ALIVE_TIMEOUT_MSEC
 	var dfu                   : Dfu!
 	var syncHelper            : SyncHelper = SyncHelper()
 
@@ -294,11 +299,8 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 			BLE_PERIPHERAL_UPDATES,
 			BLE_PERIPHERAL_READY,
 			BLE_PERIPHERAL_READ_RSSI,
-			BLE_PERIPHERAL_CONNECTED,
-			BLE_PERIPHERAL_DISCONNECTED,
-			BLE_PERIPHERAL_CONNECT_FAILED,
-			BLE_PERIPHERAL_DISCONNECT_FAILED,
-			BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED,
+			BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED,
+			BLE_PERIPHERAL_DISCOVER_FAILED,
 			BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED,
 			BLE_PERIPHERAL_CHARACTERISTIC_READ_OK,
 			BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED,
@@ -315,7 +317,6 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 			BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED,
 			BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED,
 			BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED,
-			// BLE_PERIPHERAL_DFU_PROGRESS,
 			BLE_PERIPHERAL_DFU_DEBUG,
 			BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,
 			BLE_PERIPHERAL_DFU_STATUS_ABORTED,
@@ -329,10 +330,6 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 			BLE_PERIPHERAL_DFU_STATUS_VALIDATING,
 			BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING,
 			BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU,
-			DFU_OPTION_ENABLE_DEBUG,
-			DFU_OPTION_PACKET_DELAY,
-			FILE_PATH_TYPE_STRING,
-			FILE_PATH_TYPE_URL
 		]
 	}
 
@@ -351,11 +348,8 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 			BLE_PERIPHERAL_UPDATES:BLE_PERIPHERAL_UPDATES,
 			BLE_PERIPHERAL_READY:BLE_PERIPHERAL_READY,
 			BLE_PERIPHERAL_READ_RSSI:BLE_PERIPHERAL_READ_RSSI,
-			BLE_PERIPHERAL_CONNECTED:BLE_PERIPHERAL_CONNECTED,
-			BLE_PERIPHERAL_DISCONNECTED:BLE_PERIPHERAL_DISCONNECTED,
-			BLE_PERIPHERAL_CONNECT_FAILED:BLE_PERIPHERAL_CONNECT_FAILED,
-			BLE_PERIPHERAL_DISCONNECT_FAILED:BLE_PERIPHERAL_DISCONNECT_FAILED,
-			BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED:BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED,
+			BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED:BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED,
+			BLE_PERIPHERAL_DISCOVER_FAILED:BLE_PERIPHERAL_DISCOVER_FAILED,
 			BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED:BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED,
 			BLE_PERIPHERAL_CHARACTERISTIC_READ_OK:BLE_PERIPHERAL_CHARACTERISTIC_READ_OK,
 			BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED:BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED,
@@ -372,7 +366,6 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 			BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED:BLE_PERIPHERAL_DFU_PROCESS_PAUSE_FAILED,
 			BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED:BLE_PERIPHERAL_DFU_PROCESS_RESUME_FAILED,
 			BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED:BLE_PERIPHERAL_DFU_PROCESS_ABORT_FAILED,
-			// BLE_PERIPHERAL_DFU_PROGRESS:BLE_PERIPHERAL_DFU_PROGRESS,
 			BLE_PERIPHERAL_DFU_DEBUG:BLE_PERIPHERAL_DFU_DEBUG,
 			BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE:BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE,
 			BLE_PERIPHERAL_DFU_STATUS_ABORTED:BLE_PERIPHERAL_DFU_STATUS_ABORTED,
@@ -389,7 +382,15 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 			DFU_OPTION_ENABLE_DEBUG:DFU_OPTION_ENABLE_DEBUG,
 			DFU_OPTION_PACKET_DELAY:DFU_OPTION_PACKET_DELAY,
 			FILE_PATH_TYPE_STRING:FILE_PATH_TYPE_STRING,
-			FILE_PATH_TYPE_URL:FILE_PATH_TYPE_URL
+			FILE_PATH_TYPE_URL:FILE_PATH_TYPE_URL,
+      //
+			BLE_PERIPHERAL_STATE_DISCONNECTED:0,
+			BLE_PERIPHERAL_STATE_CONNECTING:1,
+			BLE_PERIPHERAL_STATE_CONNECTED:2,
+			BLE_PERIPHERAL_STATE_DISCONNECTING:3,
+			BLE_PERIPHERAL_STATE_COUNT:4,
+			BLE_PERIPHERAL_STATUS_SUCCESS:0,
+			BLE_PERIPHERAL_STATUS_FAILURE:257,
 		]
 	}
 
@@ -453,24 +454,28 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 			self.scanFilter = pattern
 		}
 		self.allowDuplicates = false
+		var refreshRate = SCAN_WD_REFRESH_RATE;
 		if let opt = options as? [String: Any]{
 			if let duplicates = opt["allowDuplicates"] as? Bool {
 				self.allowDuplicates = duplicates
+			}
+			if let ka = opt["keepAliveTimeout"] as? Int {
+				self.keepAliveTimeout = Double(ka) / 1000.0
+			}
+			if let rr = opt["refreshRate"] as? Int {
+				refreshRate = TimeInterval(rr / 1000)
 			}
 		}
 		self.peripherals.removeAll()
 		self.centralManager?.scanForPeripherals(withServices: services, options: [CBCentralManagerScanOptionAllowDuplicatesKey:true])
 		DispatchQueue.main.async {
-			self.scanWatchdog = Timer.scheduledTimer(timeInterval: 1.0, target: self, selector: #selector(self.watcher), userInfo: nil, repeats: true)
+			self.scanWatchdog = Timer.scheduledTimer(timeInterval: refreshRate, target: self, selector: #selector(self.watcher), userInfo: nil, repeats: true)
 		}
 	}
 
 	@objc func watcher() {
 		let currentTimeInSeconds = Date().timeIntervalSince1970
-		//! ==============================================
-		/// TODO KEEP A PARAMETRIC INPUT FOR THIS TWO
-		//! ==============================================
-		let result = self.peripherals.filter { currentTimeInSeconds - $0.value.getLastSeen() < 5 || $0.value.isConnected() }
+		let result = self.peripherals.filter { currentTimeInSeconds - $0.value.getLastSeen() < self.keepAliveTimeout || $0.value.isConnected() }
 		var devices : [[String:Any]] = []
 		for p in result.values {
 			var el : [String:Any] = [:]
@@ -500,7 +505,10 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 	func stopScan()
 	{
 		/// ("========================>>>> stopScan")
-		self.scanWatchdog?.invalidate()
+		DispatchQueue.main.async {
+			self.scanWatchdog?.invalidate()
+			self.scanWatchdog = nil
+		}
 		self.centralManager?.stopScan()
 		if let resolve = self.syncHelper.scanResolve {
 			var devices : [[String:Any]] = []
@@ -529,24 +537,22 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 		}
 		let p = self.peripherals[uuidString]!
 		p.setEnableDisovering(enable: enableDiscover)
-		/// detach a previous promise for that uuid(if exists)
-		p.connectPromises = nil
 		self.centralManager?.connect(p.getGATTServer(), options: nil)
 	}
 
 	@objc
-	func connectSync(_ uuidString: String, enableDiscover:Bool, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
+	func connectSync(_ uuidString: String, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
 	{
 		print ("SAMU - ========================>>>> connect")
 		/// i'm already connected to a device
 		if self.isConnected(uuidString: uuidString) {
 			print ("SAMU - ========================>>>> connect - isConnected")
-			rejecter(BLE_PERIPHERAL_CONNECT_FAILED, "Device already connected: \(uuidString)", nil)
+			rejecter(BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, "Device already connected: \(uuidString)", nil)
 			return
 		}
 		let p = self.peripherals[uuidString]!
-		p.setEnableDisovering(enable: enableDiscover)
-		p.connectPromises = (resolve, rejecter)
+		p.setEnableDisovering(enable: false)
+		p.connectionStatusPromises = (resolve, rejecter)
 		self.centralManager?.connect(p.getGATTServer(), options: nil)
 	}
 
@@ -584,6 +590,32 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 		}
 		let p : Peripheral = self.peripherals[uuidString]!
 		self.centralManager?.cancelPeripheralConnection(p.getGATTServer())
+	}
+
+	@objc
+	func disconnectSync(_ uuidString: String, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
+	{
+		if !self.isConnected(uuidString: uuidString) {
+			/// i need to disconnect the current device before attempting a new connection
+			rejecter(BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, "Device not connected: \(uuidString)", nil)
+			return
+		}
+		let p : Peripheral = self.peripherals[uuidString]!
+		p.connectionStatusPromises = (resolve, rejecter)
+		self.centralManager?.cancelPeripheralConnection(p.getGATTServer())
+	}
+
+	@objc
+	func discoverSync(_ uuidString: String, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
+	{
+		if !self.isConnected(uuidString: uuidString) {
+			/// i need to disconnect the current device before attempting a new connection
+			rejecter(BLE_PERIPHERAL_DISCOVER_FAILED, "Device not connected: \(uuidString)", nil)
+			return
+		}
+		let p : Peripheral = self.peripherals[uuidString]!
+		p.discoverPromise = (resolve, rejecter)
+		p.discoverServices([])
 	}
 
 	@objc
@@ -785,14 +817,15 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 	{
 		if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
 			let uuid =  peripheral.identifier.uuidString
-			let body = ["uuid": uuid]
-			if let promises = p.connectPromises {
+			let body : [String:Any]  = ["uuid": uuid, "status": BLE_PERIPHERAL_STATUS_SUCCESS, "state": BLE_PERIPHERAL_STATE_CONNECTED]
+			p.setConnected(true)
+			if let promises = p.connectionStatusPromises {
 				let resolve = promises.0
 				resolve(body)
+				p.connectionStatusPromises = nil
 			}else{
-				self.sendEvent(withName: BLE_PERIPHERAL_CONNECTED, body: body)
+				self.sendEvent(withName: BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, body: body)
 			}
-			p.setConnected(true)
 			if p.discoverEnable() {
 				p.discoverServices([])
 			}
@@ -803,21 +836,24 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 	{
 		if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
 			let uuid =  peripheral.identifier.uuidString
-			var body : [String : Any] = ["uuid": uuid]
+			var body : [String:Any]  = ["uuid": uuid, "status": BLE_PERIPHERAL_STATUS_SUCCESS, "state": BLE_PERIPHERAL_STATE_DISCONNECTED]
 			if let error = error {
-				body["error"] = error.localizedDescription
-				if let promises = p.disconnectPromises {
+				body["state"] = BLE_PERIPHERAL_STATE_DISCONNECTING
+				body["status"] = BLE_PERIPHERAL_STATUS_FAILURE
+				if let promises = p.connectionStatusPromises {
 					let failure = promises.1
-					failure(BLE_PERIPHERAL_DISCONNECT_FAILED, error.localizedDescription, nil)
+					failure(BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, error.localizedDescription, nil)
+					p.connectionStatusPromises = nil
 				}else{
-					self.sendEvent(withName: BLE_PERIPHERAL_DISCONNECTED, body: body)
+					self.sendEvent(withName: BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, body: body)
 				}
 			}else{
-				if let promises = p.disconnectPromises  {
+				if let promises = p.connectionStatusPromises  {
 					let resolve = promises.0
 					resolve(body)
+					p.connectionStatusPromises = nil
 				}else{
-					self.sendEvent(withName: BLE_PERIPHERAL_DISCONNECTED, body: body)
+					self.sendEvent(withName: BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, body: body)
 				}
 			}
 			p.flush()
@@ -828,15 +864,16 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 	{
 		if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
 			let uuid = peripheral.identifier.uuidString
-			var body : [String : Any] = ["uuid": uuid]
+			var body : [String : Any] = ["uuid": uuid, "status": BLE_PERIPHERAL_STATUS_FAILURE, "state": BLE_PERIPHERAL_STATE_CONNECTING]
 			if let error = error {
 				body["error"] = error.localizedDescription
 			}
-			if let promises = p.connectPromises {
+			if let promises = p.connectionStatusPromises {
 				let reject = promises.1
-				reject(BLE_PERIPHERAL_CONNECT_FAILED, error != nil ? error!.localizedDescription : nil, nil)
+				reject(BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, error != nil ? error!.localizedDescription : nil, nil)
+				p.connectionStatusPromises = nil
 			}else{
-				self.sendEvent(withName: BLE_PERIPHERAL_CONNECT_FAILED, body:body)
+				self.sendEvent(withName: BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, body:body)
 			}
 			p.flush()
 		}
@@ -844,11 +881,17 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 
 	func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?)
 	{
-		if let err = error {
-			self.sendEvent(withName: BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED, body: ["uuid": peripheral.identifier.uuidString, "error": err.localizedDescription])
-			return
-		}
 		if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
+			if let err = error {
+				if let promises = p.discoverPromise {
+					let reject = promises.1
+					reject(BLE_PERIPHERAL_DISCOVER_FAILED, error!.localizedDescription, nil)
+					p.discoverPromise = nil
+				}else{
+					self.sendEvent(withName: BLE_PERIPHERAL_DISCOVER_FAILED, body:["uuid": peripheral.identifier.uuidString, "error": err.localizedDescription])
+				}
+				return
+			}
 			if let services = peripheral.services {
 				p.setServicesAndDiscoverCharacteristics(services)
 				sendEvent(withName: BLE_PERIPHERAL_DFU_COMPLIANT, body: ["compliant" : p.isDfuCompliant()])
@@ -857,11 +900,17 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 	}
 
 	func peripheral(_ _peripheral:CBPeripheral, didDiscoverCharacteristicsFor service:CBService, error: Error?){
-		if let err = error {
-			self.sendEvent(withName: BLE_PERIPHERAL_DISCOVER_SERVICES_FAILED, body: ["uuid": _peripheral.identifier.uuidString, "error": err.localizedDescription])
-			return
-		}
 		if let p : Peripheral = self.peripherals[_peripheral.identifier.uuidString]{
+			if let err = error {
+				if let promises = p.discoverPromise {
+					let reject = promises.1
+					reject(BLE_PERIPHERAL_DISCOVER_FAILED, error!.localizedDescription, nil)
+					p.discoverPromise = nil
+				}else{
+					self.sendEvent(withName: BLE_PERIPHERAL_DISCOVER_FAILED, body:["uuid": _peripheral.identifier.uuidString, "error": err.localizedDescription])
+				}
+				return
+			}
 			if let characteristics = service.characteristics {
 				for i in 0..<characteristics.count {
 					let characteristic = characteristics[i]
@@ -869,8 +918,24 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 					self.sendEvent(withName: BLE_PERIPHERAL_CHARACTERISTIC_DISCOVERED, body: ["uuid": _peripheral.identifier.uuidString, "charUUID": characteristic.uuid.uuidString])
 				}
 				if p.servicesDiscovered() <= 0 {
-					self.sendEvent(withName: BLE_PERIPHERAL_READY, body: ["uuid": _peripheral.identifier.uuidString])
+					let body = ["uuid": _peripheral.identifier.uuidString]
+					if let promises = p.discoverPromise  {
+						let resolve = promises.0
+						resolve(body)
+						p.discoverPromise = nil
+					}else{
+						self.sendEvent(withName: BLE_PERIPHERAL_READY, body: body)
+					}
 				}
+        // else{
+				// 	if let promises = p.discoverPromise {
+				// 		let reject = promises.1
+				// 		reject(BLE_PERIPHERAL_DISCOVER_FAILED, "Missing characteristic", nil)
+				// 		p.discoverPromise = nil
+				// 	}else{
+				// 		self.sendEvent(withName: BLE_PERIPHERAL_DISCOVER_FAILED, body:["uuid": _peripheral.identifier.uuidString, "error": "Missing characteristic"])
+				// 	}
+				// }
 			}
 		}
 	}

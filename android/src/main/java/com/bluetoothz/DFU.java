@@ -21,6 +21,7 @@ import static com.bluetoothz.BluetoothzModule.BLE_PERIPHERAL_DFU_STATUS_VALIDATI
 //import static com.bluetoothz.BluetoothzModule.DFU_OPTION_MAX_RETRY;
 import static com.bluetoothz.BluetoothzModule.DFU_OPTION_PACKET_DELAY;
 import static com.bluetoothz.BluetoothzModule.DFU_OPTION_RETRIES_NUMBER;
+import static com.bluetoothz.BluetoothzModule.DFU_OPTION_REBOOTING_TIME;
 
 import android.net.Uri;
 import android.os.Build;
@@ -168,6 +169,9 @@ class Dfu extends Thread implements LifecycleEventListener {
       serviceInitiator.setPacketsReceiptNotificationsValue(1);
       if (this.options.hasKey(DFU_OPTION_PACKET_DELAY)) {
         serviceInitiator.setPrepareDataObjectDelay(this.options.getInt(DFU_OPTION_PACKET_DELAY));
+      }
+      if (this.options.hasKey(DFU_OPTION_REBOOTING_TIME)) {
+        serviceInitiator.setRebootTime(this.options.getInt(DFU_OPTION_REBOOTING_TIME));
       }
       serviceInitiator.setUnsafeExperimentalButtonlessServiceInSecureDfuEnabled(true);
       switch (this.type) {
