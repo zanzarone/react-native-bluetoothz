@@ -443,6 +443,9 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 
 	private func scan(_ serviceUUIDs: [String]? = nil, deviceNameFilter:String? = nil, options:NSDictionary) {
 		/// ("========================>>>> startScan")
+		if let isScanning = self.centralManager?.isScanning, isScanning {
+			self.stopScan()
+		}
 		var services : [CBUUID] = []
 		if let uuids = serviceUUIDs{
 			for uuid in uuids {
@@ -466,7 +469,8 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 				refreshRate = TimeInterval(rr / 1000)
 			}
 		}
-		self.peripherals.removeAll()
+		// self.peripherals.removeAll()
+		self.peripherals = self.peripherals.filter { $0.value.isConnected() == true }
 		self.centralManager?.scanForPeripherals(withServices: services, options: [CBCentralManagerScanOptionAllowDuplicatesKey:true])
 		DispatchQueue.main.async {
 			self.scanWatchdog = Timer.scheduledTimer(timeInterval: refreshRate, target: self, selector: #selector(self.watcher), userInfo: nil, repeats: true)
@@ -499,6 +503,27 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 	func startScanSync(_ serviceUUIDs: [String]? = nil, deviceNameFilter:String? = nil, options:NSDictionary, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
 	{
 		scan(serviceUUIDs, deviceNameFilter: deviceNameFilter, options: options)
+	}
+
+	@objc
+	func reconnectSync(_ uuidString: String, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
+	{
+		print ("SAMU - ========================>>>> reconnectSync")
+		/// i'm already connected to a device
+		if self.isConnected(uuidString: uuidString) {
+			print ("SAMU - ========================>>>> reconnectSync - isConnected")
+			rejecter(BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, "Device already connected: \(uuidString)", nil)
+			return
+		}
+		if let targetPeripheralUUID = UUID(uuidString: uuidString), let knownPeripheral = self.centralManager?.retrievePeripherals(withIdentifiers: [targetPeripheralUUID]).first {
+			let p : Peripheral = Peripheral(knownPeripheral, rssi: 0, delegate:self)
+			p.setEnableDisovering(enable: false)
+			p.connectionStatusPromises = (resolve, rejecter)
+			self.peripherals[uuidString] = p
+			self.centralManager?.connect(p.getGATTServer(), options: nil)
+		} else {
+			rejecter(BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, "Peripheral not found: \(uuidString)", nil)
+		}
 	}
 
 	@objc
@@ -574,11 +599,26 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 	@objc
 	func cancel(_ uuidString: String)
 	{
-		if !self.isConnected(uuidString: uuidString) {
+		guard let peripheral = self.peripherals[uuidString]  else {
+			self.sendEvent(withName: BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, body:["uuid": uuidString, "status": BLE_PERIPHERAL_STATUS_FAILURE, "state": BLE_PERIPHERAL_STATE_CONNECTING])
 			return
 		}
-		let p = self.peripherals[uuidString]!.getGATTServer()
-		self.centralManager?.cancelPeripheralConnection(p)
+		let gattServer = peripheral.getGATTServer()
+		self.centralManager?.cancelPeripheralConnection(gattServer)
+		peripheral.flush();
+	}
+
+	@objc
+	func cancelSync(_ uuidString: String, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
+	{
+		guard let peripheral = self.peripherals[uuidString]  else {
+			rejecter(BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, "Device not found: \(uuidString)",nil)
+			return
+		}
+		let gattServer = peripheral.getGATTServer()
+		self.centralManager?.cancelPeripheralConnection(gattServer)
+		peripheral.flush();
+		resolve(["uuid": uuidString, "status": BLE_PERIPHERAL_STATUS_SUCCESS, "state": BLE_PERIPHERAL_STATE_DISCONNECTED])
 	}
 
 	@objc
@@ -586,6 +626,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 	{
 		if !self.isConnected(uuidString: uuidString) {
 			/// i need to disconnect the current device before attempting a new connection
+			self.sendEvent(withName: BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, body:["uuid": uuidString, "status": BLE_PERIPHERAL_STATUS_FAILURE, "state": BLE_PERIPHERAL_STATE_DISCONNECTING])
 			return
 		}
 		let p : Peripheral = self.peripherals[uuidString]!

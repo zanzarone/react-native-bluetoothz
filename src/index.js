@@ -48,7 +48,7 @@ module.exports.Defines = Defines;
 let reconnect = null;
 let scanWatchDog = null;
 let connectionWatchDog = new Map();
-let isScanning = false;
+// let isScanning = false;
 const scanOptions = { allowDuplicates: false };
 const dfuOptions = {
   enableDebug: false,
@@ -181,7 +181,9 @@ module.exports.configure = (nativeEventEmitter) => {
           'x BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED ',
           uuid,
           status,
-          state
+          state,
+          Defines.BLE_PERIPHERAL_STATE_CONNECTED,
+          state === Defines.BLE_PERIPHERAL_STATE_CONNECTED
         );
         switch (state) {
           case Defines.BLE_PERIPHERAL_STATE_CONNECTED:
@@ -277,15 +279,6 @@ function stopConnWatchdog(uuid) {
   }
 }
 
-// function stopDiscoverWatchdog(uuid) {
-//   if (discoverWatchDog.has(uuid)) {
-//     console.log('discoverWatchDog - invalidate TIMER ', uuid);
-//     clearTimeout(discoverWatchDog.get(uuid));
-//     const deleted = discoverWatchDog.delete(uuid);
-//     console.log('discoverWatchDog - invalidate TIMER ', uuid, deleted);
-//   }
-// }
-
 function startConnWatchdog(uuid) {
   console.log('+ startConnWatchdog ', uuid);
   for (const [key, value] of connectionWatchDog) {
@@ -301,25 +294,11 @@ function startConnWatchdog(uuid) {
   );
 }
 
-// function startDiscoverWatchdog(uuid) {
-//   console.log('+ discoverWatchDog ', uuid);
-//   for (const [key, value] of discoverWatchDog) {
-//     console.log(`!!!! ${key} = ${value}`);
-//   }
-//   discoverWatchDog.set(
-//     uuid,
-//     setTimeout(() => {
-//       console.log('====> discoverWatchDog TIMEOUT CONNECTION', uuid);
-//     }, Defines.CONNECTION_TIMEOUT_MSEC)
-//   );
-// }
-
 function stopScan() {
   console.log('====> STOP SCAN');
   BLE.stopScan();
   clearTimeout(scanWatchDog);
   scanWatchDog = null;
-  isScanning = false;
 }
 
 function cancelConnection({ uuid }) {
@@ -359,39 +338,12 @@ module.exports.startScan = ({
   options,
   timeout = Defines.SCAN_TIMEOUT_MSEC,
 }) => {
-  if (isScanning) {
-    stopScan();
-  }
   filter = filter ? filter : undefined;
   services = services ? services : undefined;
   options = options ? options : scanOptions;
   console.log('====> SCAN START', options);
   BLE.startScan(services, filter, options);
-  isScanning = true;
   if (timeout > 0) scanWatchDog = setTimeout(() => stopScan(), timeout);
-};
-
-const scanSync = async ({
-  services,
-  filter,
-  options,
-  timeout = Defines.SCAN_TIMEOUT_MSEC,
-}) => {
-  if (isScanning) {
-    stopScan();
-  }
-  filter = filter ? filter : undefined;
-  services = services ? services : undefined;
-  options = options ? options : scanOptions;
-  console.log('====> SCAN START SYNC', options);
-  const stopScanSignal = new Promise((resolve, reject) => {
-    setTimeout(() => stopScan(), timeout);
-  });
-  isScanning = true;
-  return Promise.race([
-    BLE.startScanSync(services, filter, options),
-    stopScanSignal,
-  ]);
 };
 
 module.exports.startScanSync = async ({
@@ -399,7 +351,29 @@ module.exports.startScanSync = async ({
   filter,
   options,
   timeout = Defines.SCAN_TIMEOUT_MSEC,
-}) => scanSync({ services, filter, options, timeout });
+}) => {
+  filter = filter ? filter : undefined;
+  services = services ? services : undefined;
+  options = options ? options : scanOptions;
+  console.log('====> SCAN START SYNC', options);
+  const stopScanSignal = new Promise((resolve, _) => {
+    setTimeout(() => {
+      stopScan();
+      resolve();
+    }, timeout);
+  });
+  let error, result;
+  try {
+    result = await Promise.race([
+      BLE.startScanSync(services, filter, options),
+      stopScanSignal,
+    ]);
+  } catch (err) {
+    stopScan();
+    error = err;
+  }
+  return { error, result };
+};
 
 //@ funzione per interrompere la scansione bluetooth
 module.exports.stopScan = () => stopScan();
@@ -413,39 +387,103 @@ module.exports.connect = ({
 
 module.exports.connectSync = async ({ uuid }) => {
   if (!uuid) {
-    throw new Error('Parameters UUID is mandatory');
+    return { error: 'Parameters UUID is mandatory' };
   }
   const newUuid = uuid.toUpperCase();
-  const cancelSignal = new Promise((resolve, reject) => {
-    setTimeout(
+  let timer;
+  const cancelSignal = new Promise((_, reject) => {
+    timer = setTimeout(
       () => reject(Defines.BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED),
       Defines.CONNECTION_TIMEOUT_MSEC
     );
   });
-  return Promise.race([BLE.connectSync(newUuid), cancelSignal]);
+  let error, result;
+  try {
+    result = await Promise.race([BLE.connectSync(newUuid), cancelSignal]);
+    clearTimeout(timer);
+  } catch (err) {
+    error = err;
+  }
+
+  return { error, result };
+};
+
+module.exports.searchSync = async ({ uuid }) => {
+  if (!uuid) {
+    return { error: 'Parameters UUID is mandatory' };
+  }
+  const newUuid = uuid.toUpperCase();
+  let timer;
+  //? creo il segnale per terminare la scansione, se il dispo non é trovato
+  const failureSignal = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`Device ${uuid} not found`));
+    }, Defines.SCAN_TIMEOUT_MSEC);
+  });
+  try {
+    //? se la ricerca lo trova, allora proseguo altrimenti esco
+    const result = await Promise.race([BLE.searchSync(newUuid), failureSignal]);
+    clearTimeout(timer);
+    return { result };
+  } catch (err) {
+    return { error: err };
+  } finally {
+    stopScan();
+  }
 };
 
 module.exports.reconnectSync = async ({ uuid }) => {
+  let timer;
+  let result, error;
   if (!uuid) {
-    throw new Error('Parameters UUID is mandatory');
+    return { error: 'Parameters UUID is mandatory' };
   }
   const newUuid = uuid.toUpperCase();
-  try {
-    const found = (await BLE.searchSync(newUuid)) ?? false;
-    //? non ho trovato il dispositivio con l'uuid, cercato, termino.
-    if (!found) {
-      return Defines.BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED;
+  if (Platform.OS === 'android') {
+    //? creo il segnale per terminare la scansione, se il dispo non é trovato
+    let failureSignal = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error(`Device ${uuid} not found`));
+      }, Defines.SCAN_TIMEOUT_MSEC);
+    });
+    try {
+      //? se la ricerca lo trova, allora proseguo altrimenti esco
+      await Promise.race([BLE.searchSync(newUuid), failureSignal]);
+      clearTimeout(timer);
+    } catch (err) {
+      //? errore o, not found
+      return { error: err };
+    } finally {
+      stopScan();
     }
-  } catch (error) {
-    return Defines.BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED;
+    //?
+    failureSignal = new Promise((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`Could not connet to ${uuid}`)),
+        Defines.CONNECTION_TIMEOUT_MSEC
+      );
+    });
+    try {
+      result = await Promise.race([BLE.connectSync(newUuid), failureSignal]);
+      clearTimeout(timer);
+    } catch (err) {
+      error = err;
+    }
+  } else {
+    const cancelSignal = new Promise((_, reject) => {
+      timer = setTimeout(
+        () => reject(Defines.BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED),
+        Defines.CONNECTION_TIMEOUT_MSEC
+      );
+    });
+    try {
+      result = await Promise.race([BLE.reconnectSync(newUuid), cancelSignal]);
+      clearTimeout(timer);
+    } catch (err) {
+      error = err;
+    }
   }
-  const cancelSignal = new Promise((resolve, reject) => {
-    setTimeout(
-      () => reject(Defines.BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED),
-      Defines.CONNECTION_TIMEOUT_MSEC
-    );
-  });
-  return Promise.race([BLE.connectSync(newUuid), cancelSignal]);
+  return { error, result };
 };
 
 ///@ funzione per cancellare una connessione pendente
@@ -480,60 +518,95 @@ module.exports.disconnect = ({ uuid }) => {
 };
 
 ///@ funzione per disconnettere una periferica
-module.exports.disconnectSync = ({ uuid }) => {
+module.exports.disconnectSync = async ({ uuid }) => {
   if (!uuid) {
-    throw new Error('Parameters UUID is mandatory');
+    return { error: 'Parameters UUID is mandatory' };
   }
   console.log('====> DISCONNECT', uuid);
+  let timer;
   const cancelSignal = new Promise((resolve, reject) => {
-    setTimeout(
+    timer = setTimeout(
       () => reject(Defines.BLE_PERIPHERAL_DISCONNECT_FAILED),
       Defines.DISCONNECT_TIMEOUT_MSEC
     );
   });
-  return Promise.race([BLE.disconnectSync(uuid), cancelSignal]);
+  let error, result;
+  try {
+    result = await Promise.race([BLE.disconnectSync(uuid), cancelSignal]);
+    clearTimeout(timer);
+  } catch (err) {
+    error = err;
+  }
+  return { error, result };
 };
 
 //@ funzione per interrompere la scansione bluetooth
-module.exports.discoverSync = ({ uuid }) => {
+module.exports.discoverSync = async ({ uuid }) => {
   if (!uuid) {
-    throw new Error('Parameters UUID is mandatory');
+    return { error: 'Parameters UUID is mandatory' };
   }
-  const cancelSignal = new Promise((resolve, reject) => {
-    setTimeout(
+  let timer;
+  const cancelSignal = new Promise((_, reject) => {
+    timer = setTimeout(
       () => reject(Defines.BLE_PERIPHERAL_DISCOVER_FAILED),
       Defines.DISCOVER_TIMEOUT_MSEC
     );
   });
-  return Promise.race([BLE.discoverSync(uuid), cancelSignal]);
+  let error, result;
+  try {
+    result = await Promise.race([BLE.discoverSync(uuid), cancelSignal]);
+    clearTimeout(timer);
+  } catch (err) {
+    error = err;
+  }
+  return { error, result };
 };
 
 /// funzione per interrompere la scansione bluetooth
 module.exports.getAllCharacteristicSync = async ({ uuid }) => {
   if (!uuid) {
-    throw new Error('Parameters UUID is mandatory');
+    return { error: 'Parameters UUID is mandatory' };
   }
+  let timer;
   const cancelSignal = new Promise((resolve, reject) => {
-    setTimeout(
+    timer = setTimeout(
       () => reject(Defines.BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE_FAILED),
       Defines.DISCOVER_TIMEOUT_MSEC
     );
   });
-  return Promise.race([BLE.getAllCharacteristicSync(uuid), cancelSignal]);
+  let error, result;
+  try {
+    result = await Promise.race([
+      BLE.getAllCharacteristicSync(uuid),
+      cancelSignal,
+    ]);
+    clearTimeout(timer);
+  } catch (err) {
+    error = err;
+  }
+  return { error, result };
 };
 
 /// funzione per interrompere la scansione bluetooth
 module.exports.getAllServicesSync = async ({ uuid }) => {
   if (!uuid) {
-    throw new Error('Parameters UUID is mandatory');
+    return { error: 'Parameters UUID is mandatory' };
   }
+  let timer;
   const cancelSignal = new Promise((resolve, reject) => {
-    setTimeout(
+    timer = setTimeout(
       () => reject(Defines.BLE_PERIPHERAL_SERVICES_RETRIEVE_FAILED),
       Defines.DISCOVER_TIMEOUT_MSEC
     );
   });
-  return Promise.race([BLE.getAllServicesSync(uuid), cancelSignal]);
+  let error, result;
+  try {
+    result = await Promise.race([BLE.getAllServicesSync(uuid), cancelSignal]);
+    clearTimeout(timer);
+  } catch (err) {
+    error = err;
+  }
+  return { error, result };
 };
 
 /// funzione per interrompere la scansione bluetooth
@@ -549,18 +622,26 @@ module.exports.readCharacteristic = ({ uuid, charUUID }) => {
 /// funzione per interrompere la scansione bluetooth
 module.exports.readCharacteristicSync = async ({ uuid, charUUID }) => {
   if (!uuid || !charUUID) {
-    throw new Error('Parameters UUID, charsUUID are mandatory');
+    return { error: 'Parameters UUID, charsUUID are mandatory' };
   }
+  let timer;
   const cancelSignal = new Promise((_, reject) => {
-    setTimeout(
+    timer = setTimeout(
       () => reject(Defines.BLE_PERIPHERAL_CHARACTERISTIC_READ_FAILED),
       Defines.CHARS_OPERATION_TIMEOUT_MSEC
     );
   });
-  return Promise.race([
-    BLE.readCharacteristicValueSync(uuid, charUUID),
-    cancelSignal,
-  ]);
+  let error, result;
+  try {
+    result = await Promise.race([
+      BLE.readCharacteristicValueSync(uuid, charUUID),
+      cancelSignal,
+    ]);
+    clearTimeout(timer);
+  } catch (err) {
+    error = err;
+  }
+  return { error, result };
 };
 
 /// funzione per interrompere la scansione bluetooth
@@ -573,21 +654,29 @@ module.exports.writeCharacteristic = ({ uuid, charUUID, value }) => {
   scheduler.enqueue(task, uuid);
 };
 
-/// funzione per interrompere la scansione bluetooth
+//@ writeCharacteristicSync
 module.exports.writeCharacteristicSync = async ({ uuid, charUUID, value }) => {
   if (!uuid || !charUUID || value === undefined) {
-    throw new Error('Parameters UUID, charsUUID and value are mandatory');
+    return { error: 'Parameters UUID, charsUUID and value are mandatory' };
   }
+  let timer;
   const cancelSignal = new Promise((_, reject) => {
-    setTimeout(
+    timer = setTimeout(
       () => reject(Defines.BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED),
       Defines.CHARS_OPERATION_TIMEOUT_MSEC
     );
   });
-  return Promise.race([
-    BLE.writeCharacteristicValue(uuid, charUUID, value),
-    cancelSignal,
-  ]);
+  let error, result;
+  try {
+    result = await Promise.race([
+      BLE.writeCharacteristicValue(uuid, charUUID, value),
+      cancelSignal,
+    ]);
+    clearTimeout(timer);
+  } catch (err) {
+    error = err;
+  }
+  return { error, result };
 };
 
 /// funzione per interrompere la scansione bluetooth
