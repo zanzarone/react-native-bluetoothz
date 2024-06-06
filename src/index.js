@@ -448,8 +448,14 @@ module.exports.reconnectSync = async ({ uuid }) => {
     });
     try {
       //? se la ricerca lo trova, allora proseguo altrimenti esco
-      await Promise.race([BLE.searchSync(newUuid), failureSignal]);
+      result = await Promise.race([BLE.searchSync(newUuid), failureSignal]);
       clearTimeout(timer);
+      if (
+        result.state !== Defines.BLE_PERIPHERAL_STATE_FOUND ||
+        result.status !== Defines.BLE_PERIPHERAL_STATUS_SUCCESS
+      ) {
+        return { result };
+      }
     } catch (err) {
       //? errore o, not found
       return { error: err };
@@ -486,8 +492,24 @@ module.exports.reconnectSync = async ({ uuid }) => {
   return { error, result };
 };
 
+// module.exports.cancel = ({ uuid }) => cancelConnection({ uuid });
+
 ///@ funzione per cancellare una connessione pendente
-module.exports.cancel = ({ uuid }) => cancelConnection({ uuid });
+module.exports.cancelSync = async ({ uuid }) => {
+  if (!uuid) {
+    return { error: 'Parameters UUID is mandatory' };
+  }
+  let result, error;
+  const newUuid = uuid.toUpperCase();
+  console.log('====> CANCEL CONN', uuid);
+  stopConnWatchdog(uuid);
+  try {
+    result = await BLE.cancelSync(newUuid);
+  } catch (err) {
+    error = err;
+  }
+  return { error, result };
+};
 
 //! funzioni disponibili solo per Android
 if (Platform.OS === 'android') {
@@ -669,7 +691,7 @@ module.exports.writeCharacteristicSync = async ({ uuid, charUUID, value }) => {
   let error, result;
   try {
     result = await Promise.race([
-      BLE.writeCharacteristicValue(uuid, charUUID, value),
+      BLE.writeCharacteristicValueSync(uuid, charUUID, value),
       cancelSignal,
     ]);
     clearTimeout(timer);

@@ -64,6 +64,7 @@ let BLE_PERIPHERAL_STATE_CONNECTED     : String  = "BLE_PERIPHERAL_STATE_CONNECT
 let BLE_PERIPHERAL_STATE_CONNECTING    : String  = "BLE_PERIPHERAL_STATE_CONNECTING";
 let BLE_PERIPHERAL_STATE_DISCONNECTED  : String  = "BLE_PERIPHERAL_STATE_DISCONNECTED";
 let BLE_PERIPHERAL_STATE_DISCONNECTING : String  = "BLE_PERIPHERAL_STATE_DISCONNECTING";
+let BLE_PERIPHERAL_STATE_FOUND         : String  = "BLE_PERIPHERAL_STATE_FOUND";
 let BLE_PERIPHERAL_STATE_COUNT : String  = "BLE_PERIPHERAL_STATE_COUNT";
 let BLE_PERIPHERAL_STATUS_SUCCESS : String  = "BLE_PERIPHERAL_STATUS_SUCCESS";
 let BLE_PERIPHERAL_STATUS_FAILURE : String  = "BLE_PERIPHERAL_STATUS_FAILURE";
@@ -73,8 +74,17 @@ let BLE_PERIPHERAL_STATUS_FAILURE : String  = "BLE_PERIPHERAL_STATUS_FAILURE";
 // =====================================================================================================================
 // =====================================================================================================================
 let DFU_SERVICE_UUID                                    : String  = "FE59";
-let SCAN_WD_KEEP_ALIVE_TIMEOUT_MSEC 					          : Double = 5.0
-let SCAN_WD_REFRESH_RATE 								                : TimeInterval = 1.0;
+let SCAN_WD_KEEP_ALIVE_TIMEOUT_MSEC 					: Double = 5.0
+let SCAN_WD_REFRESH_RATE 								: TimeInterval = 1.0;
+let GATT_STATE_DISCONNECTED								= 0;
+let GATT_STATE_CONNECTING                               = 1;
+let GATT_STATE_CONNECTED								= 2;
+let GATT_STATE_DISCONNECTING							= 3;
+let GATT_STATE_FOUND									= 4;
+let GATT_STATE_COUNT									= 5;
+let GATT_STATUS_SUCCESS									= 0;
+let GATT_STATUS_FAILURE									= 257;
+
 
 
 public extension Data {
@@ -111,7 +121,7 @@ class Peripheral {
 	private var enableDiscover      : Bool = false
 	var connectionStatusPromises    :(RCTPromiseResolveBlock, RCTPromiseRejectBlock)?
 	var discoverPromise    :(RCTPromiseResolveBlock, RCTPromiseRejectBlock)?
-//	var disconnectPromises  		:(RCTPromiseResolveBlock, RCTPromiseRejectBlock)?
+	//	var disconnectPromises  		:(RCTPromiseResolveBlock, RCTPromiseRejectBlock)?
 	/// - Device specific promises -- CHARS
 	var readValuePromises   		: [String: (RCTPromiseResolveBlock, RCTPromiseRejectBlock)] = [:]
 	var writeValuePromises  		: [String: (RCTPromiseResolveBlock, RCTPromiseRejectBlock)] = [:]
@@ -383,14 +393,15 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 			DFU_OPTION_PACKET_DELAY:DFU_OPTION_PACKET_DELAY,
 			FILE_PATH_TYPE_STRING:FILE_PATH_TYPE_STRING,
 			FILE_PATH_TYPE_URL:FILE_PATH_TYPE_URL,
-      //
-			BLE_PERIPHERAL_STATE_DISCONNECTED:0,
-			BLE_PERIPHERAL_STATE_CONNECTING:1,
-			BLE_PERIPHERAL_STATE_CONNECTED:2,
-			BLE_PERIPHERAL_STATE_DISCONNECTING:3,
-			BLE_PERIPHERAL_STATE_COUNT:4,
-			BLE_PERIPHERAL_STATUS_SUCCESS:0,
-			BLE_PERIPHERAL_STATUS_FAILURE:257,
+			//
+			BLE_PERIPHERAL_STATE_DISCONNECTED:GATT_STATE_DISCONNECTED,
+			BLE_PERIPHERAL_STATE_CONNECTING:GATT_STATE_CONNECTING,
+			BLE_PERIPHERAL_STATE_CONNECTED:GATT_STATE_CONNECTED,
+			BLE_PERIPHERAL_STATE_DISCONNECTING:GATT_STATE_DISCONNECTING,
+			BLE_PERIPHERAL_STATE_FOUND:BLE_PERIPHERAL_STATE_FOUND,
+			BLE_PERIPHERAL_STATE_COUNT:GATT_STATE_COUNT,
+			BLE_PERIPHERAL_STATUS_SUCCESS:GATT_STATUS_SUCCESS,
+			BLE_PERIPHERAL_STATUS_FAILURE:GATT_STATUS_FAILURE,
 		]
 	}
 
@@ -596,17 +607,17 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 		resolve( compliant );
 	}
 
-	@objc
-	func cancel(_ uuidString: String)
-	{
-		guard let peripheral = self.peripherals[uuidString]  else {
-			self.sendEvent(withName: BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, body:["uuid": uuidString, "status": BLE_PERIPHERAL_STATUS_FAILURE, "state": BLE_PERIPHERAL_STATE_CONNECTING])
-			return
-		}
-		let gattServer = peripheral.getGATTServer()
-		self.centralManager?.cancelPeripheralConnection(gattServer)
-		peripheral.flush();
-	}
+//	@objc
+//	func cancel(_ uuidString: String)
+//	{
+//		guard let peripheral = self.peripherals[uuidString]  else {
+//			self.sendEvent(withName: BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, body:["uuid": uuidString, "status": GATT_STATUS_FAILURE, "state": GATT_STATE_CONNECTING])
+//			return
+//		}
+//		let gattServer = peripheral.getGATTServer()
+//		self.centralManager?.cancelPeripheralConnection(gattServer)
+//		peripheral.flush();
+//	}
 
 	@objc
 	func cancelSync(_ uuidString: String, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
@@ -626,7 +637,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 	{
 		if !self.isConnected(uuidString: uuidString) {
 			/// i need to disconnect the current device before attempting a new connection
-			self.sendEvent(withName: BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, body:["uuid": uuidString, "status": BLE_PERIPHERAL_STATUS_FAILURE, "state": BLE_PERIPHERAL_STATE_DISCONNECTING])
+			self.sendEvent(withName: BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, body:["uuid": uuidString, "status": GATT_STATUS_FAILURE, "state": GATT_STATE_DISCONNECTING])
 			return
 		}
 		let p : Peripheral = self.peripherals[uuidString]!
@@ -858,7 +869,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 	{
 		if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
 			let uuid =  peripheral.identifier.uuidString
-			let body : [String:Any]  = ["uuid": uuid, "status": BLE_PERIPHERAL_STATUS_SUCCESS, "state": BLE_PERIPHERAL_STATE_CONNECTED]
+			let body : [String:Any]  = ["uuid": uuid, "status": GATT_STATUS_SUCCESS, "state": GATT_STATE_CONNECTED]
 			p.setConnected(true)
 			if let promises = p.connectionStatusPromises {
 				let resolve = promises.0
@@ -877,10 +888,10 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 	{
 		if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
 			let uuid =  peripheral.identifier.uuidString
-			var body : [String:Any]  = ["uuid": uuid, "status": BLE_PERIPHERAL_STATUS_SUCCESS, "state": BLE_PERIPHERAL_STATE_DISCONNECTED]
+			var body : [String:Any]  = ["uuid": uuid, "status": GATT_STATUS_SUCCESS, "state": GATT_STATE_DISCONNECTED]
 			if let error = error {
-				body["state"] = BLE_PERIPHERAL_STATE_DISCONNECTING
-				body["status"] = BLE_PERIPHERAL_STATUS_FAILURE
+				body["state"] = GATT_STATE_DISCONNECTING
+				body["status"] = GATT_STATUS_FAILURE
 				if let promises = p.connectionStatusPromises {
 					let failure = promises.1
 					failure(BLE_PERIPHERAL_CONNECTION_STATUS_CHANGED, error.localizedDescription, nil)
@@ -905,7 +916,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 	{
 		if let p : Peripheral = self.peripherals[peripheral.identifier.uuidString]{
 			let uuid = peripheral.identifier.uuidString
-			var body : [String : Any] = ["uuid": uuid, "status": BLE_PERIPHERAL_STATUS_FAILURE, "state": BLE_PERIPHERAL_STATE_CONNECTING]
+			var body : [String : Any] = ["uuid": uuid, "status": GATT_STATUS_FAILURE, "state": GATT_STATE_CONNECTING]
 			if let error = error {
 				body["error"] = error.localizedDescription
 			}
@@ -968,7 +979,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 						self.sendEvent(withName: BLE_PERIPHERAL_READY, body: body)
 					}
 				}
-        // else{
+				// else{
 				// 	if let promises = p.discoverPromise {
 				// 		let reject = promises.1
 				// 		reject(BLE_PERIPHERAL_DISCOVER_FAILED, "Missing characteristic", nil)
