@@ -334,43 +334,37 @@ function connect({
 /// funzione per iniziare la scansione bluetooth
 module.exports.startScan = ({
   services,
-  filter,
+  filters,
   options,
   timeout = Defines.SCAN_TIMEOUT_MSEC,
 }) => {
-  filter = filter ? filter : undefined;
+  filters = filters ? filters : [];
   services = services ? services : undefined;
   options = options ? options : scanOptions;
   console.log('====> SCAN START', options);
-  BLE.startScan(services, filter, options);
+  BLE.startScan(services, filters, options);
   if (timeout > 0) scanWatchDog = setTimeout(() => stopScan(), timeout);
 };
 
 module.exports.startScanSync = async ({
   services,
-  filter,
+  filters,
   options,
   timeout = Defines.SCAN_TIMEOUT_MSEC,
 }) => {
-  filter = filter ? filter : undefined;
+  filters = filters ? filters : [];
   services = services ? services : undefined;
   options = options ? options : scanOptions;
   console.log('====> SCAN START SYNC', options);
-  const stopScanSignal = new Promise((resolve, _) => {
-    setTimeout(() => {
-      stopScan();
-      resolve();
-    }, timeout);
-  });
+  const scanTimer = setTimeout(() => stopScan(), timeout);
   let error, result;
   try {
-    result = await Promise.race([
-      BLE.startScanSync(services, filter, options),
-      stopScanSignal,
-    ]);
+    result = await BLE.startScanSync(services, filters, options);
   } catch (err) {
     stopScan();
     error = err;
+  } finally {
+    clearTimeout(scanTimer);
   }
   return { error, result };
 };
@@ -408,21 +402,28 @@ module.exports.connectSync = async ({ uuid }) => {
   return { error, result };
 };
 
-module.exports.searchSync = async ({ uuid }) => {
-  if (!uuid) {
+module.exports.searchSync = async ({
+  terms,
+  filters,
+  timeout = Defines.SCAN_TIMEOUT_MSEC,
+}) => {
+  if (!terms) {
     return { error: 'Parameters UUID is mandatory' };
   }
-  const newUuid = uuid.toUpperCase();
+  filters = filters ? filters : [];
   let timer;
   //? creo il segnale per terminare la scansione, se il dispo non é trovato
-  const failureSignal = new Promise((_, reject) => {
+  const failureSignal = new Promise((resolve, _) => {
     timer = setTimeout(() => {
-      reject(new Error(`Device ${uuid} not found`));
-    }, Defines.SCAN_TIMEOUT_MSEC);
+      resolve(null);
+    }, timeout);
   });
   try {
     //? se la ricerca lo trova, allora proseguo altrimenti esco
-    const result = await Promise.race([BLE.searchSync(newUuid), failureSignal]);
+    const result = await Promise.race([
+      BLE.searchSync(terms, filters),
+      failureSignal,
+    ]);
     clearTimeout(timer);
     return { result };
   } catch (err) {
@@ -432,23 +433,31 @@ module.exports.searchSync = async ({ uuid }) => {
   }
 };
 
-module.exports.reconnectSync = async ({ uuid }) => {
+module.exports.reconnectSync = async ({
+  uuid,
+  filters,
+  timeout = Defines.SCAN_TIMEOUT_MSEC,
+}) => {
   let timer;
   let result, error;
   if (!uuid) {
     return { error: 'Parameters UUID is mandatory' };
   }
   const newUuid = uuid.toUpperCase();
+  filters = filters ? filters : [];
   if (Platform.OS === 'android') {
     //? creo il segnale per terminare la scansione, se il dispo non é trovato
     let failureSignal = new Promise((_, reject) => {
       timer = setTimeout(() => {
         reject(new Error(`Device ${uuid} not found`));
-      }, Defines.SCAN_TIMEOUT_MSEC);
+      }, timeout);
     });
     try {
       //? se la ricerca lo trova, allora proseguo altrimenti esco
-      result = await Promise.race([BLE.searchSync(newUuid), failureSignal]);
+      result = await Promise.race([
+        BLE.searchSync([newUuid], filters),
+        failureSignal,
+      ]);
       clearTimeout(timer);
       if (
         result.state !== Defines.BLE_PERIPHERAL_STATE_FOUND ||
@@ -714,6 +723,36 @@ module.exports.changeCharacteristicNotification = ({
   const task = () =>
     BLE.changeCharacteristicNotification(uuid, charUUID, enable);
   scheduler.enqueue(task, uuid);
+};
+
+/// funzione per interrompere la scansione bluetooth
+module.exports.changeCharacteristicNotificationSync = async ({
+  uuid,
+  charUUID,
+  enable,
+}) => {
+  if (!uuid || !charUUID || enable === undefined) {
+    return { error: 'Parameters UUID, charsUUID and enable are mandatory' };
+  }
+
+  let timer;
+  const cancelSignal = new Promise((_, reject) => {
+    timer = setTimeout(
+      () => reject(Defines.BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED),
+      Defines.CHARS_OPERATION_TIMEOUT_MSEC
+    );
+  });
+  let error, result;
+  try {
+    result = await Promise.race([
+      BLE.changeCharacteristicNotificationSync(uuid, charUUID, enable),
+      cancelSignal,
+    ]);
+    clearTimeout(timer);
+  } catch (err) {
+    error = err;
+  }
+  return { error, result };
 };
 
 /**

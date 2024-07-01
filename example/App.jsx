@@ -188,7 +188,8 @@ function App() {
                   // const {filterByName, ...options} = filter;
                   startScan({
                     // filter: filterByName.enabled ? filterByName.text : undefined,
-                    options: {allowNoNamed: false},
+                    filters: ['PC8_[0-9]{1,}', 'SRM_XP_R_[0-9]{1,}'],
+                    // options: {allowNoNamed: false},
                     timeout: -1,
                   });
                 } else {
