@@ -793,8 +793,17 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
           BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
           mBluetoothGATT.setCharacteristicNotification(characteristic, enable);
           BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString(Client_Characteristic_Configuration));
-          descriptor.setValue(enable ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
-          mBluetoothGATT.writeDescriptor(descriptor);
+          int properties = characteristic.getProperties();
+          byte[] value = null;
+          if(((properties & BluetoothGattCharacteristic.PROPERTY_NOTIFY) > 0)) {
+            value = enable ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE;
+          }
+          else if (((properties & BluetoothGattCharacteristic.PROPERTY_INDICATE) > 0)){
+            value = enable ? BluetoothGattDescriptor.ENABLE_INDICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE;
+          }else {
+            return false;
+          }
+          descriptor.setValue(value);          mBluetoothGATT.writeDescriptor(descriptor);
         }
         return true;
       }
