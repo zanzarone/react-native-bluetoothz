@@ -183,11 +183,18 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 
   @Override
   public void onHostResume() {
+
     this.reactContext.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
   }
 
   @Override
   public void onHostPause() {
+    for (Peripheral peripheral : this.mPeripherals.values()) {
+      if(!peripheral.isConnected()){
+        continue;
+      }
+      peripheral.stopAllNotifications();
+    }
     this.reactContext.unregisterReceiver(mLocalBroadcastReceiver);
   }
 
@@ -809,11 +816,18 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
           }else {
             return false;
           }
-          descriptor.setValue(value);          mBluetoothGATT.writeDescriptor(descriptor);
+          descriptor.setValue(value);
+          mBluetoothGATT.writeDescriptor(descriptor);
         }
         return true;
       }
       return false;
+    }
+
+    public void stopAllNotifications() {
+      for(String uuid:this.mCharacteristic.keySet()){
+        changeCharacteristicNotification(uuid,false);
+      }
     }
 
     @SuppressLint("MissingPermission")
@@ -917,6 +931,8 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   public String getName() {
     return "BluetoothZ";
   }
+
+
 
   @ReactMethod
   public void setup() {

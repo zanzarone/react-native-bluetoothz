@@ -53,6 +53,7 @@ let BLE_PERIPHERAL_DFU_STATUS_DISCONNECTING         : String  = "BLE_PERIPHERAL_
 let BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU          : String  = "BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU";
 let BLE_PERIPHERAL_SERVICES_RETRIEVE_FAILED			: String  = "BLE_PERIPHERAL_SERVICES_RETRIEVE_FAILED";
 let BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE_FAILED   : String  = "BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE_FAILED";
+let ON_APP_STATE_CHANGED						    : String  = "onAppStateChange";
 // =====================================================================================================================
 // =====================================================================================================================
 //                                                  DEFINES
@@ -264,6 +265,12 @@ class Peripheral {
 		}
 		return ch.isNotifying
 	}
+
+	func stopAllNotifications(){
+		for uuid in self.characteristics.keys {
+			let _ = self.changeCharacteristicNotification(uuid, enable: false)
+		}
+	}
 }
 
 class SyncHelper {
@@ -292,6 +299,56 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 	var keepAliveTimeout      : Double = SCAN_WD_KEEP_ALIVE_TIMEOUT_MSEC
 	var dfu                   : Dfu!
 	var syncHelper            : SyncHelper = SyncHelper()
+
+	private var hasListeners = false
+
+   override init() {
+	   super.init()
+	   // Osserva le notifiche di stato dell'app
+	   NotificationCenter.default.addObserver(self,
+											  selector: #selector(handleDidEnterBackground),
+											  name: UIApplication.didEnterBackgroundNotification,
+											  object: nil)
+	   NotificationCenter.default.addObserver(self,
+											  selector: #selector(handleDidBecomeActive),
+											  name: UIApplication.didBecomeActiveNotification,
+											  object: nil)
+   }
+
+   deinit {
+	   // Rimuovi gli osservatori quando il modulo viene deallocato
+	   NotificationCenter.default.removeObserver(self)
+   }
+
+   @objc private func handleDidEnterBackground() {
+	   if hasListeners {
+		   sendEvent(withName: "onAppStateChange", body: ["state": "background"])
+	   }
+	   for p in self.peripherals.values {
+		   if !p.isConnected() {
+			   continue;
+		   }
+		   p.stopAllNotifications()
+	   }
+	   print("App è in background.")
+   }
+
+   @objc private func handleDidBecomeActive() {
+	   if hasListeners {
+		   sendEvent(withName: "onAppStateChange", body: ["state": "active"])
+	   }
+	   print("App è in primo piano.")
+   }
+
+   // MARK: - RCTEventEmitter Overrides
+
+   override func startObserving() {
+	   hasListeners = true
+   }
+
+   override func stopObserving() {
+	   hasListeners = false
+   }
 
 
 	private func isPeripheralConnected(match:String) -> Bool {
@@ -369,6 +426,8 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 			BLE_PERIPHERAL_DFU_STATUS_ENABLING_DFU,
 			BLE_PERIPHERAL_SERVICES_RETRIEVE_FAILED,
 			BLE_PERIPHERAL_CHARACTERISTIC_RETRIEVE_FAILED,
+			ON_APP_STATE_CHANGED
+
 		]
 	}
 
