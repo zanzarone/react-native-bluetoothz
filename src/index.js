@@ -755,6 +755,15 @@ module.exports.changeCharacteristicNotificationSync = async ({
   return { error, result };
 };
 
+/// funzione per interrompere la scansione bluetooth
+module.exports.removeAllNotification = ({ uuid }) => {
+  if (!uuid) {
+    throw new Error('Parameter UUID is mandatory');
+  }
+  // console.log('====> ENABLE', uuid);
+  const task = () => BLE.removeAllNotification(uuid);
+  scheduler.enqueue(task, uuid);
+};
 /**
  *?  ============  ================= ============
  *?  ============                    ============

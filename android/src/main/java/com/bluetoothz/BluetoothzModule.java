@@ -84,6 +84,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   public static final String BLE_PERIPHERAL_NOTIFICATION_UPDATES = "BLE_PERIPHERAL_NOTIFICATION_UPDATES";
   public static final String BLE_PERIPHERAL_NOTIFICATION_CHANGED = "BLE_PERIPHERAL_NOTIFICATION_CHANGED";
   public static final String BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED = "BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED";
+  public static final String BLE_PERIPHERAL_ALL_NOTIFICATION_DISABLED = "BLE_PERIPHERAL_ALL_NOTIFICATION_DISABLED";
   public static final String BLE_PERIPHERAL_SET_MTU_OK = "BLE_PERIPHERAL_SET_MTU_OK";
   public static final String BLE_PERIPHERAL_SET_MTU_FAILED = "BLE_PERIPHERAL_SET_MTU_FAILED";
   public static final String BLE_PERIPHERAL_SET_CONN_PRORITY_OK = "BLE_PERIPHERAL_SET_CONN_PRORITY_OK";
@@ -693,10 +694,15 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       this.mDiscoverPromise = null;
     }
 
-    public String[] allCharacteristics() {
+    public String[] allCharacteristicsUUIDs() {
       String[] charsUUID = new String[mCharacteristic.size()];
       mCharacteristic.keySet().toArray(charsUUID);
       return charsUUID;
+    }
+
+    public ArrayList<Pair<BluetoothGattCharacteristic, Boolean>> allCharacteristics() {
+      ArrayList<Pair<BluetoothGattCharacteristic, Boolean>> chars = new ArrayList<Pair<BluetoothGattCharacteristic, Boolean>>(mCharacteristic.values());
+      return chars;
     }
 
     public String[] allServices() {
@@ -853,6 +859,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     constants.put(BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED, BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED);
     constants.put(BLE_PERIPHERAL_NOTIFICATION_UPDATES, BLE_PERIPHERAL_NOTIFICATION_UPDATES);
     constants.put(BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED);
+    constants.put(BLE_PERIPHERAL_ALL_NOTIFICATION_DISABLED, BLE_PERIPHERAL_ALL_NOTIFICATION_DISABLED);
     constants.put(BLE_PERIPHERAL_NOTIFICATION_CHANGED, BLE_PERIPHERAL_NOTIFICATION_CHANGED);
     constants.put(BLE_PERIPHERAL_SET_MTU_OK, BLE_PERIPHERAL_SET_MTU_OK);
     constants.put(BLE_PERIPHERAL_SET_MTU_FAILED, BLE_PERIPHERAL_SET_MTU_FAILED);
@@ -1306,7 +1313,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     }
     Peripheral p = mPeripherals.get(uuid);
     WritableMap params = Arguments.createMap();
-    WritableArray array = Arguments.fromArray(p.allCharacteristics());
+    WritableArray array = Arguments.fromArray(p.allCharacteristicsUUIDs());
     params.putArray("characteristics", array);
     promise.resolve(params.copy());
   }
@@ -1417,6 +1424,29 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     }
     Peripheral p = mPeripherals.get(uuid);
     p.changeCharacteristicNotificationSync(charUUID, enable, promise);
+  }
+
+  @SuppressLint("MissingPermission")
+  @ReactMethod
+  public void removeAllNotification(String uuid) {
+    if (!isPeripheralConnected(uuid)) {
+      WritableMap params = Arguments.createMap();
+      params.putString("uuid", uuid);
+      params.putString("error", "Device already disconnected:" + uuid);
+      sendEvent(reactContext, BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, params.copy());
+      return;
+    }
+    Peripheral p = mPeripherals.get(uuid);
+    ArrayList<Pair<BluetoothGattCharacteristic, Boolean>> characteristics = p.allCharacteristics();
+    for (Pair<BluetoothGattCharacteristic, Boolean> myChar:characteristics) {
+//      if(myChar.second){
+      p.changeCharacteristicNotification(myChar.first.getUuid().toString(), false);
+//      }
+    }
+    WritableMap params = Arguments.createMap();
+    params.putString("uuid", uuid);
+    params.putBoolean("success", true);
+    sendEvent(reactContext, BLE_PERIPHERAL_ALL_NOTIFICATION_DISABLED, params.copy());
   }
 
   @ReactMethod

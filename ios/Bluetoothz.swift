@@ -197,7 +197,11 @@ class Peripheral {
 		return self.services.keys.reversed()
 	}
 
-	func allCharacteristics() -> [String] {
+	func allCharacteristics() -> [String:CBCharacteristic] {
+		return self.characteristics;
+	}
+
+	func allCharacteristicsUUIDs() -> [String] {
 		return self.characteristics.keys.reversed()
 	}
 
@@ -747,7 +751,7 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 			return
 		}
 		let p : Peripheral = self.peripherals[uuid]!
-		resolve( ["characteristics":  p.allCharacteristics()] )
+		resolve( ["characteristics":  p.allCharacteristicsUUIDs()] )
 	}
 
 	@objc
@@ -840,6 +844,39 @@ class BluetoothZ: RCTEventEmitter, CBCentralManagerDelegate, CBPeripheralDelegat
 			rejecter(BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, "Device not connected: \(uuid)", nil)
 		}
 	}
+
+	@objc
+	func removeAllNotification(_ uuid:String)
+	{
+		if !self.isPeripheralConnected(match: uuid) {
+			/// i need to disconnect the current device before attempting a new connection
+			self.sendEvent(withName: BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, body: ["uuid": uuid, "error": "peripheral not found with uuid:\(uuid)"])
+			return
+		}
+		let p : Peripheral = self.peripherals[uuid]!
+		for c in p.allCharacteristics().values {
+//			if c.isNotifying {
+			let _ = p.changeCharacteristicNotification(c.uuid.uuidString, enable: false)
+//			}
+		}
+	}
+
+//   @objc
+//   func removeAllNotificationSync(_ uuid:String, resolve: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock)
+//   {
+//	   if !self.isPeripheralConnected(match: uuid) {
+//		   /// i need to disconnect the current device before attempting a new connection
+//		   rejecter(BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, "Device not connected: \(uuid)", nil)
+//		   return
+//	   }
+//	   let p : Peripheral = self.peripherals[uuid]!
+//	   for c in p.allCharacteristics().values {
+//		   if c.isNotifying {
+//			   p.changeCharacteristicNotification(c.uuid.uuidString, enable: false)
+//		   }
+//	   }
+//	   resolve(["uuid":uuid])
+//   }
 
 	@objc
 	func startDFU(_ uuid: String , filePath:String , pathType:String , options:NSDictionary)
