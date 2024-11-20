@@ -85,6 +85,8 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
   public static final String BLE_PERIPHERAL_NOTIFICATION_CHANGED = "BLE_PERIPHERAL_NOTIFICATION_CHANGED";
   public static final String BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED = "BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED";
   public static final String BLE_PERIPHERAL_ALL_NOTIFICATION_DISABLED = "BLE_PERIPHERAL_ALL_NOTIFICATION_DISABLED";
+  public static final String BLE_PERIPHERAL_CHARACTERISTIC_IS_NOTIFY_FAILED = "BLE_PERIPHERAL_CHARACTERISTIC_IS_NOTIFY_FAILED";
+  public static final String BLE_PERIPHERAL_CHARACTERISTIC_IS_NOTIFY = "BLE_PERIPHERAL_CHARACTERISTIC_IS_NOTIFY";
   public static final String BLE_PERIPHERAL_SET_MTU_OK = "BLE_PERIPHERAL_SET_MTU_OK";
   public static final String BLE_PERIPHERAL_SET_MTU_FAILED = "BLE_PERIPHERAL_SET_MTU_FAILED";
   public static final String BLE_PERIPHERAL_SET_CONN_PRORITY_OK = "BLE_PERIPHERAL_SET_CONN_PRORITY_OK";
@@ -183,18 +185,17 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 
   @Override
   public void onHostResume() {
-
     this.reactContext.registerReceiver(mLocalBroadcastReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
   }
 
   @Override
   public void onHostPause() {
-    for (Peripheral peripheral : this.mPeripherals.values()) {
-      if(!peripheral.isConnected()){
-        continue;
-      }
-      peripheral.stopAllNotifications();
-    }
+//    for (Peripheral peripheral : this.mPeripherals.values()) {
+//      if(!peripheral.isConnected()){
+//        continue;
+//      }
+//      peripheral.stopAllNotifications();
+//    }
     this.reactContext.unregisterReceiver(mLocalBroadcastReceiver);
   }
 
@@ -491,7 +492,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
           if (promise != null) {
             if (status == GATT_STATUS_SUCCESS) {
               params.putBoolean("enable", enabled);
-              p.mCharacteristic.put(charUUID, new Pair<>(descriptor.getCharacteristic(), enabled));
+              p.mCharacteristic.put(charUUID, descriptor.getCharacteristic());
               promise.resolve(params);
             } else {
               promise.reject(BLE_PERIPHERAL_NOTIFICATION_CHANGED, BLE_PERIPHERAL_NOTIFICATION_CHANGED);
@@ -501,7 +502,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
             if (status == GATT_STATUS_SUCCESS) {
               params.putBoolean("enable", enabled);
               sendEvent(reactContext, BLE_PERIPHERAL_NOTIFICATION_CHANGED, params.copy());
-              p.mCharacteristic.put(charUUID, new Pair<>(descriptor.getCharacteristic(), enabled));
+              p.mCharacteristic.put(charUUID, descriptor.getCharacteristic());
             } else {
               params.putString("error", "Error writing descriptor");
               sendEvent(reactContext, BLE_PERIPHERAL_NOTIFICATION_CHANGED, params.copy());
@@ -578,7 +579,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     private BluetoothGatt mBluetoothGATT;
     private BluetoothDevice mDevice;
     private HashMap<String, BluetoothGattService> mServices;
-    private HashMap<String, Pair<BluetoothGattCharacteristic, Boolean>> mCharacteristic;
+    private HashMap<String, BluetoothGattCharacteristic> mCharacteristic;
     private HashMap<String, Promise> mReadCharPromises;
     private HashMap<String, Promise> mWriteCharPromises;
     private HashMap<String, Promise> mNotificationCharPromises;
@@ -707,8 +708,8 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       return charsUUID;
     }
 
-    public ArrayList<Pair<BluetoothGattCharacteristic, Boolean>> allCharacteristics() {
-      ArrayList<Pair<BluetoothGattCharacteristic, Boolean>> chars = new ArrayList<Pair<BluetoothGattCharacteristic, Boolean>>(mCharacteristic.values());
+    public ArrayList<BluetoothGattCharacteristic> allCharacteristics() {
+      ArrayList<BluetoothGattCharacteristic> chars = new ArrayList<BluetoothGattCharacteristic>(mCharacteristic.values());
       return chars;
     }
 
@@ -725,14 +726,14 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
 
     @SuppressLint("MissingPermission")
     public void setCharacteristic(BluetoothGattCharacteristic c) {
-      mCharacteristic.put(c.getUuid().toString(), new Pair<>(c, false));
+      mCharacteristic.put(c.getUuid().toString(), c);
     }
 
     @SuppressLint("MissingPermission")
     public boolean readCharacteristic(String uuid) {
       if (mCharacteristic.containsKey(uuid)) {
         mReadCharPromises.remove(uuid);
-        BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
+        BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid);
         mBluetoothGATT.readCharacteristic(characteristic);
         return true;
       }
@@ -743,7 +744,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     public boolean readCharacteristicSync(String uuid, Promise promise) {
       if (mCharacteristic.containsKey(uuid)) {
         mReadCharPromises.put(uuid, promise);
-        BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
+        BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid);
         mBluetoothGATT.readCharacteristic(characteristic);
         return true;
       }
@@ -761,7 +762,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     @SuppressLint("MissingPermission")
     public boolean writeCharacteristic(String uuid, byte[] value, int NOT_IMPLEMENTED_type) {
       if (mCharacteristic.containsKey(uuid)) {
-        BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
+        BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid);
         characteristic.setValue(value);
         mBluetoothGATT.writeCharacteristic(characteristic);
         return true;
@@ -773,7 +774,7 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     public boolean writeCharacteristicSync(String uuid, byte[] value, Promise promise, int NOT_IMPLEMENTED_type) {
       if (mCharacteristic.containsKey(uuid)) {
         mWriteCharPromises.put(uuid, promise);
-        BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
+        BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid);
         characteristic.setValue(value);
         characteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
         mBluetoothGATT.writeCharacteristic(characteristic);
@@ -801,9 +802,9 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     @SuppressLint("MissingPermission")
     public boolean changeCharacteristicNotification(String uuid, boolean enable) {
       if (mCharacteristic.containsKey(uuid)) {
-        boolean enabled = mCharacteristic.get(uuid).second;
+        boolean enabled = this.characteristicIsNotifying(uuid);
         if (enabled != enable) {
-          BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid).first;
+          BluetoothGattCharacteristic characteristic = mCharacteristic.get(uuid);
           mBluetoothGATT.setCharacteristicNotification(characteristic, enable);
           BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString(Client_Characteristic_Configuration));
           int properties = characteristic.getProperties();
@@ -841,6 +842,52 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
         promise.reject(BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, "Could not find characteristic with uuid " + uuid);
       }
     }
+
+    public boolean characteristicIsNotifying(String uuid) {
+      if (mCharacteristic.containsKey(uuid)) {
+        BluetoothGattDescriptor descriptor = mCharacteristic.get(uuid).getDescriptor(UUID.fromString(Client_Characteristic_Configuration));
+        boolean isNotifying = false;
+        if (descriptor != null) {
+          byte[] descriptorValue = descriptor.getValue();
+          if (descriptorValue != null) {
+            isNotifying = (descriptorValue[0] & 0x01) != 0;
+          }
+        }
+        return isNotifying;
+      }
+      return false;
+    }
+
+    public void characteristicIsNotifyingSync(String uuid, Promise promise) {
+      if (mCharacteristic.containsKey(uuid)) {
+        WritableMap params = Arguments.createMap();
+        params.putString("uuid", mDevice.getAddress());
+        params.putString("charUUID", uuid);
+        params.putBoolean("isNotifying", this.characteristicIsNotifying(uuid));
+        promise.resolve(params.copy());
+      } else {
+        promise.reject(BLE_PERIPHERAL_CHARACTERISTIC_IS_NOTIFY_FAILED, "Could not find characteristic with uuid " + uuid);
+      }
+    }
+
+    public boolean characteristicIsIndicatable(String uuid) {
+      if (mCharacteristic.containsKey(uuid)) {
+        return (mCharacteristic.get(uuid).getProperties() & BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0;
+      }
+      return false;
+    }
+
+    public void characteristicIsIndicatableSync(String uuid, Promise promise) {
+      if (mCharacteristic.containsKey(uuid)) {
+        WritableMap params = Arguments.createMap();
+        params.putString("uuid", mDevice.getAddress());
+        params.putString("charUUID", uuid);
+        params.putBoolean("isIndicatable", this.characteristicIsIndicatable(uuid));
+        promise.resolve(params.copy());
+      } else {
+        promise.reject(BLE_PERIPHERAL_CHARACTERISTIC_IS_NOTIFY_FAILED, "Could not find characteristic with uuid " + uuid);
+      }
+    }
   }
 
 
@@ -874,6 +921,8 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
     constants.put(BLE_PERIPHERAL_NOTIFICATION_UPDATES, BLE_PERIPHERAL_NOTIFICATION_UPDATES);
     constants.put(BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED);
     constants.put(BLE_PERIPHERAL_ALL_NOTIFICATION_DISABLED, BLE_PERIPHERAL_ALL_NOTIFICATION_DISABLED);
+    constants.put(BLE_PERIPHERAL_CHARACTERISTIC_IS_NOTIFY, BLE_PERIPHERAL_CHARACTERISTIC_IS_NOTIFY);
+    constants.put(BLE_PERIPHERAL_CHARACTERISTIC_IS_NOTIFY_FAILED, BLE_PERIPHERAL_CHARACTERISTIC_IS_NOTIFY_FAILED);
     constants.put(BLE_PERIPHERAL_NOTIFICATION_CHANGED, BLE_PERIPHERAL_NOTIFICATION_CHANGED);
     constants.put(BLE_PERIPHERAL_SET_MTU_OK, BLE_PERIPHERAL_SET_MTU_OK);
     constants.put(BLE_PERIPHERAL_SET_MTU_FAILED, BLE_PERIPHERAL_SET_MTU_FAILED);
@@ -1453,17 +1502,29 @@ public class BluetoothzModule extends ReactContextBaseJavaModule implements Life
       return;
     }
     Peripheral p = mPeripherals.get(uuid);
-    ArrayList<Pair<BluetoothGattCharacteristic, Boolean>> characteristics = p.allCharacteristics();
-    for (Pair<BluetoothGattCharacteristic, Boolean> myChar:characteristics) {
-//      if(myChar.second){
-      p.changeCharacteristicNotification(myChar.first.getUuid().toString(), false);
-//      }
+    ArrayList<BluetoothGattCharacteristic> characteristics = p.allCharacteristics();
+    for (BluetoothGattCharacteristic myChar:characteristics) {
+      p.changeCharacteristicNotification(myChar.getUuid().toString(), false);
     }
     WritableMap params = Arguments.createMap();
     params.putString("uuid", uuid);
     params.putBoolean("success", true);
     sendEvent(reactContext, BLE_PERIPHERAL_ALL_NOTIFICATION_DISABLED, params.copy());
   }
+
+  // @SuppressLint("MissingPermission")
+  // @ReactMethod
+  // public void isCharacteristicNotifying(String uuid, String charUUID, Promise promise) {
+  //   if (!isPeripheralConnected(uuid)) {
+  //     WritableMap params = Arguments.createMap();
+  //     params.putString("uuid", uuid);
+  //     params.putString("error", "Device already disconnected:" + uuid);
+  //     sendEvent(reactContext, BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED, params.copy());
+  //     return;
+  //   }
+  //   Peripheral p = mPeripherals.get(uuid);
+  //   p.characteristicIsNotifyingSync(charUUID, promise);
+  // }
 
   @ReactMethod
   public void startDFU(String uuid, String filePath, String pathType, ReadableMap options) {
