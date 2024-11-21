@@ -4,12 +4,13 @@ const tar = require('tar');
 const { name, version } = require('../package.json');
 const { execSync } = require('child_process');
 const root = path.resolve(__dirname, '..');
-const dest = path.join(root, `example/node_modules/${name}`);
+const exampleAppNodeModulesFolder = path.join(root, `example/node_modules`);
+// const exampleAppNodeModulesFolder = path.join(root, `example/node_modules/${name}`);
 
 console.log('PRE FLIGHT SCRIPT ', name, version);
 
 function pre() {
-  console.log('pre ', root, dest, name, version);
+  console.log('pre ', root, exampleAppNodeModulesFolder, name, version);
   let tarGZ = path.join(root, `${name}-${version}.tgz`);
   console.log('aft ', tarGZ);
   if (fs.existsSync(tarGZ)) fs.rmSync(tarGZ);
@@ -66,12 +67,16 @@ function copyFiles(sourceDir, targetDir) {
 
 function copy() {
   console.log('copy ', name, version);
-  if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true });
-  fs.mkdirSync(dest);
   const extractFolder = path.join(root, 'extract', `${name}`);
-  copyFiles(extractFolder, dest);
+  if (fs.existsSync(exampleAppNodeModulesFolder)) {
+    const moduleFolder = path.join(exampleAppNodeModulesFolder, name);
+    if (fs.existsSync(moduleFolder)) {
+      fs.rmSync(moduleFolder, { recursive: true });
+    }
+    fs.mkdirSync(moduleFolder);
+    copyFiles(extractFolder, exampleAppNodeModulesFolder);
+  }
   copyFiles(extractFolder, path.join(root, `${name}`));
-  // fs.renameSync(path.join(root, `${name}`), dest);
 }
 
 pre();
