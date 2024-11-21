@@ -57,7 +57,7 @@ const dfuOptions = {
 module.exports.scanOptions = Object.freeze(scanOptions);
 module.exports.dfuOptions = Object.freeze(dfuOptions);
 
-const scheduler = new Scheduler();
+// const scheduler = new Scheduler();
 
 /**
  *?  ============  ==================  ============
@@ -93,7 +93,7 @@ module.exports.configure = (nativeEventEmitter) => {
       Defines.BLE_PERIPHERAL_CHARACTERISTIC_READ_OK,
       (event) => {
         const { uuid } = event;
-        scheduler.dequeue();
+        // scheduler.dequeue();
       }
     )
   );
@@ -108,7 +108,7 @@ module.exports.configure = (nativeEventEmitter) => {
           event
         );
         const { uuid } = event;
-        scheduler.dequeue();
+        // scheduler.dequeue();
       }
     )
   );
@@ -118,7 +118,7 @@ module.exports.configure = (nativeEventEmitter) => {
       Defines.BLE_PERIPHERAL_CHARACTERISTIC_WRITE_OK,
       (event) => {
         const { uuid } = event;
-        scheduler.dequeue();
+        // scheduler.dequeue();
       }
     )
   );
@@ -129,7 +129,7 @@ module.exports.configure = (nativeEventEmitter) => {
       Defines.BLE_PERIPHERAL_CHARACTERISTIC_WRITE_FAILED,
       (event) => {
         const { uuid } = event;
-        scheduler.dequeue();
+        // scheduler.dequeue();
       }
     )
   );
@@ -140,7 +140,7 @@ module.exports.configure = (nativeEventEmitter) => {
       Defines.BLE_PERIPHERAL_NOTIFICATION_CHANGED,
       (event) => {
         const { uuid } = event;
-        scheduler.dequeue();
+        // scheduler.dequeue();
       }
     )
   );
@@ -151,7 +151,7 @@ module.exports.configure = (nativeEventEmitter) => {
       Defines.BLE_PERIPHERAL_ENABLE_NOTIFICATION_FAILED,
       (event) => {
         // const { uuid } = event;
-        scheduler.dequeue();
+        // scheduler.dequeue();
       }
     )
   );
@@ -204,7 +204,7 @@ module.exports.configure = (nativeEventEmitter) => {
             stopConnWatchdog(uuid);
             /// devo chiamare la invalidate, perche se il dispositivo che si è disconnesso aveva delle operazioni
             /// pendenti, le devo rimuovere
-            scheduler.invalidate(uuid);
+            // scheduler.invalidate(uuid);
             break;
           case Defines.BLE_PERIPHERAL_STATE_CONNECTING:
             if (status === Defines.BLE_PERIPHERAL_STATUS_FAILURE) {
@@ -646,8 +646,9 @@ module.exports.readCharacteristic = ({ uuid, charUUID }) => {
     throw new Error('Parameters UUID, charsUUID are mandatory');
   }
   console.log('====> READ', charUUID);
-  const task = () => BLE.readCharacteristicValue(uuid, charUUID);
-  scheduler.enqueue(task, uuid);
+  BLE.readCharacteristicValue(uuid, charUUID);
+  // const task = () => BLE.readCharacteristicValue(uuid, charUUID);
+  // scheduler.enqueue(task, uuid);
 };
 
 /// funzione per interrompere la scansione bluetooth
@@ -681,8 +682,9 @@ module.exports.writeCharacteristic = ({ uuid, charUUID, value }) => {
     throw new Error('Parameters UUID, charsUUID and value are mandatory');
   }
   console.log('====> WRITE', charUUID);
-  const task = () => BLE.writeCharacteristicValue(uuid, charUUID, value);
-  scheduler.enqueue(task, uuid);
+  BLE.writeCharacteristicValue(uuid, charUUID, value);
+  // const task = () => BLE.writeCharacteristicValue(uuid, charUUID, value);
+  // scheduler.enqueue(task, uuid);
 };
 
 //@ writeCharacteristicSync
@@ -720,9 +722,10 @@ module.exports.changeCharacteristicNotification = ({
     throw new Error('Parameters UUID, charsUUID and value are mandatory');
   }
   console.log('====> ENABLE', charUUID, enable);
-  const task = () =>
-    BLE.changeCharacteristicNotification(uuid, charUUID, enable);
-  scheduler.enqueue(task, uuid);
+  BLE.changeCharacteristicNotification(uuid, charUUID, enable);
+  // const task = () =>
+  //   BLE.changeCharacteristicNotification(uuid, charUUID, enable);
+  // scheduler.enqueue(task, uuid);
 };
 
 /// funzione per interrompere la scansione bluetooth
@@ -761,22 +764,11 @@ module.exports.removeAllNotification = ({ uuid }) => {
     throw new Error('Parameter UUID is mandatory');
   }
   // console.log('====> ENABLE', uuid);
+  BLE.removeAllNotification(uuid);
   const task = () => BLE.removeAllNotification(uuid);
-  scheduler.enqueue(task, uuid);
+  // scheduler.enqueue(task, uuid);
 };
 
-/// funzione per interrompere la scansione bluetooth
-module.exports.changeCharacteristicNotificationTEST = ({
-  uuid,
-  charUUID,
-  enable,
-}) => {
-  if (!uuid || !charUUID || enable === undefined) {
-    throw new Error('Parameters UUID, charsUUID and value are mandatory');
-  }
-  console.log('====> ENABLE', charUUID, enable);
-  BLE.changeCharacteristicNotification(uuid, charUUID, enable);
-};
 /**
  *?  ============  ================= ============
  *?  ============                    ============
