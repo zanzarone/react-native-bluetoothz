@@ -1,3 +1,4 @@
+/* eslint-disable react-native/no-inline-styles */
 import React from 'react';
 import {FlatList, View, Text, Image, Touchable, Platform} from 'react-native';
 import BackgroundShape from '../components/BackgroundShape';

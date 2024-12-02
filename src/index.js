@@ -402,11 +402,11 @@ module.exports.connectSync = async ({ uuid }) => {
   return { error, result };
 };
 
-module.exports.searchSync = async ({
+async function searchSync({
   terms,
   filters,
   timeout = Defines.SCAN_TIMEOUT_MSEC,
-}) => {
+}) {
   if (!terms) {
     return { error: 'Parameters UUID is mandatory' };
   }
@@ -431,7 +431,13 @@ module.exports.searchSync = async ({
   } finally {
     stopScan();
   }
-};
+}
+
+module.exports.searchSync = async ({
+  terms,
+  filters,
+  timeout = Defines.SCAN_TIMEOUT_MSEC,
+}) => searchSync({ terms, filters, timeout });
 
 module.exports.reconnectSync = async ({
   uuid,
@@ -717,7 +723,7 @@ module.exports.changeCharacteristicNotification = ({
   enable,
 }) => {
   if (!uuid || !charUUID || enable === undefined) {
-    throw new Error('Parameters UUID, charsUUID and value are mandatory');
+    return { error: 'Parameters UUID, charsUUID and value are mandatory' };
   }
   console.log('====> ENABLE', charUUID, enable);
   const task = () =>
@@ -758,25 +764,13 @@ module.exports.changeCharacteristicNotificationSync = async ({
 /// funzione per interrompere la scansione bluetooth
 module.exports.removeAllNotification = ({ uuid }) => {
   if (!uuid) {
-    throw new Error('Parameter UUID is mandatory');
+    return { error: 'Parameter UUID is mandatory' };
   }
   // console.log('====> ENABLE', uuid);
   const task = () => BLE.removeAllNotification(uuid);
   scheduler.enqueue(task, uuid);
 };
 
-/// funzione per interrompere la scansione bluetooth
-module.exports.changeCharacteristicNotificationTEST = ({
-  uuid,
-  charUUID,
-  enable,
-}) => {
-  if (!uuid || !charUUID || enable === undefined) {
-    throw new Error('Parameters UUID, charsUUID and value are mandatory');
-  }
-  console.log('====> ENABLE', charUUID, enable);
-  BLE.changeCharacteristicNotification(uuid, charUUID, enable);
-};
 /**
  *?  ============  ================= ============
  *?  ============                    ============
@@ -785,7 +779,40 @@ module.exports.changeCharacteristicNotificationTEST = ({
  *?  ============  ================= ============
  */
 
-module.exports.startDFU = ({
+module.exports.startDFU = async ({
+  uuid,
+  filePath,
+  pathType = Defines.FILE_PATH_TYPE_STRING,
+  options = dfuOptions,
+}) => {
+  if (!uuid) {
+    return { error: 'Parameter UUID is mandatory' };
+  }
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    return { error: 'Platform not supported (not android or ios)' };
+  }
+  if (
+    pathType !== Defines.FILE_PATH_TYPE_STRING &&
+    pathType !== Defines.FILE_PATH_TYPE_URL
+  ) {
+    return {
+      error: `Path type not supported. Types available: ${Defines.FILE_PATH_TYPE_STRING}, ${Defines.FILE_PATH_TYPE_URL}`,
+    };
+  }
+  try {
+    const { result } = await searchSync({ terms: [uuid] });
+    if (!result) {
+      return {
+        error: `Device ${uuid} not found!`,
+      };
+    }
+    BLE.startDFU(uuid, filePath, pathType, options);
+  } catch (err) {
+    return { error: err };
+  }
+};
+
+module.exports.startDfuOnConnectedDevice = ({
   uuid,
   filePath,
   pathType = Defines.FILE_PATH_TYPE_STRING,
