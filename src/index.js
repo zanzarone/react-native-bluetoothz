@@ -807,6 +807,7 @@ module.exports.startDFU = async ({
       };
     }
     BLE.startDFU(uuid, filePath, pathType, options);
+    return { uuid };
   } catch (err) {
     return { error: err };
   }
