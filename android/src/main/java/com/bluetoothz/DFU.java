@@ -75,12 +75,33 @@ class Dfu extends Thread implements LifecycleEventListener {
 
   private Object mutex; // Mutex object for synchronization
 
-  private static String getIncrementedAddress(@NonNull final String deviceAddress) {
-    final String firstBytes = deviceAddress.substring(0, 15);
-    final String lastByte = deviceAddress.substring(15); // assuming that the device address is correct
-    final String lastByteIncremented = String.format(Locale.US, "%02X", (Integer.valueOf(lastByte, 16) + 1) & 0xFF);
-    return firstBytes + lastByteIncremented;
+//  private static String getIncrementedAddress(@NonNull final String deviceAddress) throws IllegalArgumentException{
+//    final String firstBytes = deviceAddress.substring(0, 15);
+//    final String lastByte = deviceAddress.substring(15); // assuming that the device address is correct
+//    final String lastByteIncremented = String.format(Locale.US, "%02X", (Integer.valueOf(lastByte, 16) + 1) & 0xFF);
+//    return firstBytes + lastByteIncremented;
+//  }
+  private static String getIncrementedAddress(@NonNull final String deviceAddress) throws IllegalArgumentException {
+    // Verifica la lunghezza dell'indirizzo (assumendo un formato MAC standard "XX:XX:XX:XX:XX:XX")
+    if (deviceAddress == null || deviceAddress.length() != 17 || !deviceAddress.matches("[0-9A-Fa-f:]{17}")) {
+      throw new IllegalArgumentException("Invalid device address format: " + deviceAddress);
+    }
+
+    try {
+      final String firstBytes = deviceAddress.substring(0, 15); // Primi 15 caratteri (senza l'ultimo byte)
+      final String lastByte = deviceAddress.substring(15); // Ultimo byte
+      // Incrementa l'ultimo byte con overflow a 0 dopo 0xFF
+      final String lastByteIncremented = String.format(Locale.US, "%02X", (Integer.valueOf(lastByte, 16) + 1) & 0xFF);
+      return firstBytes + lastByteIncremented;
+    } catch (NumberFormatException e) {
+      // Lancia un'eccezione se il parsing del numero fallisce
+      throw new IllegalArgumentException("Device address contains invalid hexadecimal parts: " + deviceAddress, e);
+    } catch (IndexOutOfBoundsException e) {
+      // Lancia un'eccezione se il substring fallisce
+      throw new IllegalArgumentException("Unexpected error processing device address: " + deviceAddress, e);
+    }
   }
+
 
   private static void sendEvent(ReactContext reactContext, String eventName, @Nullable WritableMap params) {
     reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit(eventName, params);
@@ -351,9 +372,21 @@ class Dfu extends Thread implements LifecycleEventListener {
 
   public void submit(String address, String path, String type, ReadableMap options) {
     synchronized (mutex) {
-      final DfuOperation operation = new DfuOperation(address, getIncrementedAddress(address), path, type, options);
-      operationQueue.add(operation);
-      mutex.notifyAll();
+      String incrementedAddress = null;
+      try {
+        incrementedAddress = getIncrementedAddress(address);
+        final DfuOperation operation = new DfuOperation(address, incrementedAddress, path, type, options);
+        operationQueue.add(operation);
+        mutex.notifyAll();
+      } catch (IllegalArgumentException e) {
+        WritableMap args = Arguments.createMap();
+        args.putString("uuid", address);
+        if (incrementedAddress != null)
+          args.putString("alternativeUUID", incrementedAddress);
+        args.putString("error", e.getMessage());
+        args.putString("status", BLE_PERIPHERAL_DFU_PROCESS_FAILED);
+        sendEvent(reactContext, BLE_PERIPHERAL_DFU_STATUS_DID_CHANGE, args);
+      }
     }
   }
 
