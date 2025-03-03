@@ -726,9 +726,7 @@ module.exports.changeCharacteristicNotification = ({
     return { error: 'Parameters UUID, charsUUID and value are mandatory' };
   }
   console.log('====> ENABLE', charUUID, enable);
-  const task = () =>
-    BLE.changeCharacteristicNotification(uuid, charUUID, enable);
-  scheduler.enqueue(task, uuid);
+  BLE.changeCharacteristicNotification(uuid, charUUID, enable);
 };
 
 /// funzione per interrompere la scansione bluetooth

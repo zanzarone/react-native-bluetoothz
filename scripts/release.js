@@ -4,7 +4,8 @@ const tar = require('tar');
 const { name, version } = require('../package.json');
 const { execSync } = require('child_process');
 const root = path.resolve(__dirname, '..');
-const dest = path.join(root, `example/node_modules/${name}`);
+// const dest = path.join(root, `example/node_modules/${name}`);
+const dest = path.join(root, `example`);
 
 console.log('PRE FLIGHT SCRIPT ', name, version);
 
@@ -66,12 +67,17 @@ function copyFiles(sourceDir, targetDir) {
 
 function copy() {
   console.log('copy ', name, version);
-  if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true });
-  fs.mkdirSync(dest);
   const extractFolder = path.join(root, 'extract', `${name}`);
-  copyFiles(extractFolder, dest);
+  const node_modules = path.join(dest, 'node_modules');
+  if (fs.existsSync(node_modules)) {
+    const lib = path.join(node_modules, name);
+    if (fs.existsSync(lib)) {
+      fs.rmSync(lib, { recursive: true });
+    }
+    fs.mkdirSync(lib);
+    copyFiles(extractFolder, lib);
+  }
   copyFiles(extractFolder, path.join(root, `${name}`));
-  // fs.renameSync(path.join(root, `${name}`), dest);
 }
 
 pre();
